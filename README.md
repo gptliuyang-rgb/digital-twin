@@ -47,6 +47,7 @@ make extract-kinematics # dump official URDF joints + MJCF range= into t800_kine
 make ppo-status         # T800 action_dim 25 vs G1 29; launch blockers
 make ppo-train          # supposed to fail until P0 CoM/flange + Isaac Lab
 make eval-l2-sim2sim    # kinematic identity MPJPE; grasp_success_rate stays null
+make eval-l2-physics-sim2sim  # MuJoCo PD tracking on official T800 MJCF or fixture
 ```
 
 ## Facts already taken from official sources

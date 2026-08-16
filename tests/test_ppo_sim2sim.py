@@ -75,6 +75,23 @@ def test_refuse_ppo_launch_while_p0_open() -> None:
         refuse_ppo_launch(teleop_mode="vr_3point")
 
 
+def test_five_point_overlay_keeps_action_dim_and_refuses_launch() -> None:
+    from wbc.teleop import TELEOP_3POINT, TELEOP_5POINT, TeleopModeIncompatible, refuse_teleop_mode_mismatch
+
+    three = load_ppo_recipe()
+    assert three["teleop_mode"] == TELEOP_3POINT
+    assert three["five_point_overlay"] is False
+    five = load_ppo_recipe(teleop_mode=TELEOP_5POINT)
+    assert five["teleop_mode"] == TELEOP_5POINT
+    assert five["network"]["action_dim"] == 25
+    assert five["network"]["hybrid_encoder_cmd_dim_5point"] == 27
+    assert five["five_point_overlay"] is True
+    with pytest.raises(PpoLaunchBlocked, match="blocked"):
+        refuse_ppo_launch(teleop_mode=TELEOP_5POINT)
+    with pytest.raises(TeleopModeIncompatible):
+        refuse_teleop_mode_mismatch(three["teleop_mode"], TELEOP_5POINT)
+
+
 def test_identity_tracking_rewards_are_one() -> None:
     z3 = np.zeros(3)
     b = np.zeros((6, 3))

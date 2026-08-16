@@ -172,4 +172,12 @@
 - **Decision:** (B). `wbc/ppo/` is the contract. `refuse_ppo_launch()` wraps `assert_retarget_ready()`. `parse_mjcf_joint_limits` matches `\\brange=`. Sim2Sim MPJPE is URDF FK (identity tracker = 0). The G1 hardware ~6 cm wrist error is **not** a T800 gate. Table S4 floor friction is WBC domain rand, not DexHand2 pad–cardboard (must not enter `dexhand2_spec.yaml`). 5-point PPO is a different `teleop_mode` and a retrain.
 - **Consequences:** `make ppo-train` exits non-zero until SPEC_INTAKE P0 CoM/flange are filled **and** Isaac Lab is wired. Kinematic identity Sim2Sim and the clip filter can run now on `t800_kinematics.yaml`.
 
+## ADR-023 — Physics Sim2Sim is pinned-base PD on official T800 MJCF; 5-point is an overlay
+
+- **Status:** accepted
+- **Context:** Kinematic Sim2Sim (ADR-022) cannot catch actuator/PD/contact issues. Official `serial_t800.xml` is now cloned locally. 5-point teleop is a retrain (ADR-017) and must not silently change `action_dim`. Privileged Isaac `reset`/`step` were stubs.
+- **Options:** (A) wait for a trained SONIC policy and run free-base tracking; (B) pin the floating base, PD-track a synthetic clip with official motors + `pd_stand` gains, keep a kinematics fixture for CI without the SDK; (C) weld DexHand2 and publish grasp-success.
+- **Decision:** (B). `T800MujocoEnv` loads official XML via `MjSpec` (delete freejoint to pin; add a floor only for free-base). Fixture inertias are 1 kg / 0.01 kg·m² placeholders and use mild PD — never reported as sim2real. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. `wbc/ppo/network_5point.yaml` overlays `default_teleop_mode: vr_5point` while `action_dim` remains 25; `refuse_ppo_launch(teleop_mode=vr_5point)` still raises `PpoLaunchBlocked`. `PrivilegedIsaacEnv.reset`/`step` bind `IsaacLabSceneRuntime` (pallet+box USD) when `omni.usd` is running; without Isaac they still raise `IsaacLabUnavailable`.
+- **Consequences:** `make eval-l2-physics-sim2sim` is the physics gate. Free-base fall_rate without a trained tracker is not a pass/fail for SONIC. G1 ~6 cm wrist error remains not a T800 gate. Floor friction on the official XML is WBC collision default, not pad–cardboard. Official MJCF `LINK_FOOT_*` sits at the ankle-roll origin; the URDF `J_FIXED_FOOT_*` offsets it by z=−64.53 mm. Physics Sim2Sim reports `foot_urdf_mjcf_delta_z_m` instead of mixing the two frames. Wrists match. Pick one foot frame before SONIC PPO and record it.
+
 

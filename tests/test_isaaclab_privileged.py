@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from assets.combined.assemble import PolicyEvalBlocked
+from assets.objects.boxes import sample_box
 from sim.isaaclab_env.privileged import (
     IsaacLabUnavailable,
     PrivilegedIsaacCfg,
@@ -10,6 +12,7 @@ from sim.isaaclab_env.privileged import (
     privileged_report,
     refuse_combined_robot,
 )
+from sim.isaaclab_env.scene_spec import PalletBoxSceneSpec
 from sim.mujoco_env.privileged_l2 import refuse_grasp_success_key
 
 
@@ -39,3 +42,23 @@ def test_privileged_report_never_numeric_grasp() -> None:
 def test_env_constructor_without_isaaclab() -> None:
     with pytest.raises(IsaacLabUnavailable):
         PrivilegedIsaacEnv()
+
+
+def test_scene_spec_matches_privileged_l2_and_null_grasp() -> None:
+    spec = PalletBoxSceneSpec()
+    payload = spec.to_dict()
+    assert payload["include_hands"] is False
+    assert payload["include_t800"] is False
+    assert payload["grasp_success_rate"] is None
+    xml = spec.mujoco_xml(sample_box(np.random.default_rng(0)))
+    assert "pallet" in xml
+    assert "box" in xml
+    assert "DexHand" not in xml
+    refuse_grasp_success_key(payload)
+
+
+def test_reset_step_are_wired_through_runtime() -> None:
+    assert PrivilegedIsaacEnv.reset is not object.__dict__.get("reset")
+    assert callable(PrivilegedIsaacEnv.reset)
+    assert callable(PrivilegedIsaacEnv.step)
+    # Without Isaac Lab the constructor still fails before reset; that is required.

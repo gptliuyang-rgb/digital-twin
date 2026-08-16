@@ -30,12 +30,26 @@ def _load_yaml(name: str) -> dict[str, Any]:
     return raw
 
 
-def load_ppo_recipe() -> dict[str, Any]:
+def load_ppo_recipe(*, teleop_mode: str | None = None) -> dict[str, Any]:
     net = _load_yaml("network.yaml")
     hyp = _load_yaml("hyperparams.yaml")
     rew = _load_yaml("rewards.yaml")
     dr = _load_yaml("domain_rand.yaml")
     cfg = load_t800_sonic()
+    mode = teleop_mode or str(net["default_teleop_mode"])
+    five_point = mode.replace("-", "_").lower() in ("vr_5point", "5point")
+    if five_point:
+        overlay = _load_yaml("network_5point.yaml")
+        if int(overlay["action_dim"]) != int(net["action_dim"]):
+            raise ValueError("5-point overlay must keep action_dim=25 (T800 revolute)")
+        if int(overlay["paper_g1_action_dim"]) != G1_N_DOF:
+            raise ValueError("5-point overlay must keep paper_g1_action_dim=29 as forbidden")
+        if overlay.get("g1_last_pt_finetune", "forbidden") != "forbidden":
+            raise ValueError("G1 last.pt fine-tune must stay forbidden on the 5-point overlay")
+        if overlay.get("elbow_bodies", {}).get("left_elbow") == "LINK_ELBOW_YAW_L":
+            raise ValueError("5-point overlay elbow must be LINK_ELBOW_PITCH_*")
+        net = {**net, **overlay}
+        net["default_teleop_mode"] = "vr_5point"
     if int(net["action_dim"]) != int(cfg["n_revolute"]):
         raise ValueError(
             f"ppo network action_dim {net['action_dim']} != t800 n_revolute {cfg['n_revolute']}"
@@ -58,6 +72,7 @@ def load_ppo_recipe() -> dict[str, Any]:
         "robot": cfg["robot"],
         "n_revolute": int(cfg["n_revolute"]),
         "teleop_mode": str(net["default_teleop_mode"]),
+        "five_point_overlay": five_point,
         "blockers": retarget_blockers(),
     }
 
@@ -76,7 +91,7 @@ def refuse_ppo_launch(
     checkpoint_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Hard stop. Does not construct an Isaac Lab env."""
-    recipe = load_ppo_recipe()
+    recipe = load_ppo_recipe(teleop_mode=teleop_mode)
     refuse_g1_checkpoint(checkpoint_meta=checkpoint_meta or {"robot": "t800", "n_dof": recipe["n_revolute"]})
     refuse_g1_action_dim(int(recipe["network"]["action_dim"]))
     mode = teleop_mode or recipe["teleop_mode"]
@@ -102,6 +117,7 @@ def status_report() -> dict[str, Any]:
         "action_dim": recipe["network"]["action_dim"],
         "paper_g1_action_dim": recipe["network"]["paper_g1_action_dim"],
         "teleop_mode": recipe["teleop_mode"],
+        "five_point_overlay": recipe["five_point_overlay"],
         "g1_finetune": recipe["hyperparams"]["g1_last_pt_finetune"],
         "not_dexhand2_contact": recipe["domain_rand"]["not_dexhand2_contact"],
         "blockers": recipe["blockers"],

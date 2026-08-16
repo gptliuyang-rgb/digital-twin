@@ -80,12 +80,31 @@ class PrivilegedIsaacEnv(BaseEnv):
         self.cfg = cfg or PrivilegedIsaacCfg()
         self.box = box or sample_box(np.random.default_rng(0))
         self.spec = load_hand_spec()
+        self._runtime = None
+
+    def _ensure_runtime(self):
+        if self._runtime is None:
+            from sim.isaaclab_env.scene_spec import IsaacLabSceneRuntime, PalletBoxSceneSpec
+
+            scene = PalletBoxSceneSpec(
+                n_envs=self.cfg.n_envs,
+                episode_length_s=self.cfg.episode_length_s,
+                include_hands=self.cfg.include_hands,
+                include_t800=self.cfg.include_t800,
+            )
+            self._runtime = IsaacLabSceneRuntime(scene, self.box)
+        return self._runtime
 
     def reset(self) -> dict[str, Any]:
-        raise IsaacLabUnavailable("Isaac Lab env reset is not wired in this repo yet")
+        obs = self._ensure_runtime().reset()
+        obs["grasp_success_rate"] = None
+        return obs
 
     def step(self, action):
-        raise IsaacLabUnavailable("Isaac Lab env step is not wired in this repo yet")
+        obs, reward, done, info = self._ensure_runtime().step(np.asarray(action))
+        obs["grasp_success_rate"] = None
+        info["grasp_success_rate"] = None
+        return obs, reward, done, info
 
 
 def privileged_report(cfg: PrivilegedIsaacCfg | None = None) -> dict[str, Any]:
