@@ -10,7 +10,38 @@ import numpy as np
 
 from assets.dexhand2.build.ingest_official import official_mjcf
 from hand.coupling import Coupling
-from interface.schema import load_hand_spec
+from interface.schema import REPO_ROOT, load_frames, load_hand_spec
+from sim.urdf_fk import UrdfTree
+
+
+def _t800_wrist_fk() -> dict | str:
+    urdf = (
+        REPO_ROOT
+        / "third_party"
+        / "engineai-native-sdk"
+        / "assets"
+        / "resource"
+        / "robot"
+        / "t800"
+        / "urdf"
+        / "serial_t800.urdf"
+    )
+    if not urdf.is_file():
+        return "skipped_no_t800_urdf"
+    frames = load_frames()["frames"]
+    tree = UrdfTree.from_path(urdf, root_link=frames["pelvis"]["t800_link"])
+    dummy = {}
+    for side, parent in (("left", "LINK_ELBOW_YAW_L"), ("right", "LINK_ELBOW_YAW_R")):
+        wrist = frames[f"{side}_wrist"]["t800_link"]
+        local = UrdfTree.from_path(urdf, root_link=parent)
+        pos, rot = local.fk_link(wrist, {})
+        dummy[side] = {"parent": parent, "link": wrist, "pos_m": pos.tolist(), "rot_trace": float(np.trace(rot))}
+    zero = {}
+    for side in ("left", "right"):
+        link = frames[f"{side}_wrist"]["t800_link"]
+        pos, _rot = tree.fk_link(link, {})
+        zero[side] = pos.tolist()
+    return {"dummy_wrist_from_elbow": dummy, "zero_pose_wrist_in_base_m": zero}
 
 
 def _mujoco_zero_sites() -> dict | str:
@@ -64,7 +95,8 @@ def main() -> None:
         "ik": "skipped_no_pinocchio",
         "self_collision": "skipped_no_fcl",
         "mujoco_fk": _mujoco_zero_sites(),
-        "note": "Geometry IK/FCL require Pinocchio/FCL. Limit + coupling checks always run.",
+        "t800_wrist_fk": _t800_wrist_fk(),
+        "note": "Geometry IK/FCL require Pinocchio/FCL. Limit + coupling + URDF FK always run when assets exist.",
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

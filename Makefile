@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status
 
 PYTHON ?= python3
 
@@ -9,7 +9,7 @@ test:
 	$(PYTHON) -m pytest tests
 
 lint:
-	$(PYTHON) -m ruff check interface hand runtime vla sim eval assets tests scripts
+	$(PYTHON) -m ruff check interface hand runtime vla sim eval assets wbc tests scripts
 
 check-spec:
 	$(PYTHON) -c "from interface.schema import validate_repo_spec; validate_repo_spec()"
@@ -43,3 +43,6 @@ eval-report:
 
 weld-recipe:
 	$(PYTHON) -m assets.combined.assemble || true
+
+sonic-status:
+	$(PYTHON) -c "from wbc.retarget import status_report; import json; print(json.dumps(status_report(), indent=2, default=str))"

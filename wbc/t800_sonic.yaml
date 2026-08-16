@@ -1,0 +1,103 @@
+# T800 SONIC robot contract. Not a G1 checkpoint wrapper.
+# G1 official SONIC weights (29 DoF) MUST NOT be loaded — see refuse_g1_checkpoint().
+#
+# Decoder history dims (SONIC v1.1 layout, 10 frames × step1):
+#   G1  29 DoF → 994  (64 token + 30 ω + 30 g + 3×290)
+#   T800 25 DoF → 874  (64 token + 30 ω + 30 g + 3×250)
+# Loading a G1 ONNX on T800 is a silent dimension smash. The loader raises.
+
+schema_version: "1.0"
+robot: t800
+source_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+source_model_yaml: third_party/engineai-native-sdk/assets/config/t800/model/default.yaml
+n_revolute: 25
+floating_base_link: LINK_BASE
+control_rate_hz: 50
+command_stream_hz: 500
+planner_hz: 10
+hand_bypass: true   # DexHand2 is NOT in the SONIC action; see command_schema hand_slice
+
+# IsaacLab / SONIC joint order = Native SDK revolute order (J00 … J24).
+joint_order:
+  - J00_HIP_PITCH_L
+  - J01_HIP_ROLL_L
+  - J02_HIP_YAW_L
+  - J03_KNEE_PITCH_L
+  - J04_ANKLE_PITCH_L
+  - J05_ANKLE_ROLL_L
+  - J06_HIP_PITCH_R
+  - J07_HIP_ROLL_R
+  - J08_HIP_YAW_R
+  - J09_KNEE_PITCH_R
+  - J10_ANKLE_PITCH_R
+  - J11_ANKLE_ROLL_R
+  - J12_TORSO_YAW
+  - J13_SHOULDER_PITCH_L
+  - J14_SHOULDER_ROLL_L
+  - J15_SHOULDER_YAW_L
+  - J16_ELBOW_PITCH_L
+  - J17_ELBOW_YAW_L
+  - J18_SHOULDER_PITCH_R
+  - J19_SHOULDER_ROLL_R
+  - J20_SHOULDER_YAW_R
+  - J21_ELBOW_PITCH_R
+  - J22_ELBOW_YAW_R
+  - J23_HEAD_PITCH
+  - J24_HEAD_YAW
+
+tracked_bodies:   # set B; must match frames.yaml
+  pelvis: LINK_BASE
+  head: LINK_HEAD_YAW
+  left_wrist: LINK_WRIST_END_L
+  right_wrist: LINK_WRIST_END_R
+  left_foot: LINK_FOOT_L
+  right_foot: LINK_FOOT_R
+
+# Optional 5-point teleop (elbows) — industrial box collision. Requires retrain.
+# Not enabled until a T800 SONIC run includes them in the hybrid encoder.
+optional_elbow_bodies:
+  left_elbow: LINK_ELBOW_YAW_L
+  right_elbow: LINK_ELBOW_YAW_R
+
+# vr_3point_* field order is SONIC's, NOT command_schema_v1 field order.
+# SONIC: [left_wrist, right_wrist, head]
+# command_schema_v1: head, left_wrist, right_wrist
+teleop_3point_order: [left_wrist, right_wrist, head]
+vr_3point_pos_dim: 9
+vr_3point_orn_dim: 12   # 3 × quaternion wxyz
+command_rot6d_to_quat: true
+
+g1_incompatible:
+  g1_n_dof: 29
+  g1_decoder_input_dim: 994
+  reason: "Official GEAR-SONIC checkpoints are Unitree G1 29-DoF only."
+
+# Bring-up PD from EngineAI pd_stand. NOT SONIC tracking gains. Do not train with these.
+# Source: third_party/engineai-native-sdk/assets/config/t800/pd_stand/default.yaml
+pd_stand:
+  source: third_party/engineai-native-sdk/assets/config/t800/pd_stand/default.yaml
+  stiffness:
+    - [1080, 480, 880, 1000, 800, 100]   # left leg
+    - [1080, 480, 880, 1000, 800, 100]   # right leg
+    - [200]                               # torso yaw
+    - [120, 120, 120, 120, 120]           # left arm (5 DoF, no wrist)
+    - [120, 120, 120, 120, 120]           # right arm
+    - [100, 100]                          # head
+  damping:
+    - [25, 25, 25, 25, 2, 2]
+    - [25, 25, 25, 25, 2, 2]
+    - [1]
+    - [1, 1, 1, 1, 0.2]
+    - [1, 1, 1, 1, 0.2]
+    - [1, 1]
+  note: Stand PD for kinematic bring-up. SONIC PPO learns its own actuator PD.
+
+retarget:
+  motion_source: BONES-SEED
+  tool: GMR
+  g1_checkpoint_finetune: forbidden
+  output: "<robot>_motion_lib.pkl"
+  blockers:
+    - t800_wrist_to_hand_mount SE(3) (WBC body is LINK_WRIST_END_*; hand mass hangs after it)
+    - com_in_wrist_frame_m for DexHand2 (ADR-010)
+    - physical SKU T800 vs T800 Pro (ADR-001 / ADR-007)
