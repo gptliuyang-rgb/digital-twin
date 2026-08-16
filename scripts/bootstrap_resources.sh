@@ -21,3 +21,4 @@ clone https://github.com/engineai-robotics/engineai_robotics_native_sdk.git engi
 echo "optional (not required for unit tests):"
 echo "  git clone --depth 1 https://github.com/wuji-technology/mujoco-sim.git ${TP}/wuji-mujoco-sim"
 echo "  git clone --depth 1 https://github.com/NVlabs/GR00T-WholeBodyControl.git ${TP}/GR00T-WholeBodyControl"
+echo "  git clone --depth 1 https://github.com/YanjieZe/GMR.git ${TP}/GMR   # needed for make gmr-tpose"
