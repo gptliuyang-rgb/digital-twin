@@ -48,7 +48,7 @@ include = [
 interface = ["*.yaml"]
 assets = ["**/*.yaml"]
 eval = ["configs/*.yaml"]
-wbc = ["*.yaml"]
+wbc = ["*.yaml", "gmr/*.yaml", "gmr/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

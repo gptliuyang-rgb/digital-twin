@@ -41,6 +41,10 @@ def assert_retarget_ready(*, checkpoint_meta: dict[str, Any] | None = None) -> N
 def pipeline_steps() -> list[dict[str, str]]:
     return [
         {"id": "skeleton", "detail": "Map T800 URDF into a SONIC robot config (wbc/t800_sonic.yaml)."},
+        {
+            "id": "gmr_export",
+            "detail": "Emit GMR IK JSON from wbc/gmr/body_map.yaml (make gmr-export). Quat offsets uncalibrated.",
+        },
         {"id": "gmr", "detail": "GMR-retarget BONES-SEED mocap onto the T800 skeleton; write motion_lib.pkl."},
         {"id": "filter", "detail": "Drop joint-limit, foot-penetration, and dynamically infeasible clips."},
         {"id": "payload", "detail": "Domain-randomize wrist payload 0–20 kg (sim/payload.py) during PPO."},
@@ -61,4 +65,6 @@ def status_report() -> dict[str, Any]:
         "blockers": retarget_blockers(),
         "steps": pipeline_steps(),
         "config": str(Path(__file__).with_name("t800_sonic.yaml")),
+        "gmr_body_map": str(Path(__file__).with_name("gmr") / "body_map.yaml"),
+        "gmr_ik_smplx": str(Path(__file__).with_name("gmr") / "smplx_to_t800.json"),
     }

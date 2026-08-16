@@ -97,7 +97,13 @@ retarget:
   tool: GMR
   g1_checkpoint_finetune: forbidden
   output: "<robot>_motion_lib.pkl"
+  gmr_ik_smplx: wbc/gmr/smplx_to_t800.json
+  gmr_ik_bvh_lafan1: wbc/gmr/bvh_lafan1_to_t800.json
+  gmr_mjcf: third_party/engineai-native-sdk/assets/resource/robot/t800/xml/serial_t800.xml
+  quat_offset_status: uncalibrated_copied_from_gmr_pm01
+  human_scale_status: uncalibrated_identity
   blockers:
     - t800_wrist_to_hand_mount SE(3) (WBC body is LINK_WRIST_END_*; hand mass hangs after it)
     - com_in_wrist_frame_m for DexHand2 (ADR-010)
     - physical SKU T800 vs T800 Pro (ADR-001 / ADR-007)
+    - GMR T-pose pass to replace PM01 quat offsets and scale=1.0 (ADR-013)
