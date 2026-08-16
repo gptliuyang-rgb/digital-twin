@@ -49,6 +49,7 @@ interface = ["*.yaml"]
 assets = ["**/*.yaml"]
 eval = ["configs/*.yaml"]
 wbc = ["*.yaml", "gmr/*.yaml", "gmr/*.json"]
+vla = ["*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

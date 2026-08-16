@@ -12,6 +12,7 @@ import numpy as np
 from interface.schema import CommandVector, HandSpec, command_layout, load_hand_spec
 from runtime.latency_comp import delayed_index
 from runtime.temporal_ensemble import TemporalEnsemble
+from vla.adapters.action_space import require_command_schema_vector
 from vla.client.policy_client import PolicyClient
 
 
@@ -44,6 +45,7 @@ class DeployPipeline:
         if chunk is None:
             raw = np.asarray(self.client.infer_fn(observation), dtype=np.float64)
             chunk = raw if raw.ndim == 2 else raw.reshape(self.horizon, -1)
+        require_command_schema_vector(np.asarray(chunk).reshape(-1, chunk.shape[-1])[0], self.spec)
         self.ensemble.push(chunk)
         k = delayed_index(self.dt_chunk_s, self.latency_s, self.horizon)
         return CommandVector.from_flat_vector(self.ensemble.value_at(k), self.spec)

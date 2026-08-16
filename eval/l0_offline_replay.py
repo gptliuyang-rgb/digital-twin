@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from interface.schema import command_dim, command_layout, load_hand_spec
+from vla.adapters.action_space import ActionSpaceMismatch, diagnose_action_vector
 
 
 def per_dim_mse(pred: np.ndarray, gt: np.ndarray) -> np.ndarray:
@@ -38,9 +39,17 @@ def named_hand_outliers(mse: np.ndarray, spec, side: str) -> list[dict]:
 
 def evaluate_episode(pred_chunks: np.ndarray, gt_chunks: np.ndarray, spec=None) -> dict:
     spec = spec or load_hand_spec()
+    pred = np.asarray(pred_chunks)
+    gt = np.asarray(gt_chunks)
+    expected = command_dim(spec)
+    if pred.shape[-1] != expected or gt.shape[-1] != expected:
+        raise ActionSpaceMismatch(
+            "L0 replay requires command_schema_v1. "
+            + str(diagnose_action_vector(pred, spec=spec).to_dict())
+        )
     layout = command_layout(spec)
-    pred = pred_chunks.reshape(-1, command_dim(spec))
-    gt = gt_chunks.reshape(-1, command_dim(spec))
+    pred = pred.reshape(-1, expected)
+    gt = gt.reshape(-1, expected)
     mse = per_dim_mse(pred, gt)
     lh = slice(*layout["left_hand_q"])
     rh = slice(*layout["right_hand_q"])

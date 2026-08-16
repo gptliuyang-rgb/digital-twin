@@ -32,7 +32,8 @@ Re-run E1 and E2 (`hand/calibration/PROTOCOL.md`). Store under
 ## Eval
 
 ```bash
-make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
+make eval-l0            # works without a ckpt (synthetic demo flags a swapped channel)
+make eval-l0-diagnose   # classify action last-dim (A/B/C); no weights required
 make eval-l1    # limits + coupling; IK skipped without Pinocchio
 make eval-l2    # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-qr    # synthetic pinhole QR envelope; decode is real, renderer is not RTX

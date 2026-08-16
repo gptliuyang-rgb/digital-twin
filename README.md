@@ -18,7 +18,7 @@ runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
 wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a planner, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
 sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
-eval/          L0–L2 harnesses, 9-cell gain scan
+eval/          L0–L2 harnesses, 9-cell gain scan, L0 ckpt diagnose
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK
 ```
 
@@ -41,6 +41,7 @@ make usd-pads           # USDA pad-sphere overlay (right and left if fitted)
 make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
 make eval-l3-priv       # Isaac Lab privileged cfg dump; still no grasp-success
 make eval-gain-scan     # 9-cell MIT kp/kv hold; grasp_success_rate stays null
+make eval-l0-diagnose   # classify a ckpt action last-dim (A/B/C); no weights required
 ```
 
 ## Facts already taken from official sources

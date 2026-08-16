@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l0-diagnose
 
 PYTHON ?= python3
 
@@ -28,6 +28,9 @@ check-drift:
 
 eval-l0:
 	$(PYTHON) -m eval.l0_offline_replay --config eval/configs/l0_offline.yaml
+
+eval-l0-diagnose:
+	$(PYTHON) -m eval.l0_ckpt_diagnose
 
 eval-l1:
 	$(PYTHON) -m eval.l1_kinematic --config eval/configs/l1_kinematic.yaml

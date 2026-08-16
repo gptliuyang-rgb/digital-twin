@@ -130,3 +130,10 @@
 - **Decision:** `PrivilegedL2Env` is pallet+box only. Floor friction is an explicit fixture constant and is **not** written into `dexhand2_spec.yaml`. `grasp_success_rate` is always JSON `null`. Combined T800+Hand remains `PolicyEvalBlocked`.
 - **Consequences:** Stack-settle diagnostics can be physics-backed. Pick-success dashboards cannot.
 
+## ADR-019 — Diagnose ckpt action space before L0 replay or SONIC load
+
+- **Status:** accepted
+- **Context:** Existing VLA ckpts may be dual-arm joints (case A), wrist SE(3) (case B), or velocity/delta (case C). `command_schema_v1` is 75-D case B. Loading the wrong last-dim into `PolicyClient` looks like a joint-order bug in L0.
+- **Decision:** `vla/adapters/action_space.py` classifies last-dim against a frozen layout table. Unknown dims raise `ActionSpaceMismatch` (no pad/slice). G1 29-DoF raises `G1CheckpointIncompatible`. `PolicyClient` and L0 replay call this before flatten. π0.5 is pass-through only when D=75 (`pi05_glue.py`); it is not native to SONIC.
+- **Consequences:** `make eval-l0-diagnose` can run without weights. Case A still needs `JointToWristAdapter` plus a heading-frame convert. Case C is a retrain. SONIC PPO remains blocked on flange SE(3) and wrist CoM. Decoder history packing (`ProprioHistory`) is 874-D for T800 and refuses 29-DoF construction.
+
