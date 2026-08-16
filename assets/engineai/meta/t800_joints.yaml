@@ -1,8 +1,4 @@
-# T800 body joints from engineai_robotics_native_sdk serial_t800.urdf
-# 25 revolute DoF. Product marketing "29 DoF excl. hands" does not match this URDF.
-# T800 Pro adds wrist pitch/roll + a 7-DoF built-in hand we replace.
-
-schema_version: "1.0"
+schema_version: '1.0'
 robot: t800
 urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
 revolute_count: 25
@@ -15,9 +11,108 @@ end_effector_frames:
   right_wrist: LINK_WRIST_END_R
   head: LINK_HEAD_YAW
 arm_joints:
-  left: [J13_SHOULDER_PITCH_L, J14_SHOULDER_ROLL_L, J15_SHOULDER_YAW_L, J16_ELBOW_PITCH_L, J17_ELBOW_YAW_L]
-  right: [J18_SHOULDER_PITCH_R, J19_SHOULDER_ROLL_R, J20_SHOULDER_YAW_R, J21_ELBOW_PITCH_R, J22_ELBOW_YAW_R]
-note: >
-  LINK_WRIST_END_* is a 1e-3 kg dummy sphere fixed to elbow yaw. There is no wrist
-  pitch/roll on this URDF. SONIC body-link for the 3-point interface is this frame
-  until the team switches to T800 Pro (LINK_WRIST_ROLL_*).
+  left:
+  - J13_SHOULDER_PITCH_L
+  - J14_SHOULDER_ROLL_L
+  - J15_SHOULDER_YAW_L
+  - J16_ELBOW_PITCH_L
+  - J17_ELBOW_YAW_L
+  right:
+  - J18_SHOULDER_PITCH_R
+  - J19_SHOULDER_ROLL_R
+  - J20_SHOULDER_YAW_R
+  - J21_ELBOW_PITCH_R
+  - J22_ELBOW_YAW_R
+t800:
+  robot: t800
+  urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+  revolute_count: 25
+  revolute_excluding_builtin_hands: 25
+  groups:
+    leg:
+    - J00_HIP_PITCH_L
+    - J01_HIP_ROLL_L
+    - J02_HIP_YAW_L
+    - J03_KNEE_PITCH_L
+    - J04_ANKLE_PITCH_L
+    - J05_ANKLE_ROLL_L
+    - J06_HIP_PITCH_R
+    - J07_HIP_ROLL_R
+    - J08_HIP_YAW_R
+    - J09_KNEE_PITCH_R
+    - J10_ANKLE_PITCH_R
+    - J11_ANKLE_ROLL_R
+    waist:
+    - J12_TORSO_YAW
+    arm:
+    - J13_SHOULDER_PITCH_L
+    - J14_SHOULDER_ROLL_L
+    - J15_SHOULDER_YAW_L
+    - J16_ELBOW_PITCH_L
+    - J17_ELBOW_YAW_L
+    - J18_SHOULDER_PITCH_R
+    - J19_SHOULDER_ROLL_R
+    - J20_SHOULDER_YAW_R
+    - J21_ELBOW_PITCH_R
+    - J22_ELBOW_YAW_R
+    head:
+    - J23_HEAD_PITCH
+    - J24_HEAD_YAW
+t800pro:
+  robot: t800pro
+  urdf: third_party/engineai-native-sdk/assets/resource/robot/t800pro/urdf/serial_t800pro.urdf
+  revolute_count: 43
+  revolute_excluding_builtin_hands: 29
+  groups:
+    leg:
+    - J00_HIP_PITCH_L
+    - J01_HIP_ROLL_L
+    - J02_HIP_YAW_L
+    - J03_KNEE_PITCH_L
+    - J04_ANKLE_PITCH_L
+    - J05_ANKLE_ROLL_L
+    - J06_HIP_PITCH_R
+    - J07_HIP_ROLL_R
+    - J08_HIP_YAW_R
+    - J09_KNEE_PITCH_R
+    - J10_ANKLE_PITCH_R
+    - J11_ANKLE_ROLL_R
+    waist:
+    - J12_TORSO_YAW
+    arm:
+    - J13_SHOULDER_PITCH_L
+    - J14_SHOULDER_ROLL_L
+    - J15_SHOULDER_YAW_L
+    - J16_ELBOW_PITCH_L
+    - J17_ELBOW_YAW_L
+    - J27_SHOULDER_PITCH_R
+    - J28_SHOULDER_ROLL_R
+    - J29_SHOULDER_YAW_R
+    - J30_ELBOW_PITCH_R
+    - J31_ELBOW_YAW_R
+    wrist:
+    - J18_WRIST_PITCH_L
+    - J19_WRIST_ROLL_L
+    - J32_WRIST_PITCH_R
+    - J33_WRIST_ROLL_R
+    builtin_hand:
+    - J20_THUMB_BASE_L
+    - J21_THUMB_MID_L
+    - J22_THUMB_TIP_L
+    - J23_INDEX_BASE_L
+    - J24_INDEX_TIP_L
+    - J25_MIDDLE_BASE_L
+    - J26_MIDDLE_TIP_L
+    - J34_THUMB_BASE_R
+    - J35_THUMB_MID_R
+    - J36_THUMB_TIP_R
+    - J37_INDEX_BASE_R
+    - J38_INDEX_TIP_R
+    - J39_MIDDLE_BASE_R
+    - J40_MIDDLE_TIP_R
+    head:
+    - J41_HEAD_PITCH
+    - J42_HEAD_YAW
+note: T800 Native SDK URDF has 25 revolute DoF and dummy LINK_WRIST_END_* (no wrist
+  pitch/roll). T800 Pro URDF has wrist pitch/roll plus a 7-DoF built-in hand per side
+  that we replace with Wuji Hand 2. Body DoF excluding those built-in hands is revolute_excluding_builtin_hands.
