@@ -6,16 +6,19 @@ This repository is the **P1 digital-twin layer**: frozen command contracts, offi
 
 Policy client code under `runtime/` and `vla/client/` does not import MuJoCo or Isaac. Only `sim/*_backend` / `hand/backends/mujoco_backend.py` talk to a simulator.
 
+QR scan uses IBVS (`runtime/ibvs.py`) plus real decode. Combined T800+Hand 2 policy eval is refused until the wrist flange SE(3) is CAD-measured — identity is not a substitute.
+
 ## Layout
 
 ```
-interface/     command_schema_v1.yaml, frames.yaml, schema.py
+interface/     command_schema_v1.yaml, command_schema_v1_5point.yaml, frames.yaml, schema.py
 assets/        dexhand2 spec + official ingest; T800 joint table
 hand/          controller, coupling, primitives, backends, calibration
-runtime/       safety filter, temporal ensemble, latency compensation
+runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
+wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a planner, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
-sim/           payload, QR scanner, sensor delay/JPEG
-eval/          L0–L2 harnesses
+sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
+eval/          L0–L2 harnesses, 9-cell gain scan
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK
 ```
 
@@ -28,6 +31,17 @@ make test
 ```
 
 `make check-spec` is **supposed to fail** until the P0 `REQUIRED_INPUT` fields in `docs/SPEC_INTAKE.md` are filled. That is intentional.
+
+```bash
+./scripts/bootstrap_resources.sh
+make ingest-official    # writes docs/reports/PHASE_1_baseline.md
+make build-assets       # palmar pad spheres + MIT motors + simplified capsules
+make gmr-tpose         # q=0 T800 vs PM01 overlay + rewrite IK JSON
+make usd-pads           # USDA pad-sphere overlay (right and left if fitted)
+make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
+make eval-l3-priv       # Isaac Lab privileged cfg dump; still no grasp-success
+make eval-gain-scan     # 9-cell MIT kp/kv hold; grasp_success_rate stays null
+```
 
 ## Facts already taken from official sources
 
