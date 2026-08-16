@@ -71,3 +71,17 @@
 - **Decision:** `sim/hand_mass.py` exposes the budget and refuses SONIC load-aware training until `com_in_wrist_frame_m` is measured.
 - **Consequences:** Do not attach the delta at the skeleton CoM and call it the physical hand.
 
+## ADR-011 — T800 SONIC is 25-DoF; G1 checkpoints are unloadable
+
+- **Status:** accepted
+- **Context:** Official GEAR-SONIC ONNX is Unitree G1 29-DoF. Decoder input is 994 = 64 token + 10×(ω3 + g3 + 3×29). T800 Native SDK URDF is 25 revolute (decoder input 874).
+- **Decision:** `wbc/t800_sonic.yaml` is the T800 contract. `refuse_g1_checkpoint()` raises `G1CheckpointIncompatible` on G1 robot name, 29 DoF, or decoder dim 994. Fine-tuning G1 `last.pt` is forbidden.
+- **Consequences:** BONES-SEED must be GMR-retargeted onto T800 and PPO trained from scratch. `make sonic-status` prints the blockers (flange SE(3), wrist CoM).
+
+## ADR-012 — vr_3point field order is SONIC's, not command_schema's
+
+- **Status:** accepted
+- **Context:** `command_schema_v1.yaml` stores head, left wrist, right wrist (rot6d). SONIC `vr_3point_local_target` is `[left_wrist xyz, right_wrist xyz, head xyz]` and orientations are 3× quaternion wxyz.
+- **Decision:** `wbc/teleop.py` is the only remapper. Hands never enter the WBC token.
+- **Consequences:** A head-first flatten fed to SONIC would swap the head into the left-wrist slot. Tests lock the order.
+

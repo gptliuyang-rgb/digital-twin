@@ -47,6 +47,7 @@ P0 count in the table: 10 line-items (friction is one physical experiment produc
 | Camera `calib_real.yaml` | Visual sim2real | Kalibr / manufacturer |
 | `human_to_hand_scale` | Retargeting | Official `wuji-retargeting` default, then measure |
 | T800 vs T800 Pro | T800 URDF has **no wrist pitch/roll** (25 revolute DoF). T800 Pro has wrist + built-in 7DoF hands we will replace. | Team decision. Record in `docs/DECISIONS.md`. |
+| Hand 2 status-LED firmware | Logo lamp needs fw **v2.2.0+** and a lamp-equipped batch. Not a control parameter. | Read `info.firmware_version` on the unit. |
 
 ## Already answered (do not re-ask)
 

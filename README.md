@@ -14,9 +14,10 @@ QR scan uses IBVS (`runtime/ibvs.py`) plus real decode. Combined T800+Hand 2 pol
 interface/     command_schema_v1.yaml, frames.yaml, schema.py
 assets/        dexhand2 spec + official ingest; T800 joint table
 hand/          controller, coupling, primitives, backends, calibration
-runtime/       safety filter, temporal ensemble, latency compensation
+runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
+wbc/           T800 SONIC contract, 3-point teleop remap, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
-sim/           payload, QR scanner, sensor delay/JPEG
+sim/           payload, QR scanner, URDF FK, hand-only MuJoCo env
 eval/          L0–L2 harnesses
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK
 ```
