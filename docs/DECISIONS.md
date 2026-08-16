@@ -85,3 +85,18 @@
 - **Decision:** `wbc/teleop.py` is the only remapper. Hands never enter the WBC token.
 - **Consequences:** A head-first flatten fed to SONIC would swap the head into the left-wrist slot. Tests lock the order.
 
+## ADR-013 — T800 GMR IK config is exported, not copied from G1, and not a PM01 clone
+
+- **Status:** accepted
+- **Context:** SONIC training needs BONES-SEED retargeted onto T800 via GMR. GMR already ships `engineai_pm01` with `LINK_BASE` / `LINK_ELBOW_END_*` / `LINK_TORSO_YAW`. T800 official MJCF uses `LINK_WAIST_YAW`, dummy `LINK_WRIST_END_*`, and `LINK_FOOT_*` (SONIC body set B). G1 29-DoF libraries are unloadable (ADR-011).
+- **Options:** (A) copy PM01 JSON and rename; (B) generate from `t800_sonic.yaml` tracked bodies + a labelled PM01 offset table; (C) wait for a measured T-pose.
+- **Decision:** (B). `wbc/gmr/body_map.yaml` is the source. Wrists/feet/head must match `t800_sonic.yaml`. `human_scale` is 1.0 (not PM01's 0.85) until a T-pose pass. Quat/pos offsets copied from GMR's PM01 configs are tagged `uncalibrated_copied_from_gmr_pm01`. Head is new vs PM01; its quat is identity until T-pose. DexHand2 is not in the GMR skeleton (`hand_bypass: true`).
+- **Consequences:** `make gmr-export` writes `smplx_to_t800.json` and `bvh_lafan1_to_t800.json`. Running GMR on BONES-SEED is still blocked on flange SE(3) and wrist CoM. Do not check a G1 `motion_lib.pkl` into this repo.
+
+## ADR-014 — Privileged L2 may drop a box on a pallet, never a grasp-success number
+
+- **Status:** accepted
+- **Context:** L2 needs a physics path that does not wait for pad–cardboard calibration, without violating ADR-004.
+- **Decision:** `PrivilegedL2Env` is pallet+box only. Floor friction is an explicit fixture constant and is **not** written into `dexhand2_spec.yaml`. `grasp_success_rate` is always JSON `null`. Combined T800+Hand remains `PolicyEvalBlocked`.
+- **Consequences:** Stack-settle diagnostics can be physics-backed. Pick-success dashboards cannot.
+

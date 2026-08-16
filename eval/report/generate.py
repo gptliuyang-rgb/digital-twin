@@ -58,8 +58,10 @@ def render(l0: dict | None, l1: dict | None, l2: dict | None) -> str:
         lines.append(f"- combined_eval_allowed: `{l2.get('combined_eval_allowed')}`")
         if l2.get("warning"):
             lines.append(f"- warning: {l2['warning']}")
-        if "grasp_success_rate" in l2:
-            lines.append("- ERROR: grasp_success_rate must not appear while uncalibrated")
+        if l2.get("grasp_success_rate") is not None:
+            lines.append("- ERROR: numeric grasp_success_rate is forbidden until E1/E2")
+        else:
+            lines.append("- grasp_success_rate: null (blocked until contact calibration)")
         cells = l2.get("gain_scan_cells") or []
         if cells:
             lines.append(f"- gain scan cells: {len(cells)} (do not collapse to one success number)")

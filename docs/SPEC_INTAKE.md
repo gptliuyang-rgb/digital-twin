@@ -37,6 +37,7 @@ P0 count in the table: 10 line-items (friction is one physical experiment produc
 | `motor_max_velocity_rad_s` | Rate limit for safety filter | FAE / datasheet |
 | `gear_ratio` | Direct-drive ⇒ likely 1, but usage constraints forbid assuming load curves | FAE. Do not fill 1.0 yourself. |
 | `nid` vs `sdk_index` | State frames are variable-length and keyed by `nid` | Dump one `joint_states` frame on hardware |
+| GMR T-pose quat offsets + human_scale | `wbc/gmr/body_map.yaml` copies PM01 offsets; scale is 1.0 | Run GMR T-pose alignment on T800 MJCF; replace `uncalibrated_*` tags |
 | `tcp_frame` / `gun_tcp_frame` offsets | Grasp and scan poses | CAD of scanner + grasp definition |
 
 ## P2

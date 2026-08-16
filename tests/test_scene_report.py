@@ -27,7 +27,9 @@ def test_report_render_mentions_no_success_rate() -> None:
             "combined_eval_allowed": False,
             "warning": "no success rate",
             "gain_scan_cells": [{}] * 9,
+            "grasp_success_rate": None,
         },
     )
     assert "blocked_uncalibrated" in md
-    assert "grasp_success_rate" not in md or "must not appear" in md
+    assert "null" in md
+    assert "0.9" not in md

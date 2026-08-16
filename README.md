@@ -15,9 +15,9 @@ interface/     command_schema_v1.yaml, frames.yaml, schema.py
 assets/        dexhand2 spec + official ingest; T800 joint table
 hand/          controller, coupling, primitives, backends, calibration
 runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
-wbc/           T800 SONIC contract, 3-point teleop remap, G1-checkpoint guard
+wbc/           T800 SONIC contract, GMR IK export, 3-point teleop remap, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
-sim/           payload, QR scanner, URDF FK, hand-only MuJoCo env
+sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
 eval/          L0–L2 harnesses
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK
 ```
@@ -36,7 +36,9 @@ make test
 ./scripts/bootstrap_resources.sh
 make ingest-official    # writes docs/reports/PHASE_1_baseline.md
 make build-assets       # palmar pad spheres + MIT motors + simplified capsules
-make eval-qr            # synthetic QR envelope heatmap (needs OpenCV)
+make gmr-export         # GMR smplx/bvh IK JSON for T800 (quat offsets still uncalibrated)
+make usd-pads           # USDA pad-sphere overlay from fitted_pad_spheres.yaml
+make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
 ```
 
 ## Facts already taken from official sources

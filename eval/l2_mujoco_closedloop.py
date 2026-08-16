@@ -17,6 +17,15 @@ from interface.schema import REQUIRED_INPUT_TOKEN, load_hand_spec
 from sim.hand_mass import mass_budget
 
 
+def _privileged_pallet() -> dict:
+    try:
+        from eval.l2_privileged import run
+
+        return run()
+    except Exception as exc:  # pragma: no cover
+        return {"status": "error", "error": str(exc), "grasp_success_rate": None}
+
+
 def _optional_mujoco_tracking(spec) -> dict:
     try:
         import mujoco
@@ -108,8 +117,13 @@ def main() -> None:
             "release_ok": rel.velocity_ok and rel.height_ok,
         },
         "privileged_tracking": _optional_mujoco_tracking(spec),
+        "privileged_l2": _privileged_pallet(),
+        "grasp_success_rate": None,
         "status": "blocked_uncalibrated" if uncalibrated else "ready",
     }
+    from sim.mujoco_env.privileged_l2 import refuse_grasp_success_key
+
+    refuse_grasp_success_key(report)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")

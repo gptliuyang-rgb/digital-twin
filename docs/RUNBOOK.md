@@ -39,6 +39,9 @@ make eval-qr    # synthetic pinhole QR envelope; decode is real, renderer is not
 make eval-report
 make weld-recipe
 make sonic-status          # T800 decoder dim vs G1; retarget blockers
+make gmr-export            # write smplx_to_t800.json / bvh_lafan1_to_t800.json from body_map.yaml
+make usd-pads              # USDA overlay of palmar pad spheres (right hand)
+make eval-l2-priv          # privileged pallet drop; grasp_success_rate stays null
 make ingest-official && make build-assets && make check-drift
 ```
 
@@ -46,7 +49,7 @@ IBVS for scan lives in `runtime/ibvs.py` (shared). Combined T800+hand policy eva
 
 ## What this repo will not do yet
 
-- Train SONIC on T800 (contract is frozen; G1 checkpoints are refused)
+- Train SONIC on T800 (contract + GMR IK JSON are frozen; G1 checkpoints are refused; quat offsets still need a T-pose pass)
 - Download GR00T / π0.5 weights
 - Claim a box-pick success rate
 - Weld Hand 2 onto T800 (`assets/combined/assemble.py` exits until mount SE(3) is filled)
