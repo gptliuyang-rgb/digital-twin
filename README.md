@@ -49,6 +49,8 @@ make ppo-train          # supposed to fail until P0 CoM/flange + Isaac Lab
 make eval-l2-sim2sim    # kinematic identity MPJPE; grasp_success_rate stays null
 make eval-l2-physics-sim2sim  # MuJoCo PD tracking on official T800 MJCF or fixture
 make eval-l2-freebase-stand   # floating-base PD stand; fall is reported, not a SONIC gate
+make eval-l2-freebase-push    # lean vs fall; Table S4 +Y 0.5 m/s one-shot; air-drop
+make eval-l3-isaac-bind       # Isaac reset/step if Sim python is bound; else unavailable
 ```
 
 ## Facts already taken from official sources

@@ -17,15 +17,12 @@ import numpy as np
 import yaml
 
 from assets.combined.assemble import PolicyEvalBlocked
+from eval.lean_classify import fallen_from_cfg, posture_from_cfg
 from interface.schema import REPO_ROOT
 from sim.mujoco_env.privileged_l2 import refuse_grasp_success_key
 from sim.mujoco_env.t800_env import T800MujocoEnv, pelvis_tilt_rad, refuse_combined_robot
 from wbc.foot_frame import FOOT_FRAME_DECISION, assert_foot_frame
 from wbc.pd_stand import pd_stand_q_des_rad
-
-
-def _fallen(pelvis_z_m: float, tilt_rad: float, cfg: dict[str, Any]) -> bool:
-    return pelvis_z_m < float(cfg["fall"]["pelvis_z_m"]) or tilt_rad > float(cfg["fall"]["tilt_rad"])
 
 
 def evaluate_freebase_stand(
@@ -55,11 +52,13 @@ def evaluate_freebase_stand(
         tilt = pelvis_tilt_rad(rot)
         z_hist.append(z)
         tilt_hist.append(tilt)
-        if time_to_fall_s is None and _fallen(z, tilt, cfg):
+        if time_to_fall_s is None and fallen_from_cfg(z, tilt, cfg):
             time_to_fall_s = float(i + 1) * float(env.model.opt.timestep)
     end = env.foot_diagnostics()
     pelvis, rot = env.body_pose("pelvis")
-    fallen = _fallen(float(pelvis[2]), pelvis_tilt_rad(rot), cfg)
+    end_tilt = pelvis_tilt_rad(rot)
+    fallen = fallen_from_cfg(float(pelvis[2]), end_tilt, cfg)
+    posture = posture_from_cfg(float(pelvis[2]), end_tilt, cfg)
     return {
         "hold_s": hold_s,
         "n_steps": n,
@@ -69,9 +68,10 @@ def evaluate_freebase_stand(
         "start_pelvis_z_m": float(pelvis0[2]),
         "end_pelvis_z_m": float(pelvis[2]),
         "min_pelvis_z_m": float(np.min(z_hist)),
-        "end_tilt_rad": float(pelvis_tilt_rad(rot)),
+        "end_tilt_rad": float(end_tilt),
         "max_tilt_rad": float(np.max(tilt_hist)),
         "time_to_fall_s": time_to_fall_s,
+        "posture": posture,
         "fallen": fallen,
         "fall_rate": 1.0 if fallen else 0.0,
         "start_foot": start,

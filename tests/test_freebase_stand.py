@@ -61,6 +61,7 @@ def test_fixture_freebase_report_is_not_a_sonic_gate() -> None:
     assert report["fall_rate"] in (0.0, 1.0)
     assert report["n_plane"] >= 1
     assert report["end_foot"]["foot_frame"] == FOOT_FRAME_DECISION
+    assert report["posture"] in ("upright", "leaned", "fallen")
     env = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=True)
     env.reset()
     diag = env.foot_diagnostics()

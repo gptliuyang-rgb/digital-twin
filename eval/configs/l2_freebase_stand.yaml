@@ -12,6 +12,8 @@ q_des: official_pd_stand_desired_joint_position   # rad; EngineAI pd_stand/defau
 fall:
   pelvis_z_m: 0.40
   tilt_rad: 0.8
+lean:
+  tilt_rad: 0.20   # diagnostic band; ~0.72 rad official hold is leaned, not a stand
 foot_frame: mjcf_link_foot_at_ankle_roll
 gates:
   grasp_success_rate: null

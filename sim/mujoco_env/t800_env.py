@@ -281,6 +281,16 @@ class T800MujocoEnv(BaseEnv):
         self.data.qpos[3:7] = np.asarray(quat_wxyz, dtype=np.float64).reshape(4)
         self.data.qvel[0:6] = 0.0
 
+    def apply_root_linvel(self, lin_vel_mps: np.ndarray) -> None:
+        """Set freejoint linear velocity (world, m/s). One-shot; not a sustained force.
+
+        Pinned-base models have no freejoint. Floor friction is the official WBC
+        collision default, not DexHand2 pad–cardboard.
+        """
+        if self.pinned_base:
+            raise ValueError("apply_root_linvel requires pinned_base=False")
+        self.data.qvel[0:3] = np.asarray(lin_vel_mps, dtype=np.float64).reshape(3)
+
     def expected_nq(self) -> int:
         return 25 if self.pinned_base else 32
 

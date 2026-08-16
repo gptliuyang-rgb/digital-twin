@@ -36,3 +36,7 @@ Same P0 list as `docs/SPEC_INTAKE.md`. BONES-SEED GMR, live actor T-pose, and re
 - Grasp-success numbers
 - Live actor T-pose (q=0 overlay remains)
 - Running `IsaacLabSceneRuntime` inside Isaac Sim python (probe reports unavailable here)
+
+## Follow-on
+
+`make eval-l2-freebase-push` labels the 41° hold as **leaned** (ADR-026) and adds a Table S4 one-shot root push plus a no-floor air-drop. Neither is a SONIC gate.
