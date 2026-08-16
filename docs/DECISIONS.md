@@ -164,4 +164,12 @@
 - **Decision:** `vla/adapters/upsample.py` interpolates `command_schema_v1` rows with the same kernel as L1a (`interpolate_command_matrix`): cubic Hermite (or linear) on positions/fingers, SLERP on SO(3), nearest-neighbour on enums. Output length is `(H-1)*factor+1`. Case A chunks raise.
 - **Consequences:** Confirm `infer_hz` against the real ckpt after L0 diagnose. GPU latency is still unmeasured (`chunk_clock.yaml` is labelled typicals). L1a planner stays 10 Hz (ADR-018); this module feeds the 50 Hz command stream.
 
+## ADR-022 — T800 SONIC PPO recipe is paper Table S1–S4 with action_dim=25; launch is refused
+
+- **Status:** accepted
+- **Context:** SONIC trains in Isaac Lab with appendix Tables S1–S4 (arXiv:2511.07820v3). Paper action dim is 29 (G1). T800 Native SDK is 25 revolute. G1 `last.pt` fine-tune is forbidden (ADR-011). Flange SE(3) and wrist CoM still block a real train job. Official T800 MJCF puts joint `range=` (rad) and `actuatorfrcrange=` (N·m) on the same tag; a greedy `[^>]*range=` latch reads the force range and disables the clip-limit gate.
+- **Options:** (A) copy the G1 Isaac Lab env; (B) freeze T800 YAML from S1–S4 with `action_dim=25`, implement reward kernels in numpy, refuse PPO launch while blockers remain, run kinematic identity Sim2Sim; (C) wait for a GPU cluster.
+- **Decision:** (B). `wbc/ppo/` is the contract. `refuse_ppo_launch()` wraps `assert_retarget_ready()`. `parse_mjcf_joint_limits` matches `\\brange=`. Sim2Sim MPJPE is URDF FK (identity tracker = 0). The G1 hardware ~6 cm wrist error is **not** a T800 gate. Table S4 floor friction is WBC domain rand, not DexHand2 pad–cardboard (must not enter `dexhand2_spec.yaml`). 5-point PPO is a different `teleop_mode` and a retrain.
+- **Consequences:** `make ppo-train` exits non-zero until SPEC_INTAKE P0 CoM/flange are filled **and** Isaac Lab is wired. Kinematic identity Sim2Sim and the clip filter can run now on `t800_kinematics.yaml`.
+
 

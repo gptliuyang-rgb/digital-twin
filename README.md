@@ -42,7 +42,11 @@ make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
 make eval-l3-priv       # Isaac Lab privileged cfg dump; still no grasp-success
 make eval-gain-scan     # 9-cell MIT kp/kv hold; grasp_success_rate stays null
 make eval-l0-diagnose   # classify a ckpt action last-dim (A/B/C); no weights required
-make eval-l1-case-a     # 50-D → 75-D FK; requires --apply-fk; skips without T800 URDF
+make eval-l1-case-a     # 50-D → 75-D FK; requires --apply-fk; uses t800_kinematics.yaml
+make extract-kinematics # dump official URDF joints + MJCF range= into t800_kinematics.yaml
+make ppo-status         # T800 action_dim 25 vs G1 29; launch blockers
+make ppo-train          # supposed to fail until P0 CoM/flange + Isaac Lab
+make eval-l2-sim2sim    # kinematic identity MPJPE; grasp_success_rate stays null
 ```
 
 ## Facts already taken from official sources

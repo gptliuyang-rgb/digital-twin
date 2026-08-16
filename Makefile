@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l0-diagnose eval-l1-case-a
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l0-diagnose eval-l1-case-a extract-kinematics ppo-status ppo-train eval-l2-sim2sim
 
 PYTHON ?= python3
 
@@ -19,6 +19,9 @@ ingest-official:
 
 ingest-t800:
 	$(PYTHON) -m assets.engineai.build.ingest_t800 --write
+
+extract-kinematics:
+	$(PYTHON) -m assets.engineai.build.extract_kinematics --write
 
 build-assets:
 	$(PYTHON) -m assets.dexhand2.build.gen_derived --side both --simplified
@@ -75,3 +78,12 @@ eval-gain-scan:
 
 eval-l1a:
 	$(PYTHON) -c "from wbc.planner import KinematicPlanner; from interface.schema import CommandVector; p=KinematicPlanner(); r=p.plan([CommandVector.zeros(), CommandVector.zeros()]); print(r.n_steps, r.rate_hz, r.horizon_s)"
+
+ppo-status:
+	$(PYTHON) -c "from wbc.ppo.recipe import status_report; import json; print(json.dumps(status_report(), indent=2, default=str))"
+
+ppo-train:
+	$(PYTHON) -c "from wbc.ppo.recipe import refuse_ppo_launch; refuse_ppo_launch()"
+
+eval-l2-sim2sim:
+	$(PYTHON) -m eval.l2_sim2sim

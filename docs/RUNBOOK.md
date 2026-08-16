@@ -37,6 +37,10 @@ make eval-l0-diagnose   # classify action last-dim (A/B/C); no weights required
 make eval-l1            # limits + coupling; IK skipped without Pinocchio
 make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
+make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null
+make ppo-status         # frozen Table S1–S4 recipe; action_dim 25
+make ppo-train          # exits non-zero until SPEC_INTAKE P0 + Isaac Lab
+make extract-kinematics # official URDF → assets/engineai/meta/t800_kinematics.yaml
 make eval-qr    # synthetic pinhole QR envelope; decode is real, renderer is not RTX
 make eval-report
 make weld-recipe
@@ -51,7 +55,7 @@ IBVS for scan lives in `runtime/ibvs.py` (shared). Combined T800+hand policy eva
 
 ## What this repo will not do yet
 
-- Train SONIC on T800 (contract + GMR IK JSON are frozen; G1 checkpoints are refused; quat offsets still need a T-pose pass)
+- Train SONIC on T800 (`wbc/ppo/` freezes Table S1–S4; `make ppo-train` refuses; G1 checkpoints are refused; quat offsets still need a live T-pose)
 - Download GR00T / π0.5 weights
 - Claim a box-pick success rate
 - Weld Hand 2 onto T800 (`assets/combined/assemble.py` exits until mount SE(3) is filled)

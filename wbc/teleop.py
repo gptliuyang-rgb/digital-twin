@@ -125,3 +125,16 @@ def vr_5point_to_fields(pos15: np.ndarray, quat12: np.ndarray) -> dict[str, np.n
     out["left_elbow_pos"] = p[9:12]
     out["right_elbow_pos"] = p[12:15]
     return out
+
+
+def pack_hybrid_encoder_cmd(pos: np.ndarray, quat: np.ndarray, *, mode: str) -> np.ndarray:
+    """Flatten vr_* pos+quat into the hybrid encoder command token (21 or 27)."""
+    from wbc.dims import hybrid_encoder_cmd_dim
+
+    p = np.asarray(pos, dtype=np.float64).reshape(-1)
+    q = np.asarray(quat, dtype=np.float64).reshape(-1)
+    packed = np.concatenate([p, q])
+    expected = hybrid_encoder_cmd_dim(mode)
+    if packed.shape != (expected,):
+        raise ValueError(f"hybrid cmd {packed.shape} != {expected} for mode {mode}")
+    return packed
