@@ -6,6 +6,8 @@ This repository is the **P1 digital-twin layer**: frozen command contracts, offi
 
 Policy client code under `runtime/` and `vla/client/` does not import MuJoCo or Isaac. Only `sim/*_backend` / `hand/backends/mujoco_backend.py` talk to a simulator.
 
+QR scan uses IBVS (`runtime/ibvs.py`) plus real decode. Combined T800+Hand 2 policy eval is refused until the wrist flange SE(3) is CAD-measured — identity is not a substitute.
+
 ## Layout
 
 ```
@@ -28,6 +30,13 @@ make test
 ```
 
 `make check-spec` is **supposed to fail** until the P0 `REQUIRED_INPUT` fields in `docs/SPEC_INTAKE.md` are filled. That is intentional.
+
+```bash
+./scripts/bootstrap_resources.sh
+make ingest-official    # writes docs/reports/PHASE_1_baseline.md
+make build-assets       # palmar pad spheres + MIT motors + simplified capsules
+make eval-qr            # synthetic QR envelope heatmap (needs OpenCV)
+```
 
 ## Facts already taken from official sources
 
