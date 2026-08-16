@@ -1,0 +1,55 @@
+"""L1: kinematic checks without physics. IK is optional (Pinocchio)."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import numpy as np
+
+from hand.coupling import Coupling
+from interface.schema import load_hand_spec
+
+
+def check_joint_limits(q: np.ndarray, spec, margin: float = 0.05) -> dict:
+    limits = spec.limits_vector()
+    span = limits[:, 1] - limits[:, 0]
+    lo = limits[:, 0] + margin * span
+    hi = limits[:, 1] - margin * span
+    inside = np.all((q >= lo) & (q <= hi), axis=1) if q.ndim == 2 else np.all((q >= lo) & (q <= hi))
+    return {"all_inside_margin": bool(np.all(inside)), "n": int(q.shape[0] if q.ndim == 2 else 1)}
+
+
+def check_coupling(q_active: np.ndarray, spec) -> dict:
+    c = Coupling.from_spec(spec)
+    full = c.active_to_full(q_active)
+    back = c.full_to_active(full)
+    err = float(np.max(np.abs(back - q_active)))
+    return {"max_roundtrip_rad": err, "ok": err < 1e-9}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="eval/configs/l1_kinematic.yaml")
+    parser.add_argument("--out", default="eval/report/generated/l1.json")
+    args = parser.parse_args()
+    spec = load_hand_spec()
+    rng = np.random.default_rng(1)
+    limits = spec.limits_vector()
+    q = rng.uniform(limits[:, 0] * 0.2, limits[:, 1] * 0.2, size=(100, spec.n_active_dof))
+    report = {
+        "limits": check_joint_limits(q, spec),
+        "coupling": check_coupling(q[0], spec),
+        "ik": "skipped_no_pinocchio",
+        "self_collision": "skipped_no_fcl",
+        "note": "Geometry IK/FCL require Pinocchio/FCL. Limit + coupling checks always run.",
+    }
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(json.dumps(report, indent=2))
+
+
+if __name__ == "__main__":
+    main()

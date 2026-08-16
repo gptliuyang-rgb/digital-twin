@@ -1,0 +1,6 @@
+n_envs: 1
+chunk_stride: 8
+gates:
+  per_dim_mse_normalized: "<= 0.05"
+  no_dim_10x_outlier: true
+  mean_var_rel_err: "<= 0.10"

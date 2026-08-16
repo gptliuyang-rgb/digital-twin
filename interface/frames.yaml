@@ -1,0 +1,54 @@
+# Coordinate frames and rotation conventions.
+# Shared by VLA adapters, SONIC command packing, and eval harnesses.
+# Do not hard-code these strings in runtime code — read this file.
+
+schema_version: "1.0"
+
+default_command_frame: robot_heading_frame
+rotation_representation: rot6d_zhou2019
+# Zhou, Y. et al. "On the Continuity of Rotation Representations in Neural Networks"
+# CVPR 2019. First 3 = column 1 of R, last 3 = column 2 of R. Column 3 = col1 × col2
+# after Gram-Schmidt. SONIC v1.1 uses the same convention.
+
+frames:
+  world:
+    description: Inertial world frame. Gravity is -Z unless a sim backend says otherwise.
+  robot_heading_frame:
+    description: >
+      Robot-local heading frame used by SONIC v1.1 (heading-normalized).
+      XY aligned with pelvis yaw, Z up. VLA wrist/head poses are expressed here.
+    parent: world
+  pelvis:
+    description: Pelvis / floating-base body of the humanoid.
+    t800_link: LINK_BASE
+  left_wrist:
+    description: SONIC-tracked left wrist body. MUST match the WBC body-link set.
+    t800_link: LINK_WRIST_END_L
+    t800pro_link: LINK_WRIST_ROLL_L
+    source: engineai_native_sdk assets/config/t800/model/default.yaml end_effector_frames
+  right_wrist:
+    description: SONIC-tracked right wrist body. MUST match the WBC body-link set.
+    t800_link: LINK_WRIST_END_R
+    t800pro_link: LINK_WRIST_ROLL_R
+    source: engineai_native_sdk assets/config/t800/model/default.yaml end_effector_frames
+  left_hand_root:
+    description: Wuji Hand 2 left root link (official MJCF/URDF).
+    wuji_link: l_wrist
+  right_hand_root:
+    description: Wuji Hand 2 right root link (official MJCF/URDF).
+    wuji_link: r_wrist
+  left_palm:
+    description: Palm center, coincident with {l,r}_wrist unless mount_transform.yaml overrides.
+  right_palm:
+    description: Palm center, coincident with {l,r}_wrist unless mount_transform.yaml overrides.
+  left_tcp:
+    description: Grasp reference point (mid-palm, +offset from spec when filled).
+  right_tcp:
+    description: Grasp reference point.
+  gun_tcp:
+    description: Scanner muzzle frame when the gun-grip primitive is active.
+
+notes:
+  - T800 (non-Pro) Native SDK URDF has no wrist pitch/roll. LINK_WRIST_END_* is a 1 g dummy sphere fixed to elbow yaw.
+  - T800 Pro has J18/J19 (left) and J32/J33 (right) wrist pitch/roll. Prefer T800 Pro if available for box handling.
+  - Hand 2 with-mount variant parents {l,r}_wrist under {l,r}_mount with a fixed offset recorded in mount_transform.yaml.

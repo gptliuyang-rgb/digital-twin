@@ -1,0 +1,273 @@
+# Wuji Hand 2 / DexHand2 — unique source of truth.
+# Values with a `source:` key were copied from official docs or official MJCF/URDF.
+# Values equal to REQUIRED_INPUT must NOT be guessed. Loaders raise SpecIncompleteError.
+#
+# Official product docs: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
+# Official models:       third_party/wuji-description/hand2/hand2_beta1/
+# Usage constraints:     https://docs.wuji.tech/docs/en/wuji-hand/latest/usage-constraints/
+# SDK:                   https://docs.wuji.tech/docs/zh/wuji-hand/latest/sdk-reference/
+#
+# Beta 1 prototype. Parameters do not represent the final product.
+
+schema_version: "1.0"
+product_name: "Wuji Hand 2"
+internal_name: DexHand2
+hardware_revision: beta1
+model_revision: hand2_beta1
+upstream_repo: https://github.com/wuji-technology/wuji-description
+upstream_path: hand2/hand2_beta1/body
+
+# ---------------------------------------------------------------------------
+# Topology (official)
+# ---------------------------------------------------------------------------
+n_fingers: 5                 # count
+n_active_dof: 20             # motor count; 4 per finger
+n_total_dof: 20              # serial direct-drive, no passive joints
+kinematics: serial_direct_drive_revolute
+coupling_type: none          # official: "no nonlinear kinematic coupling"
+coupling_matrix: identity    # C = I_20 ; q_passive is empty
+min_grasp_diameter_m: 0.0
+
+# Canonical joint_order for left_hand_q / right_hand_q (NO side prefix).
+# Side prefix {l|r}_ is applied by the controller / asset ingest.
+# Order matches official MJCF actuator order THJ0..3, FFJ0..3, MFJ0..3, RFJ0..3, LFJ0..3
+# and SDK hand.joints() index 0..19 (thumb_S1 .. pinky_S4).
+joint_order:
+  - thumb_cmc_flex
+  - thumb_cmc_abd
+  - thumb_mcp
+  - thumb_ip
+  - index_finger_mcp_flex
+  - index_finger_mcp_abd
+  - index_finger_pip
+  - index_finger_dip
+  - middle_finger_mcp_flex
+  - middle_finger_mcp_abd
+  - middle_finger_pip
+  - middle_finger_dip
+  - ring_finger_mcp_flex
+  - ring_finger_mcp_abd
+  - ring_finger_pip
+  - ring_finger_dip
+  - pinky_mcp_flex
+  - pinky_mcp_abd
+  - pinky_pip
+  - pinky_dip
+
+# Official MJCF joint ranges, radian. Source: hand2_beta1/body/mjcf/right.xml
+# Product-page degree ranges for thumb/little match these after deg2rad (within rounding).
+joint_limits_rad:
+  thumb_cmc_flex:           [-1.187, 1.291]   # product: -68° .. 74°
+  thumb_cmc_abd:            [-1.484, 0.698]   # product: -85° .. 40°
+  thumb_mcp:                [-1.047, 1.570]   # product: -60° .. 90°
+  thumb_ip:                 [-1.047, 1.570]   # product: -60° .. 90°
+  index_finger_mcp_flex:    [-1.047, 1.570]
+  index_finger_mcp_abd:     [-0.698, 0.698]
+  index_finger_pip:         [-1.047, 2.094]
+  index_finger_dip:         [-1.047, 1.570]
+  middle_finger_mcp_flex:   [-1.047, 1.570]
+  middle_finger_mcp_abd:    [-0.698, 0.698]
+  middle_finger_pip:        [-1.047, 2.094]
+  middle_finger_dip:        [-1.047, 1.570]
+  ring_finger_mcp_flex:     [-1.047, 1.570]
+  ring_finger_mcp_abd:      [-0.698, 0.698]
+  ring_finger_pip:          [-1.047, 2.094]
+  ring_finger_dip:          [-1.047, 1.570]
+  pinky_mcp_flex:           [-1.047, 1.570]   # product little-finger J1: -60° .. 90°
+  pinky_mcp_abd:            [-0.698, 0.698]   # product: -40° .. 40°
+  pinky_pip:                [-1.047, 2.094]   # product: -60° .. 120°
+  pinky_dip:                [-1.047, 1.570]   # product: -60° .. 90°
+
+joint_zero_definition: >
+  Official MJCF/URDF q = 0. CHANGELOG states zero-position fingertip sites are
+  the frozen coordinate contract. Product docs do not state whether q=0 is
+  "fully open" or a rest pose. Zero-calibration accuracy is still being
+  optimized (usage-constraints). Do not assume q=0 == fully open until FAE confirms.
+joint_sign_convention: >
+  Positive rotation follows the official MJCF joint axis (right-hand rule).
+  Right-hand flex joints use axis +X; abduction joints use axis +Y.
+  Left-hand flex joints use axis -X (mirror). Confirm with FAE that positive
+  flex is toward the palm.
+
+# ---------------------------------------------------------------------------
+# Dynamics
+# ---------------------------------------------------------------------------
+# Official URDF (skeleton only, no-mount) sums to 0.6207 kg.
+skeleton_mass_kg:
+  value: 0.6207
+  source: urdf_inertial_sum
+  path: hand2/hand2_beta1/body/urdf/right.urdf
+mount_mass_kg:
+  value: 0.069
+  source: urdf_inertial
+  path: hand2/hand2_beta1/body/urdf/right_with_mount.urdf
+# Product page: 745 ± 10 g with soft body, excluding cables.
+total_mass_kg:
+  value: 0.745
+  tolerance_kg: 0.010
+  includes_soft_body: true
+  includes_cables: false
+  source: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
+soft_body_mass_delta_kg:
+  value: 0.1243   # 0.745 - 0.6207; NOT independently measured
+  source: derived_product_minus_urdf
+  note: Soft body is NOT in the simulation model. Do not treat this as a measured CoM.
+
+dimensions_m: [0.180, 0.080, 0.040]   # L x W x T, fingers fully extended
+finger_length_m:
+  index: 0.137
+  middle: 0.137
+  ring: 0.137
+  little: 0.134
+  thumb: 0.140
+
+# Wrist-frame CoM of the physical hand (with soft body) is NOT in the URDF.
+com_in_wrist_frame_m: REQUIRED_INPUT   # m, must be measured; drives WBC dynamics
+
+link_masses:
+  source: cad_urdf
+  note: Per-link masses are in the official URDF inertial tags. Soft-body mass is not distributed.
+
+# ---------------------------------------------------------------------------
+# Actuators
+# ---------------------------------------------------------------------------
+backdrivable: true
+motor_control: FOC
+control_mode: MIT_force_position_hybrid
+# tau = kp*(qd - q) + kd*(dqd - dq) + tau_ff   (official MIT form)
+control_rate_hz: 1000          # × 20 axes
+voltage_v: 12
+psu: "12V 20A"
+interface_type: ethernet_rj45_100BASE_TX
+factory_ip:
+  left: "192.168.1.110"
+  right: "192.168.1.111"
+  port: 50001
+
+# Simulation forcerange from official MJCF (N·m). NOT committed hardware ratings.
+# Usage constraints: "The prototype's measured load values aren't committed external values."
+sim_actuator_forcerange_nm:
+  thumb_cmc_flex: 0.6
+  thumb_cmc_abd: 0.6
+  thumb_mcp: 0.3
+  thumb_ip: 0.3
+  index_finger_mcp_flex: 2.0
+  index_finger_mcp_abd: 0.2
+  index_finger_pip: 0.3
+  index_finger_dip: 0.3
+  middle_finger_mcp_flex: 2.0
+  middle_finger_mcp_abd: 0.2
+  middle_finger_pip: 0.3
+  middle_finger_dip: 0.3
+  ring_finger_mcp_flex: 2.0
+  ring_finger_mcp_abd: 0.2
+  ring_finger_pip: 0.3
+  ring_finger_dip: 0.3
+  pinky_mcp_flex: 2.0
+  pinky_mcp_abd: 0.2
+  pinky_pip: 0.3
+  pinky_dip: 0.3
+
+# Official MJCF kp/kv. Docs: carried over from Wuji Hand (gen-1) pending Hand 2 sys-id.
+sim_kp:
+  thumb_cmc_flex: 0.40844710645048043
+  thumb_cmc_abd: 0.6858601063643346
+  thumb_mcp: 0.2391112196099482
+  thumb_ip: 0.20736128319711747
+  index_finger_mcp_flex: 0.37352218155860073
+  index_finger_mcp_abd: 0.45592448909027794
+  index_finger_pip: 0.24368366649522863
+  index_finger_dip: 0.18026971340925335
+  middle_finger_mcp_flex: 0.3687093483646485
+  middle_finger_mcp_abd: 0.4164253443634641
+  middle_finger_pip: 0.22218607502059182
+  middle_finger_dip: 0.19427606072023446
+  ring_finger_mcp_flex: 0.35718151495111794
+  ring_finger_mcp_abd: 0.42977315313086895
+  ring_finger_pip: 0.24930151196247122
+  ring_finger_dip: 0.2285032688178066
+  pinky_mcp_flex: 0.3655325975433942
+  pinky_mcp_abd: 0.41393113081120425
+  pinky_pip: 0.22729367621965954
+  pinky_dip: 0.1964723550341816
+sim_kv:
+  thumb_cmc_flex: 0.020882010257063675
+  thumb_cmc_abd: 0.030610939996373314
+  thumb_mcp: 0.010181475050560962
+  thumb_ip: 0.00909698844675045
+  index_finger_mcp_flex: 0.01882274330029718
+  index_finger_mcp_abd: 0.019798167597016643
+  index_finger_pip: 0.010477031953162727
+  index_finger_dip: 0.008240212147903584
+  middle_finger_mcp_flex: 0.01848622487024593
+  middle_finger_mcp_abd: 0.018032947229953678
+  middle_finger_pip: 0.009592200014076666
+  middle_finger_dip: 0.009152994605972402
+  ring_finger_mcp_flex: 0.018376606800780005
+  ring_finger_mcp_abd: 0.01867700966212433
+  ring_finger_pip: 0.01059512121009555
+  ring_finger_dip: 0.009917602877441107
+  pinky_mcp_flex: 0.018616960278988272
+  pinky_mcp_abd: 0.018732177029667153
+  pinky_pip: 0.00951005441616486
+  pinky_dip: 0.009017295241756363
+sim_gains_status: uncalibrated_carried_from_wuji_hand_gen1
+
+motor_max_torque_nm: REQUIRED_INPUT   # N·m per active joint, hardware effective
+motor_max_velocity_rad_s: REQUIRED_INPUT
+gear_ratio: REQUIRED_INPUT            # direct-drive → likely 1, but do not assume
+hardware_kp: REQUIRED_INPUT           # MIT kp after Hand 2 system identification
+hardware_kd: REQUIRED_INPUT           # MIT kd after Hand 2 system identification
+
+# Default armature from official MJCF <default><joint armature="0.0002">;
+# MCP flex / thumb cmc joints override to 0.0005.
+default_armature_kgm2: 0.0002
+mcp_flex_armature_kgm2: 0.0005
+
+# ---------------------------------------------------------------------------
+# Contact — Beta 1 soft body / skin not locked. MUST be measured.
+# ---------------------------------------------------------------------------
+fingertip_material: REQUIRED_INPUT     # silicone | TPU | rigid | other
+fingertip_geometry_radius_m: REQUIRED_INPUT
+friction_vs_cardboard_static: REQUIRED_INPUT
+friction_vs_cardboard_dynamic: REQUIRED_INPUT
+normal_stiffness_n_per_m: REQUIRED_INPUT
+soft_body_batch_id: REQUIRED_INPUT
+skin_batch_id: REQUIRED_INPUT
+skin_present: REQUIRED_INPUT           # bool, skin is user-removable
+firmware_version: REQUIRED_INPUT
+
+# Official MJCF contact: condim default (3) unless we patch derived assets to 4.
+derived_contact_condim: 4              # recommended for box grasp; not yet in upstream
+
+# ---------------------------------------------------------------------------
+# Sensing
+# ---------------------------------------------------------------------------
+# Beta 1: fingertip tactile NOT provided. Beta 2 hardware + fw v2.1.0 + SDK 2026.7.21+.
+has_tactile: false                     # this repo's default target is Beta 1
+tactile_layout: none_on_beta1
+has_joint_encoder: true
+has_current_sense: true                # effort field is in amperes, not N·m
+has_imu: true                          # 100 Hz accel/gyro, no onboard orientation
+# Confirm whether YOUR unit is actually Beta 2 (tactile pads):
+hardware_has_tactile: REQUIRED_INPUT   # bool, ask FAE / inspect unit
+
+# ---------------------------------------------------------------------------
+# Communication / delay
+# ---------------------------------------------------------------------------
+command_latency_ms: REQUIRED_INPUT     # measured command issue → joint motion
+image_latency_ms: REQUIRED_INPUT       # head/wrist camera e2e, for VLA
+controller_safety:
+  max_delta_q_rad: REQUIRED_INPUT      # per-step jump reject threshold
+  velocity_limit_rad_s: REQUIRED_INPUT
+
+# Human-to-hand scale for retargeting (official wuji-retargeting wraps this).
+human_to_hand_scale: REQUIRED_INPUT
+
+official_known_gaps:
+  - fingertip_soft_pad_not_in_collision
+  - sim_gains_not_hand2_identified
+  - soft_body_and_skin_unlocked
+  - sim_model_skeleton_only
+  - collision_is_convex_hull
+  - interface_form_will_change

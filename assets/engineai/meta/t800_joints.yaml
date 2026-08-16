@@ -1,0 +1,23 @@
+# T800 body joints from engineai_robotics_native_sdk serial_t800.urdf
+# 25 revolute DoF. Product marketing "29 DoF excl. hands" does not match this URDF.
+# T800 Pro adds wrist pitch/roll + a 7-DoF built-in hand we replace.
+
+schema_version: "1.0"
+robot: t800
+urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+revolute_count: 25
+floating_base_link: LINK_BASE
+end_effector_frames:
+  left_foot: LINK_FOOT_L
+  right_foot: LINK_FOOT_R
+  waist: LINK_WAIST_YAW
+  left_wrist: LINK_WRIST_END_L
+  right_wrist: LINK_WRIST_END_R
+  head: LINK_HEAD_YAW
+arm_joints:
+  left: [J13_SHOULDER_PITCH_L, J14_SHOULDER_ROLL_L, J15_SHOULDER_YAW_L, J16_ELBOW_PITCH_L, J17_ELBOW_YAW_L]
+  right: [J18_SHOULDER_PITCH_R, J19_SHOULDER_ROLL_R, J20_SHOULDER_YAW_R, J21_ELBOW_PITCH_R, J22_ELBOW_YAW_R]
+note: >
+  LINK_WRIST_END_* is a 1e-3 kg dummy sphere fixed to elbow yaw. There is no wrist
+  pitch/roll on this URDF. SONIC body-link for the 3-point interface is this frame
+  until the team switches to T800 Pro (LINK_WRIST_ROLL_*).

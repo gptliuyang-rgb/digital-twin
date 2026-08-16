@@ -1,0 +1,9 @@
+# Identity coupling: Wuji Hand 2 is serial direct-drive (C = I).
+# q_passive is empty. Kept as a module so later revisions / gen-1 hands can swap impls.
+
+schema_version: "1.0"
+coupling_type: none
+n_active: 20
+n_passive: 0
+# C is n_passive × n_active. Empty matrix.
+matrix: []

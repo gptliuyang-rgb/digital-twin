@@ -1,0 +1,202 @@
+# Three-way (actually four-way) joint name map.
+# Canonical name = dexhand2_spec.joint_order entry (no side prefix).
+#
+# Sources:
+#   doc_name:     https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/  (thumb named; other fingers share mcp_flex/mcp_abd/pip/dip)
+#   mjcf_joint:   hand2/hand2_beta1/body/mjcf/{left,right}.xml  anatomical <joint name>
+#   mjcf_actuator: same file <actuator><position name>
+#   sdk_label:    SDK JointHandle.label  "{finger}_S{1..4}"
+#   sdk_index:    SDK JointHandle.index  0..19
+#                 Documented: hand.joints() order, fingers() thumb..pinky, each S1..S4.
+#                 fingertip_info(0)=thumb … (4)=pinky.
+#   nid:          diagnostic/state stream node id — confirm equals sdk_index on hardware.
+
+schema_version: "1.0"
+side_prefixes: [l, r]
+sdk_index_source: >
+  docs.wuji.tech SDK reference: JointHandle.index is the 0..19 subscript of
+  effort_limit()/mit_params()/joint_command() arrays. Example: thumb_S1 → 0.
+  Finger order 0=thumb … 4=pinky. Per-finger joints S1..S4.
+nid_status: REQUIRED_INPUT_CONFIRM   # treat as sdk_index until a hardware dump proves otherwise
+
+joints:
+  - canonical: thumb_cmc_flex
+    doc_name: thumb_cmc_flex
+    mjcf_joint: "{side}_thumb_cmc_flex"
+    mjcf_actuator: "{side}_THJ0"
+    sdk_label: thumb_S1
+    sdk_index: 0
+    nid: 0
+    finger: thumb
+    dof_role: flex_root
+  - canonical: thumb_cmc_abd
+    doc_name: thumb_cmc_abd
+    mjcf_joint: "{side}_thumb_cmc_abd"
+    mjcf_actuator: "{side}_THJ1"
+    sdk_label: thumb_S2
+    sdk_index: 1
+    nid: 1
+    finger: thumb
+    dof_role: abd
+  - canonical: thumb_mcp
+    doc_name: thumb_mcp
+    mjcf_joint: "{side}_thumb_mcp"
+    mjcf_actuator: "{side}_THJ2"
+    sdk_label: thumb_S3
+    sdk_index: 2
+    nid: 2
+    finger: thumb
+    dof_role: flex
+  - canonical: thumb_ip
+    doc_name: thumb_ip
+    mjcf_joint: "{side}_thumb_ip"
+    mjcf_actuator: "{side}_THJ3"
+    sdk_label: thumb_S4
+    sdk_index: 3
+    nid: 3
+    finger: thumb
+    dof_role: flex_distal
+  - canonical: index_finger_mcp_flex
+    doc_name: mcp_flex
+    mjcf_joint: "{side}_index_finger_mcp_flex"
+    mjcf_actuator: "{side}_FFJ0"
+    sdk_label: index_S1
+    sdk_index: 4
+    nid: 4
+    finger: index
+    dof_role: flex_root
+  - canonical: index_finger_mcp_abd
+    doc_name: mcp_abd
+    mjcf_joint: "{side}_index_finger_mcp_abd"
+    mjcf_actuator: "{side}_FFJ1"
+    sdk_label: index_S2
+    sdk_index: 5
+    nid: 5
+    finger: index
+    dof_role: abd
+  - canonical: index_finger_pip
+    doc_name: pip
+    mjcf_joint: "{side}_index_finger_pip"
+    mjcf_actuator: "{side}_FFJ2"
+    sdk_label: index_S3
+    sdk_index: 6
+    nid: 6
+    finger: index
+    dof_role: flex
+  - canonical: index_finger_dip
+    doc_name: dip
+    mjcf_joint: "{side}_index_finger_dip"
+    mjcf_actuator: "{side}_FFJ3"
+    sdk_label: index_S4
+    sdk_index: 7
+    nid: 7
+    finger: index
+    dof_role: flex_distal
+  - canonical: middle_finger_mcp_flex
+    doc_name: mcp_flex
+    mjcf_joint: "{side}_middle_finger_mcp_flex"
+    mjcf_actuator: "{side}_MFJ0"
+    sdk_label: middle_S1
+    sdk_index: 8
+    nid: 8
+    finger: middle
+    dof_role: flex_root
+  - canonical: middle_finger_mcp_abd
+    doc_name: mcp_abd
+    mjcf_joint: "{side}_middle_finger_mcp_abd"
+    mjcf_actuator: "{side}_MFJ1"
+    sdk_label: middle_S2
+    sdk_index: 9
+    nid: 9
+    finger: middle
+    dof_role: abd
+  - canonical: middle_finger_pip
+    doc_name: pip
+    mjcf_joint: "{side}_middle_finger_pip"
+    mjcf_actuator: "{side}_MFJ2"
+    sdk_label: middle_S3
+    sdk_index: 10
+    nid: 10
+    finger: middle
+    dof_role: flex
+  - canonical: middle_finger_dip
+    doc_name: dip
+    mjcf_joint: "{side}_middle_finger_dip"
+    mjcf_actuator: "{side}_MFJ3"
+    sdk_label: middle_S4
+    sdk_index: 11
+    nid: 11
+    finger: middle
+    dof_role: flex_distal
+  - canonical: ring_finger_mcp_flex
+    doc_name: mcp_flex
+    mjcf_joint: "{side}_ring_finger_mcp_flex"
+    mjcf_actuator: "{side}_RFJ0"
+    sdk_label: ring_S1
+    sdk_index: 12
+    nid: 12
+    finger: ring
+    dof_role: flex_root
+  - canonical: ring_finger_mcp_abd
+    doc_name: mcp_abd
+    mjcf_joint: "{side}_ring_finger_mcp_abd"
+    mjcf_actuator: "{side}_RFJ1"
+    sdk_label: ring_S2
+    sdk_index: 13
+    nid: 13
+    finger: ring
+    dof_role: abd
+  - canonical: ring_finger_pip
+    doc_name: pip
+    mjcf_joint: "{side}_ring_finger_pip"
+    mjcf_actuator: "{side}_RFJ2"
+    sdk_label: ring_S3
+    sdk_index: 14
+    nid: 14
+    finger: ring
+    dof_role: flex
+  - canonical: ring_finger_dip
+    doc_name: dip
+    mjcf_joint: "{side}_ring_finger_dip"
+    mjcf_actuator: "{side}_RFJ3"
+    sdk_label: ring_S4
+    sdk_index: 15
+    nid: 15
+    finger: ring
+    dof_role: flex_distal
+  - canonical: pinky_mcp_flex
+    doc_name: mcp_flex
+    mjcf_joint: "{side}_pinky_mcp_flex"
+    mjcf_actuator: "{side}_LFJ0"
+    sdk_label: pinky_S1
+    sdk_index: 16
+    nid: 16
+    finger: pinky
+    dof_role: flex_root
+  - canonical: pinky_mcp_abd
+    doc_name: mcp_abd
+    mjcf_joint: "{side}_pinky_mcp_abd"
+    mjcf_actuator: "{side}_LFJ1"
+    sdk_label: pinky_S2
+    sdk_index: 17
+    nid: 17
+    finger: pinky
+    dof_role: abd
+  - canonical: pinky_pip
+    doc_name: pip
+    mjcf_joint: "{side}_pinky_pip"
+    mjcf_actuator: "{side}_LFJ2"
+    sdk_label: pinky_S3
+    sdk_index: 18
+    nid: 18
+    finger: pinky
+    dof_role: flex
+  - canonical: pinky_dip
+    doc_name: dip
+    mjcf_joint: "{side}_pinky_dip"
+    mjcf_actuator: "{side}_LFJ3"
+    sdk_label: pinky_S4
+    sdk_index: 19
+    nid: 19
+    finger: pinky
+    dof_role: flex_distal

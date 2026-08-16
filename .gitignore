@@ -1,0 +1,32 @@
+# Upstream clones (use scripts/bootstrap_resources.sh)
+third_party/
+refs/papers/
+refs/models/
+refs/datasets/
+refs/docs/*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+/build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Generated / local eval
+assets/dexhand2/derived/
+assets/combined/generated/
+eval/report/generated/
+.eval_output/
+.coverage
+htmlcov/
+
+# Editor
+.idea/
+.vscode/
+*.swp

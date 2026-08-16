@@ -1,0 +1,78 @@
+# VLA → WBC / DexHand2 command contract.
+# Simulation client and real-robot client MUST share this file.
+# Units are SI. Rotation uses 6D (Zhou et al. 2019), matching SONIC v1.1.
+#
+# total_dim = 32 + 2 * n_active_dof + 3
+#           = 32 + 40 + 3 = 75  for Wuji Hand 2 (n_active_dof=20)
+
+schema_version: "1.0"
+frame: robot_heading_frame
+rotation_representation: rot6d_zhou2019
+n_active_dof_ref: assets/dexhand2/meta/dexhand2_spec.yaml#n_active_dof
+joint_order_ref: assets/dexhand2/meta/dexhand2_spec.yaml#joint_order
+
+fields:
+  head_pos:
+    dim: 3
+    unit: m
+    frame: robot_heading_frame
+    relative_to: pelvis
+  head_rot6d:
+    dim: 6
+    unit: dimensionless
+    convention: zhou2019_6d
+  left_wrist_pos:
+    dim: 3
+    unit: m
+    frame: robot_heading_frame
+    relative_to: pelvis
+  left_wrist_rot6d:
+    dim: 6
+    unit: dimensionless
+    convention: zhou2019_6d
+  right_wrist_pos:
+    dim: 3
+    unit: m
+    frame: robot_heading_frame
+    relative_to: pelvis
+  right_wrist_rot6d:
+    dim: 6
+    unit: dimensionless
+    convention: zhou2019_6d
+  pelvis_height:
+    dim: 1
+    unit: m
+    range: [0.30, 0.80]
+  nav_cmd:
+    dim: 3
+    unit: "[m/s, m/s, rad/s]"
+    meaning: [vx, vy, wz]
+  loco_mode:
+    dim: 1
+    enum: [0, 1, 2]
+    meaning: {0: stand, 1: slow_walk, 2: fast_walk}
+
+  # ---- bypass WBC; go straight to DexHand2 controller ----
+  left_hand_q:
+    dim: "${n_active_dof}"
+    unit: rad
+    order_ref: dexhand2_spec.joint_order
+  right_hand_q:
+    dim: "${n_active_dof}"
+    unit: rad
+    order_ref: dexhand2_spec.joint_order
+  left_hand_mode:
+    dim: 1
+    enum: [0, 1, 2]
+    meaning: {0: position, 1: grasp_primitive, 2: force}
+  right_hand_mode:
+    dim: 1
+    enum: [0, 1, 2]
+    meaning: {0: position, 1: grasp_primitive, 2: force}
+  tool_trigger:
+    dim: 1
+    enum: [0, 1]
+    meaning: {0: released, 1: pressed}
+
+wbc_slice: [head_pos, head_rot6d, left_wrist_pos, left_wrist_rot6d, right_wrist_pos, right_wrist_rot6d, pelvis_height, nav_cmd, loco_mode]
+hand_slice: [left_hand_q, right_hand_q, left_hand_mode, right_hand_mode, tool_trigger]

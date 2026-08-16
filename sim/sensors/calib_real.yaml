@@ -1,0 +1,53 @@
+# Real camera calibration. Do not fill with "typical" webcam numbers.
+
+schema_version: "1.0"
+
+head_rgbd:
+  fx: REQUIRED_INPUT
+  fy: REQUIRED_INPUT
+  cx: REQUIRED_INPUT
+  cy: REQUIRED_INPUT
+  width: REQUIRED_INPUT
+  height: REQUIRED_INPUT
+  distortion: REQUIRED_INPUT   # OpenCV plumb_bob coeffs
+  T_cam_from_head_link:
+    pos_m: REQUIRED_INPUT
+    quat_wxyz: REQUIRED_INPUT
+  exposure_s: REQUIRED_INPUT
+  jpeg_quality: REQUIRED_INPUT
+  delay_ms: REQUIRED_INPUT
+
+left_wrist_rgb:
+  fx: REQUIRED_INPUT
+  fy: REQUIRED_INPUT
+  cx: REQUIRED_INPUT
+  cy: REQUIRED_INPUT
+  width: REQUIRED_INPUT
+  height: REQUIRED_INPUT
+  distortion: REQUIRED_INPUT
+  T_cam_from_wrist:
+    pos_m: REQUIRED_INPUT
+    quat_wxyz: REQUIRED_INPUT
+  exposure_s: REQUIRED_INPUT
+  jpeg_quality: REQUIRED_INPUT
+  delay_ms: REQUIRED_INPUT
+
+right_wrist_rgb:
+  fx: REQUIRED_INPUT
+  fy: REQUIRED_INPUT
+  cx: REQUIRED_INPUT
+  cy: REQUIRED_INPUT
+  width: REQUIRED_INPUT
+  height: REQUIRED_INPUT
+  distortion: REQUIRED_INPUT
+  T_cam_from_wrist:
+    pos_m: REQUIRED_INPUT
+    quat_wxyz: REQUIRED_INPUT
+  exposure_s: REQUIRED_INPUT
+  jpeg_quality: REQUIRED_INPUT
+  delay_ms: REQUIRED_INPUT
+
+imu:
+  gyro_noise_rad_s: REQUIRED_INPUT
+  accel_noise_m_s2: REQUIRED_INPUT
+  bias_rw: REQUIRED_INPUT

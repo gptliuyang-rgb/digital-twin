@@ -1,0 +1,44 @@
+# Hand-to-robot mount. Hand-side numbers come from official with-mount MJCF.
+# Robot-side (T800 flange) rotation MUST come from CAD assembly — do not guess.
+
+schema_version: "1.0"
+
+# Official with-mount MJCF: {side}_wrist is a child of {side}_mount
+# right.xml: pos="0.003 0.00025016 -0.0285" quat="1 0 0 8.1995e-06"
+hand_mount_to_wrist:
+  source: third_party/wuji-description/hand2/hand2_beta1/body/mjcf/right_with_mount.xml
+  pos_m: [0.003, 0.00025016, -0.0285]
+  quat_wxyz: [1.0, 0.0, 0.0, 8.1995e-06]
+  mount_link: "{side}_mount"
+  wrist_link: "{side}_wrist"
+  mount_mass_kg: 0.069
+
+# SONIC-tracked wrist body on the humanoid (see interface/frames.yaml).
+humanoid:
+  robot: t800
+  left_wrist_link: LINK_WRIST_END_L
+  right_wrist_link: LINK_WRIST_END_R
+  t800pro_left_wrist_link: LINK_WRIST_ROLL_L
+  t800pro_right_wrist_link: LINK_WRIST_ROLL_R
+
+# Transform from T800 wrist link to Wuji {l,r}_mount.
+# Official Hand 2 mount STEP now exists:
+#   hand2/hand2_beta1/attachment/wuji-hand2-description-{left,right}-mount_beta1_step.STEP
+# T800 wrist flange CAD is still required to fill this SE(3).
+t800_wrist_to_hand_mount:
+  pos_m: REQUIRED_INPUT
+  quat_wxyz: REQUIRED_INPUT
+  cad_source_hand: hand2/hand2_beta1/attachment/wuji-hand2-description-right-mount_beta1_step.STEP
+  cad_source_robot: REQUIRED_INPUT
+
+frames:
+  wrist_frame:
+    description: SONIC body link (humanoid wrist).
+    decision: Use engineai end_effector_frames LINK_WRIST_END_* on T800.
+  palm_frame:
+    description: Coincident with {l,r}_wrist in the official model.
+  tcp_frame:
+    pos_in_palm_m: REQUIRED_INPUT
+  gun_tcp_frame:
+    pos_in_palm_m: REQUIRED_INPUT
+    rot_in_palm_quat_wxyz: REQUIRED_INPUT
