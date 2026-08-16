@@ -34,12 +34,19 @@ Re-run E1 and E2 (`hand/calibration/PROTOCOL.md`). Store under
 ```bash
 make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
 make eval-l1    # limits + coupling; IK skipped without Pinocchio
-make eval-l2    # refuses success rates while uncalibrated
+make eval-l2    # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
+make eval-qr    # synthetic pinhole QR envelope; decode is real, renderer is not RTX
+make eval-report
+make weld-recipe
+make sonic-status          # T800 decoder dim vs G1; retarget blockers
+make ingest-official && make build-assets && make check-drift
 ```
+
+IBVS for scan lives in `runtime/ibvs.py` (shared). Combined T800+hand policy eval is refused until mount SE(3) is CAD-measured.
 
 ## What this repo will not do yet
 
-- Train SONIC on T800
+- Train SONIC on T800 (contract is frozen; G1 checkpoints are refused)
 - Download GR00T / π0.5 weights
 - Claim a box-pick success rate
 - Weld Hand 2 onto T800 (`assets/combined/assemble.py` exits until mount SE(3) is filled)
