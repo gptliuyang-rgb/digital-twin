@@ -36,9 +36,10 @@ make test
 ./scripts/bootstrap_resources.sh
 make ingest-official    # writes docs/reports/PHASE_1_baseline.md
 make build-assets       # palmar pad spheres + MIT motors + simplified capsules
-make gmr-export         # GMR smplx/bvh IK JSON for T800 (quat offsets still uncalibrated)
-make usd-pads           # USDA pad-sphere overlay from fitted_pad_spheres.yaml
+make gmr-tpose         # q=0 T800 vs PM01 overlay + rewrite IK JSON
+make usd-pads           # USDA pad-sphere overlay (right and left if fitted)
 make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
+make eval-l3-priv       # Isaac Lab privileged cfg dump; still no grasp-success
 ```
 
 ## Facts already taken from official sources

@@ -93,6 +93,21 @@
 - **Decision:** (B). `wbc/gmr/body_map.yaml` is the source. Wrists/feet/head must match `t800_sonic.yaml`. `human_scale` is 1.0 (not PM01's 0.85) until a T-pose pass. Quat/pos offsets copied from GMR's PM01 configs are tagged `uncalibrated_copied_from_gmr_pm01`. Head is new vs PM01; its quat is identity until T-pose. DexHand2 is not in the GMR skeleton (`hand_bypass: true`).
 - **Consequences:** `make gmr-export` writes `smplx_to_t800.json` and `bvh_lafan1_to_t800.json`. Running GMR on BONES-SEED is still blocked on flange SE(3) and wrist CoM. Do not check a G1 `motion_lib.pkl` into this repo.
 
+## ADR-015 — T800 GMR T-pose overlay is q=0 XML composition, not a live actor T-pose
+
+- **Status:** accepted
+- **Context:** ADR-013 copied GMR PM01 quat offsets and left `human_scale=1.0`. A real T-pose needs a human SMPL-X rest pose plus the robot at a defined pose. T800 and PM01 MJCF body tags are translation-only, so at q=0 every tracked body shares the pelvis orientation.
+- **Decision:** `wbc/gmr/tpose.py` measures T800 vs PM01 body frames at q=0 (no MuJoCo import). Offsets are composed `R_off_t800 = R_off_pm01 * inv(R_pm01) * R_t800`. Head (absent from GMR PM01 IK) takes the pelvis offset after that composition, matching GMR tienkung/hi. Scale is PM01's official table times measured T800/PM01 link-length ratios. Results live in `tpose_offsets.yaml`; `body_map.yaml` stays the PM01-copy source.
+- **Consequences:** `make gmr-tpose` rewrites IK JSON. Running GMR on BONES-SEED is still blocked on flange SE(3) and wrist CoM. Do not call this a calibrated actor T-pose.
+
+## ADR-016 — Privileged Isaac Lab env is the same pallet+box recipe
+
+- **Status:** accepted
+- **Context:** L3 needs a privileged physics path that does not wait for Isaac Sim in CI and does not violate ADR-004.
+- **Decision:** `PrivilegedIsaacCfg` is pallet+box, privileged state only, no RTX cameras. `grasp_success_rate` is always JSON `null`. Constructing `PrivilegedIsaacEnv` without Isaac Lab raises `IsaacLabUnavailable`. Combined T800+Hand remains `PolicyEvalBlocked`.
+- **Consequences:** Unit tests never import Isaac Lab. RTX visual closed loop stays `eval/l3_isaac_closedloop.py`.
+
+
 ## ADR-014 — Privileged L2 may drop a box on a pallet, never a grasp-success number
 
 - **Status:** accepted

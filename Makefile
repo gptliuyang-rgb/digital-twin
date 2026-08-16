@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export usd-pads eval-l2-priv
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv
 
 PYTHON ?= python3
 
@@ -47,11 +47,19 @@ weld-recipe:
 sonic-status:
 	$(PYTHON) -c "from wbc.retarget import status_report; import json; print(json.dumps(status_report(), indent=2, default=str))"
 
+gmr-tpose:
+	$(PYTHON) -m wbc.gmr.tpose --write
+	$(PYTHON) -m wbc.gmr.export
+
 gmr-export:
 	$(PYTHON) -m wbc.gmr.export
 
 usd-pads:
 	$(PYTHON) -m assets.dexhand2.build.gen_usd_pads --side right
+	$(PYTHON) -c "from assets.dexhand2.build.gen_usd_pads import generate; generate('left')"
 
 eval-l2-priv:
 	$(PYTHON) -m eval.l2_privileged
+
+eval-l3-priv:
+	$(PYTHON) -m eval.l3_isaac_privileged
