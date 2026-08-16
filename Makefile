@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l0-diagnose
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l0-diagnose eval-l1-case-a
 
 PYTHON ?= python3
 
@@ -34,6 +34,9 @@ eval-l0-diagnose:
 
 eval-l1:
 	$(PYTHON) -m eval.l1_kinematic --config eval/configs/l1_kinematic.yaml
+
+eval-l1-case-a:
+	$(PYTHON) -m eval.l1_case_a --apply-fk
 
 eval-l2:
 	$(PYTHON) -m eval.l2_mujoco_closedloop --config eval/configs/l2_mujoco.yaml

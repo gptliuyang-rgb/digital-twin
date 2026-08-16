@@ -79,8 +79,8 @@ def known_layouts(spec=None) -> dict[str, dict[str, Any]]:
             "dim": n_arm + 2 * n_h,
             "case": "A",
             "aligned": False,
-            "adapter": "vla.adapters.JointToWristAdapter",
-            "note": f"T800 2×{n_arm // 2} arm joints + 2×{n_h} fingers. FK to wrist SE(3).",
+            "adapter": "vla.adapters.case_a.CaseAToCommandSchema.convert(apply_fk=True)",
+            "note": f"T800 2×{n_arm // 2} arm joints + 2×{n_h} fingers. Explicit FK to wrist SE(3); not a PolicyClient hook.",
         },
         "t800_body_q": {
             "dim": n_body,
@@ -218,6 +218,11 @@ def diagnose_action_vector(
         notes.append("A 3-point SONIC checkpoint cannot consume this vector (ADR-017).")
     if match_name == "command_schema_v1" and case == "B":
         notes.append("L0 open-loop replay may run. L2/L3 still blocked on contact/flange P0.")
+    if match_name == "t800_dual_arm_q_plus_hands" and case == "A":
+        notes.append(
+            "Call CaseAToCommandSchema.convert(..., apply_fk=True, head_nav=...). "
+            "PolicyClient will not do this for you."
+        )
 
     return ActionSpaceReport(
         dim=dim,

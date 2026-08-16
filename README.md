@@ -42,6 +42,7 @@ make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
 make eval-l3-priv       # Isaac Lab privileged cfg dump; still no grasp-success
 make eval-gain-scan     # 9-cell MIT kp/kv hold; grasp_success_rate stays null
 make eval-l0-diagnose   # classify a ckpt action last-dim (A/B/C); no weights required
+make eval-l1-case-a     # 50-D → 75-D FK; requires --apply-fk; skips without T800 URDF
 ```
 
 ## Facts already taken from official sources

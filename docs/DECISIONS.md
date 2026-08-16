@@ -130,10 +130,38 @@
 - **Decision:** `PrivilegedL2Env` is pallet+box only. Floor friction is an explicit fixture constant and is **not** written into `dexhand2_spec.yaml`. `grasp_success_rate` is always JSON `null`. Combined T800+Hand remains `PolicyEvalBlocked`.
 - **Consequences:** Stack-settle diagnostics can be physics-backed. Pick-success dashboards cannot.
 
-## ADR-019 — Diagnose ckpt action space before L0 replay or SONIC load
+## ADR-020 — Case A FK is an explicit call, never a PolicyClient hook
+
+- **Status:** accepted
+- **Context:** ADR-019 classifies a 50-D last-dim as Case A (T800 2×5 arm q + 2×20 fingers). `JointToWristAdapter` already FKs one arm. Loading 50-D into `PolicyClient` looks like a joint-order bug. Silently padding head/nav or calling FK inside `require_command_schema_vector` would hide a missing L3 command.
+- **Decision:** `CaseAToCommandSchema.convert(..., apply_fk=True, head_nav=HeadNavCommand)` is the only A→B path. `apply_fk` is keyword-only; False raises. `HeadNavCommand` must name its `source`. Neck FK from two head joints with torso at zero is forbidden (those joints are not in the 50-D vector). `PolicyClient`, `DeployPipeline`, π0.5 glue, L0 replay, and 50 Hz upsample still refuse 50-D.
+- **Consequences:** `make eval-l1-case-a --apply-fk` is the kinematic gate. L3 must supply pelvis height, nav, loco mode, tool trigger, and head pose. Combined T800+Hand weld remains `PolicyEvalBlocked`.
+
+## ADR-021 — VLA→50 Hz upsample is integer-factor SLERP, after Case A conversion
+
+- **Status:** accepted
+- **Context:** GR00T typical is 10 Hz × 16; π0.5 typical is 5 Hz × 50; SONIC instruction stream is 50 Hz. Zhou 6D is not a vector space. Non-integer rate ratios were already refused by `upsample_factor`.
+- **Decision:** `vla/adapters/upsample.py` interpolates `command_schema_v1` rows with the same kernel as L1a (`interpolate_command_matrix`): cubic Hermite (or linear) on positions/fingers, SLERP on SO(3), nearest-neighbour on enums. Output length is `(H-1)*factor+1`. Case A chunks raise.
+- **Consequences:** Confirm `infer_hz` against the real ckpt after L0 diagnose. GPU latency is still unmeasured (`chunk_clock.yaml` is labelled typicals). L1a planner stays 10 Hz (ADR-018); this module is the 50 Hz command stream after that, or a direct VLA→50 Hz path when the planner is not in the loop.
+
 
 - **Status:** accepted
 - **Context:** Existing VLA ckpts may be dual-arm joints (case A), wrist SE(3) (case B), or velocity/delta (case C). `command_schema_v1` is 75-D case B. Loading the wrong last-dim into `PolicyClient` looks like a joint-order bug in L0.
 - **Decision:** `vla/adapters/action_space.py` classifies last-dim against a frozen layout table. Unknown dims raise `ActionSpaceMismatch` (no pad/slice). G1 29-DoF raises `G1CheckpointIncompatible`. `PolicyClient` and L0 replay call this before flatten. π0.5 is pass-through only when D=75 (`pi05_glue.py`); it is not native to SONIC.
-- **Consequences:** `make eval-l0-diagnose` can run without weights. Case A still needs `JointToWristAdapter` plus a heading-frame convert. Case C is a retrain. SONIC PPO remains blocked on flange SE(3) and wrist CoM. Decoder history packing (`ProprioHistory`) is 874-D for T800 and refuses 29-DoF construction.
+- **Consequences:** `make eval-l0-diagnose` can run without weights. Case A still needs `CaseAToCommandSchema.convert(apply_fk=True, head_nav=...)` (ADR-020). Case C is a retrain. SONIC PPO remains blocked on flange SE(3) and wrist CoM. Decoder history packing (`ProprioHistory`) is 874-D for T800 and refuses 29-DoF construction.
+
+## ADR-020 — Case A FK is an explicit call, never a PolicyClient hook
+
+- **Status:** accepted
+- **Context:** ADR-019 classifies a 50-D last-dim as Case A (T800 2×5 arm q + 2×20 fingers). `JointToWristAdapter` already FKs one arm. Loading 50-D into `PolicyClient` looks like a joint-order bug. Silently padding head/nav or calling FK inside `require_command_schema_vector` would hide a missing L3 command.
+- **Decision:** `CaseAToCommandSchema.convert(..., apply_fk=True, head_nav=HeadNavCommand)` is the only A→B path. `apply_fk` is keyword-only; False raises. `HeadNavCommand` must name its `source`. Neck FK from two head joints with torso at zero is forbidden (those joints are not in the 50-D vector). `PolicyClient`, `DeployPipeline`, π0.5 glue, L0 replay, and 50 Hz upsample still refuse 50-D.
+- **Consequences:** `make eval-l1-case-a` with `--apply-fk` is the kinematic gate. L3 must supply pelvis height, nav, loco mode, tool trigger, and head pose. Combined T800+Hand weld remains `PolicyEvalBlocked`.
+
+## ADR-021 — VLA→50 Hz upsample is integer-factor SLERP, after Case A conversion
+
+- **Status:** accepted
+- **Context:** GR00T typical is 10 Hz × 16; π0.5 typical is 5 Hz × 50; SONIC instruction stream is 50 Hz. Zhou 6D is not a vector space. Non-integer rate ratios were already refused by `upsample_factor`.
+- **Decision:** `vla/adapters/upsample.py` interpolates `command_schema_v1` rows with the same kernel as L1a (`interpolate_command_matrix`): cubic Hermite (or linear) on positions/fingers, SLERP on SO(3), nearest-neighbour on enums. Output length is `(H-1)*factor+1`. Case A chunks raise.
+- **Consequences:** Confirm `infer_hz` against the real ckpt after L0 diagnose. GPU latency is still unmeasured (`chunk_clock.yaml` is labelled typicals). L1a planner stays 10 Hz (ADR-018); this module feeds the 50 Hz command stream.
+
 

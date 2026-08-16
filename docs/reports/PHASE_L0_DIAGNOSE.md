@@ -28,3 +28,5 @@ Same P0 list as `docs/SPEC_INTAKE.md`. Diagnosing a ckpt does not make SONIC PPO
 - Isaac Lab `reset`/`step`
 - Combined T800+Hand MJCF
 - Grasp-success numbers
+- Case A conversion is now an explicit call: see `docs/reports/PHASE_CASE_A.md` / ADR-020
+

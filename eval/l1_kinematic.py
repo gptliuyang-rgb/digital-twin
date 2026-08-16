@@ -96,6 +96,7 @@ def main() -> None:
         "self_collision": "skipped_no_fcl",
         "mujoco_fk": _mujoco_zero_sites(),
         "t800_wrist_fk": _t800_wrist_fk(),
+        "case_a": "see eval/l1_case_a.py — convert 50-D with apply_fk=True before IK",
         "note": "Geometry IK/FCL require Pinocchio/FCL. Limit + coupling + URDF FK always run when assets exist.",
     }
     out = Path(args.out)

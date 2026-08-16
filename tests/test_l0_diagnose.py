@@ -52,7 +52,7 @@ def test_case_a_needs_fk_adapter() -> None:
     assert report.layout_name == "t800_dual_arm_q_plus_hands"
     assert report.aligned_with_command_schema is False
     assert report.adapter is not None
-    assert "JointToWristAdapter" in report.adapter
+    assert "CaseAToCommandSchema" in report.adapter
 
 
 def test_case_c_from_modality_overrides_joint_dim() -> None:
@@ -91,7 +91,7 @@ def test_policy_client_rejects_case_a() -> None:
         return np.zeros(50)
 
     client = PolicyClient(infer, spec)
-    with pytest.raises(ActionSpaceMismatch, match="JointToWristAdapter"):
+    with pytest.raises(ActionSpaceMismatch, match="apply_fk=True"):
         client.step({})
 
 
