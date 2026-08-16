@@ -29,6 +29,13 @@ make test
 
 `make check-spec` is **supposed to fail** until the P0 `REQUIRED_INPUT` fields in `docs/SPEC_INTAKE.md` are filled. That is intentional.
 
+```bash
+./scripts/bootstrap_resources.sh
+make ingest-official    # writes docs/reports/PHASE_1_baseline.md
+make build-assets       # palmar pad spheres + MIT motors + simplified capsules
+make eval-qr            # synthetic QR envelope heatmap (needs OpenCV)
+```
+
 ## Facts already taken from official sources
 
 Wuji Hand 2 Beta 1: 20 independent revolute DoF, no coupling, product mass 0.745±0.010 kg (soft body, no cables), skeleton URDF 0.6207 kg, MIT hybrid @ 1 kHz, 12 V, RJ45. Official MJCF uses gen-1 kp/kv and does **not** collide the fingertip pad meshes.

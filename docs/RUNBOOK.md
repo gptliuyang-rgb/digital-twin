@@ -35,6 +35,8 @@ Re-run E1 and E2 (`hand/calibration/PROTOCOL.md`). Store under
 make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
 make eval-l1    # limits + coupling; IK skipped without Pinocchio
 make eval-l2    # refuses success rates while uncalibrated
+make eval-qr    # synthetic pinhole QR envelope; decode is real, renderer is not RTX
+make ingest-official && make build-assets && make check-drift
 ```
 
 ## What this repo will not do yet

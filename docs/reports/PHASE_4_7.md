@@ -5,7 +5,7 @@
 - Parameterised box + Euro pallet constants
 - QR PNG generator; `simulate_scan` geometry gate + OpenCV/pyzbar decode
 - Sensor calib YAML is REQUIRED_INPUT; delay + JPEG helpers exist
-- Scan envelope heatmap not run (needs renderer)
+- Scan envelope heatmap: `eval/qr_envelope.py` (synthetic pinhole + real decode). `make eval-qr`. Not RTX.
 
 ## Phase 5
 
