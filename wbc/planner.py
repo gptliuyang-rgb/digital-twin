@@ -99,6 +99,62 @@ def slerp_rot6d_series(t_src: np.ndarray, rot6d: np.ndarray, t_dst: np.ndarray) 
     return out
 
 
+ENUM_FIELDS = ("loco_mode", "left_hand_mode", "right_hand_mode", "tool_trigger")
+
+
+def interpolate_command_matrix(
+    flats: np.ndarray,
+    t_src: np.ndarray,
+    t_dst: np.ndarray,
+    spec,
+    *,
+    pos_interp: str = "cubic_hermite",
+) -> np.ndarray:
+    """Interpolate (N, D) command_schema_v1 rows from ``t_src`` onto ``t_dst``.
+
+    Positions (and other non-rotation scalars) use cubic Hermite or linear.
+    Zhou 6D is SLERP on SO(3). Enums are nearest-neighbour holds.
+    """
+    flats = np.asarray(flats, dtype=np.float64)
+    t_src = np.asarray(t_src, dtype=np.float64).reshape(-1)
+    t_dst = np.asarray(t_dst, dtype=np.float64).reshape(-1)
+    if flats.ndim != 2:
+        raise ValueError(f"flats must be (N, D), got {flats.shape}")
+    dim = command_dim(spec)
+    if flats.shape[1] != dim:
+        raise ValueError(f"command last-dim {flats.shape[1]} != command_schema_v1 {dim}")
+    if flats.shape[0] != t_src.shape[0]:
+        raise ValueError("t_src / flats length mismatch")
+    if flats.shape[0] < 2:
+        raise ValueError("need at least two waypoints")
+    layout = command_layout(spec)
+    n_steps = t_dst.shape[0]
+    out = np.empty((n_steps, dim), dtype=np.float64)
+    rot_slices = [layout["head_rot6d"], layout["left_wrist_rot6d"], layout["right_wrist_rot6d"]]
+    cursor = 0
+    while cursor < dim:
+        rot_here = next((s for s in rot_slices if s[0] == cursor), None)
+        if rot_here is not None:
+            a, b = rot_here
+            out[:, a:b] = slerp_rot6d_series(t_src, flats[:, a:b], t_dst)
+            cursor = b
+            continue
+        nxt = min((s[0] for s in rot_slices if s[0] > cursor), default=dim)
+        block = flats[:, cursor:nxt]
+        if pos_interp == "linear":
+            for d in range(block.shape[1]):
+                out[:, cursor + d] = np.interp(t_dst, t_src, block[:, d])
+        else:
+            out[:, cursor:nxt] = cubic_hermite(t_src, block, t_dst)
+        cursor = nxt
+    n = flats.shape[0]
+    for name in ENUM_FIELDS:
+        a, b = layout[name]
+        nearest = np.clip(np.searchsorted(t_src, t_dst, side="right") - 1, 0, n - 1)
+        out[:, a:b] = flats[nearest, a:b]
+    return out
+
+
 @dataclass(frozen=True)
 class PlannedRef:
     t_s: np.ndarray
@@ -141,8 +197,6 @@ class KinematicPlanner:
         if len(waypoints) < 2:
             raise ValueError("planner needs ≥2 waypoints")
         spec = waypoints[0].spec
-        dim = command_dim(spec)
-        layout = command_layout(spec)
         n = len(waypoints)
         if times_s is None:
             t_src = np.linspace(0.0, self.horizon_s, n)
@@ -153,31 +207,9 @@ class KinematicPlanner:
         n_steps = int(round(self.horizon_s * self.rate_hz)) + 1
         t_dst = np.linspace(float(t_src[0]), float(t_src[0]) + self.horizon_s, n_steps)
         flats = np.stack([wp.to_flat_vector() for wp in waypoints], axis=0)
-        out = np.empty((n_steps, dim), dtype=np.float64)
-        rot_slices = [layout["head_rot6d"], layout["left_wrist_rot6d"], layout["right_wrist_rot6d"]]
-        # Interpolate each non-rotation block; rotations via SLERP.
-        cursor = 0
-        while cursor < dim:
-            rot_here = next((s for s in rot_slices if s[0] == cursor), None)
-            if rot_here is not None:
-                a, b = rot_here
-                out[:, a:b] = slerp_rot6d_series(t_src, flats[:, a:b], t_dst)
-                cursor = b
-                continue
-            # next rotation or end
-            nxt = min((s[0] for s in rot_slices if s[0] > cursor), default=dim)
-            block = flats[:, cursor:nxt]
-            if self.pos_interp == "linear":
-                for d in range(block.shape[1]):
-                    out[:, cursor + d] = np.interp(t_dst, t_src, block[:, d])
-            else:
-                out[:, cursor:nxt] = cubic_hermite(t_src, block, t_dst)
-            cursor = nxt
-        # loco_mode / hand_mode / tool_trigger are enums — hold last integer via nearest
-        for name in ("loco_mode", "left_hand_mode", "right_hand_mode", "tool_trigger"):
-            a, b = layout[name]
-            nearest = np.clip(np.searchsorted(t_src, t_dst, side="right") - 1, 0, n - 1)
-            out[:, a:b] = flats[nearest, a:b]
+        out = interpolate_command_matrix(
+            flats, t_src, t_dst, spec, pos_interp=self.pos_interp
+        )
         elbow_out = None
         if elbows is not None:
             if len(elbows) != n:
