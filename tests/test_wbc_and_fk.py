@@ -91,6 +91,21 @@ def test_t800_adapter_zero_pose_finite() -> None:
     assert pose.rot6d.shape == (6,)
 
 
+@pytest.mark.skipif(not T800_URDF.is_file(), reason="T800 URDF not cloned")
+def test_t800_elbow_fk_is_pitch_body() -> None:
+    from vla.adapters.joint_to_wrist_adapter import JointToWristAdapter
+
+    frames = load_frames()["frames"]
+    adapter = JointToWristAdapter(side="right", urdf_path=T800_URDF)
+    elbow = adapter.elbow_pose(np.zeros(5))
+    wrist = adapter(np.zeros(5))
+    assert elbow.link == frames["right_elbow"]["t800_link"]
+    assert elbow.link == "LINK_ELBOW_PITCH_R"
+    assert np.isfinite(elbow.pos_m).all()
+    # Dummy wrist sits on the forearm, not at the elbow joint.
+    assert float(np.linalg.norm(wrist.pos_m - elbow.pos_m)) > 0.05
+
+
 def test_vr_3point_is_left_right_head_not_schema_order() -> None:
     cmd = CommandVector.zeros()
     cmd.head_pos[:] = [1.0, 0.0, 0.0]

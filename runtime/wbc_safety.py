@@ -57,6 +57,8 @@ class WbcSafetyFilter:
         pelvis_height: float,
         nav_cmd: np.ndarray,
         dt_s: float,
+        left_elbow_pos: np.ndarray | None = None,
+        right_elbow_pos: np.ndarray | None = None,
     ) -> WbcFilterResult:
         head_pos = np.asarray(head_pos, dtype=np.float64).reshape(3)
         left_wrist_pos = np.asarray(left_wrist_pos, dtype=np.float64).reshape(3)
@@ -72,13 +74,23 @@ class WbcSafetyFilter:
             "pelvis_height": pelvis_height,
             "nav_cmd": nav_cmd,
         }
+        if left_elbow_pos is not None:
+            packed["left_elbow_pos"] = np.asarray(left_elbow_pos, dtype=np.float64).reshape(3)
+        if right_elbow_pos is not None:
+            packed["right_elbow_pos"] = np.asarray(right_elbow_pos, dtype=np.float64).reshape(3)
         reason = "ok"
         if not np.isfinite(head_pos).all() or not np.isfinite(left_wrist_pos).all() or not np.isfinite(
             right_wrist_pos
         ).all():
             reason = "nan"
+        elif left_elbow_pos is not None and not np.isfinite(packed["left_elbow_pos"]).all():
+            reason = "nan"
+        elif right_elbow_pos is not None and not np.isfinite(packed["right_elbow_pos"]).all():
+            reason = "nan"
         elif self._last is not None:
-            for key in ("head_pos", "left_wrist_pos", "right_wrist_pos"):
+            for key in ("head_pos", "left_wrist_pos", "right_wrist_pos", "left_elbow_pos", "right_elbow_pos"):
+                if key not in packed or key not in self._last:
+                    continue
                 delta = float(np.linalg.norm(packed[key] - self._last[key]))  # type: ignore[operator]
                 if delta > self.limits.max_delta_pos_m:
                     reason = f"jump_{key}"

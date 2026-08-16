@@ -54,10 +54,14 @@ tracked_bodies:   # set B; must match frames.yaml
   right_foot: LINK_FOOT_R
 
 # Optional 5-point teleop (elbows) — industrial box collision. Requires retrain.
-# Not enabled until a T800 SONIC run includes them in the hybrid encoder.
+# Elbows are LINK_ELBOW_PITCH_* (GMR role, the joint bulge), not LINK_ELBOW_YAW_*
+# (forearm / dummy-wrist parent). See ADR-017 and command_schema_v1_5point.yaml.
 optional_elbow_bodies:
-  left_elbow: LINK_ELBOW_YAW_L
-  right_elbow: LINK_ELBOW_YAW_R
+  left_elbow: LINK_ELBOW_PITCH_L
+  right_elbow: LINK_ELBOW_PITCH_R
+forearm_bodies:
+  left_forearm: LINK_ELBOW_YAW_L
+  right_forearm: LINK_ELBOW_YAW_R
 
 # vr_3point_* field order is SONIC's, NOT command_schema_v1 field order.
 # SONIC: [left_wrist, right_wrist, head]
@@ -65,7 +69,23 @@ optional_elbow_bodies:
 teleop_3point_order: [left_wrist, right_wrist, head]
 vr_3point_pos_dim: 9
 vr_3point_orn_dim: 12   # 3 × quaternion wxyz
+teleop_5point_order: [left_wrist, right_wrist, head, left_elbow, right_elbow]
+vr_5point_pos_dim: 15
+vr_5point_orn_dim: 12   # elbows are position-only; orn stays wrists+head
+hybrid_encoder_cmd_dim_3point: 21
+hybrid_encoder_cmd_dim_5point: 27
+default_teleop_mode: vr_3point   # 5-point is opt-in; mixing modes raises
 command_rot6d_to_quat: true
+
+# L1a kinematic planner (10 Hz). Horizon is the reference window SONIC tracks.
+planner:
+  rate_hz: 10
+  horizon_s_range: [0.8, 2.4]
+  default_horizon_s: 1.6
+  pos_interp: cubic_hermite
+  rot_interp: slerp_so3
+  hand_interp: linear
+  note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring.
 
 g1_incompatible:
   g1_n_dof: 29

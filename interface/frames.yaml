@@ -31,6 +31,16 @@ frames:
     t800_link: LINK_WRIST_END_R
     t800pro_link: LINK_WRIST_ROLL_R
     source: engineai_native_sdk assets/config/t800/model/default.yaml end_effector_frames
+  left_elbow:
+    description: >
+      5-point teleop elbow body (industrial box collision). GMR role left_elbow.
+      This is LINK_ELBOW_PITCH_L, not the forearm LINK_ELBOW_YAW_L.
+    t800_link: LINK_ELBOW_PITCH_L
+    t800pro_link: LINK_ELBOW_PITCH_L
+  right_elbow:
+    description: 5-point teleop elbow body. GMR role right_elbow.
+    t800_link: LINK_ELBOW_PITCH_R
+    t800pro_link: LINK_ELBOW_PITCH_R
   left_hand_root:
     description: Wuji Hand 2 left root link (official MJCF/URDF).
     wuji_link: l_wrist

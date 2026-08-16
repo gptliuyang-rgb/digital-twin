@@ -30,6 +30,25 @@ def decoder_history_dim(n_dof: int, *, token_dim: int = TOKEN_DIM) -> int:
     return token_dim + HISTORY_FRAMES * (ANGVEL_DIM + GRAVITY_DIM + 3 * int(n_dof))
 
 
+def hybrid_encoder_cmd_dim(mode: str, cfg: dict[str, Any] | None = None) -> int:
+    """Command token size into the hybrid encoder. Not the decoder history dim.
+
+    3-point: 9 pos + 12 quat = 21. 5-point: 15 pos + 12 quat = 27 (elbows xyz only).
+    """
+    cfg = cfg or load_t800_sonic()
+    if mode in ("vr_3point", "3point"):
+        expected = int(cfg["vr_3point_pos_dim"]) + int(cfg["vr_3point_orn_dim"])
+        if expected != int(cfg["hybrid_encoder_cmd_dim_3point"]):
+            raise AssertionError(f"3-point encoder dim drifted: {expected}")
+        return expected
+    if mode in ("vr_5point", "5point"):
+        expected = int(cfg["vr_5point_pos_dim"]) + int(cfg["vr_5point_orn_dim"])
+        if expected != int(cfg["hybrid_encoder_cmd_dim_5point"]):
+            raise AssertionError(f"5-point encoder dim drifted: {expected}")
+        return expected
+    raise ValueError(f"unknown teleop mode {mode!r}")
+
+
 def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg = cfg or load_t800_sonic()
     order = list(cfg["joint_order"])
@@ -47,4 +66,9 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg["decoder_input_dim"] = expected
     cfg["g1_decoder_input_dim"] = g1
     cfg["urdf_path"] = str(REPO_ROOT / cfg["source_urdf"])
+    cfg["hybrid_encoder_cmd_dim_3point"] = hybrid_encoder_cmd_dim("vr_3point", cfg)
+    cfg["hybrid_encoder_cmd_dim_5point"] = hybrid_encoder_cmd_dim("vr_5point", cfg)
+    elbows = cfg.get("optional_elbow_bodies", {})
+    if elbows.get("left_elbow") == "LINK_ELBOW_YAW_L":
+        raise ValueError("5-point elbow must be LINK_ELBOW_PITCH_* (joint), not YAW (forearm)")
     return cfg

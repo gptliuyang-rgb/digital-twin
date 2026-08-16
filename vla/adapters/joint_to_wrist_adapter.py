@@ -55,6 +55,8 @@ class JointToWristAdapter:
         frames = load_frames()["frames"]
         key = "left_wrist" if side == "left" else "right_wrist"
         self.wrist_link = frames[key]["t800_link"]
+        elbow_key = "left_elbow" if side == "left" else "right_elbow"
+        self.elbow_link = frames[elbow_key]["t800_link"]
         self.root_link = frames["pelvis"]["t800_link"]
         meta = _t800_meta()
         self.arm_joints = list(meta["arm_joints"][side])
@@ -82,3 +84,13 @@ class JointToWristAdapter:
             q_map.update(extra_q)
         pos, rot = self.tree.fk_link(self.wrist_link, q_map)
         return WristPose(pos_m=pos, rot6d=matrix_to_rot6d(rot), link=self.wrist_link)
+
+    def elbow_pose(self, q_arm: np.ndarray, extra_q: dict[str, float] | None = None) -> WristPose:
+        """FK of the 5-point elbow body (LINK_ELBOW_PITCH_*), heading/pelvis frame of the URDF."""
+        if self.fk_fn is not None:
+            raise NotImplementedError("elbow_pose needs the URDF tree, not a wrist-only fk_fn")
+        q_map = {name: float(v) for name, v in zip(self.arm_joints, np.asarray(q_arm, dtype=np.float64), strict=True)}
+        if extra_q:
+            q_map.update(extra_q)
+        pos, rot = self.tree.fk_link(self.elbow_link, q_map)
+        return WristPose(pos_m=pos, rot6d=matrix_to_rot6d(rot), link=self.elbow_link)
