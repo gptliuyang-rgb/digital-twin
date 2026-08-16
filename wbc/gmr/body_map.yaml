@@ -1,0 +1,225 @@
+# GMR IK body map for EngineAI T800.
+# Source of truth for *which* MuJoCo bodies GMR tracks. Quat/pos offsets copied
+# from GMR's official engineai_pm01 configs are labelled uncalibrated — they are
+# a T-pose starting guess, not a T800 measurement.
+#
+# T800 MJCF bodies (Native SDK xml/serial_links.xml) use LINK_WAIST_YAW, not
+# PM01's LINK_TORSO_YAW. Wrists are LINK_WRIST_END_* (dummy, rpy=0 on elbow yaw).
+# Feet are LINK_FOOT_* (welded at LINK_ANKLE_ROLL origin) — SONIC tracks those.
+
+schema_version: "1.0"
+robot: engineai_t800
+gmr_robot_key: engineai_t800
+robot_root_name: LINK_BASE
+mjcf: third_party/engineai-native-sdk/assets/resource/robot/t800/xml/serial_t800.xml
+urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+n_revolute: 25
+hand_bypass: true
+quat_offset_status: uncalibrated_copied_from_gmr_pm01
+human_scale_status: uncalibrated_identity
+human_scale_note: >
+  PM01 GMR uses 0.85/0.8. T800 height is not assumed equal. Scale stays 1.0
+  until a T-pose pass replaces these numbers. Do not copy PM01 scale silently.
+
+# GMR table entry: [human_name, pos_weight, rot_weight, pos_offset_m, quat_wxyz]
+# pos_offset / quat come from GMR smplx_to_pm01.json / bvh_lafan1_to_pm01.json
+# unless noted. Wrist uses PM01 LINK_ELBOW_END offsets because T800 dummy wrist
+# has rpy = 0 relative to elbow yaw (same orientation).
+
+smplx:
+  human_root_name: pelvis
+  human_height_assumption_m: 1.8   # GMR default, not a T800 measurement
+  ground_height_m: 0.0
+  human_scale_table:
+    pelvis: 1.0
+    spine3: 1.0
+    left_hip: 1.0
+    right_hip: 1.0
+    left_knee: 1.0
+    right_knee: 1.0
+    left_foot: 1.0
+    right_foot: 1.0
+    left_shoulder: 1.0
+    right_shoulder: 1.0
+    left_elbow: 1.0
+    right_elbow: 1.0
+    left_wrist: 1.0
+    right_wrist: 1.0
+    head: 1.0
+  bodies:
+    - robot: LINK_BASE
+      human: pelvis
+      role: pelvis
+      table1: {pos_w: 50, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+      table2: {pos_w: 100, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+    - robot: LINK_HIP_ROLL_L
+      human: left_hip
+      role: left_hip
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.4267755048530407, -0.5637931078484661, -0.5637931078484661, -0.4267755048530407]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.4267755048530407, -0.5637931078484661, -0.5637931078484661, -0.4267755048530407]}
+    - robot: LINK_KNEE_PITCH_L
+      human: left_knee
+      role: left_knee
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+    - robot: LINK_FOOT_L
+      human: left_foot
+      role: left_foot
+      note: SONIC tracked body. PM01 GMR used LINK_ANKLE_ROLL_L; T800 FOOT is at that origin.
+      table1: {pos_w: 100, rot_w: 50, pos_m: [-0.1, 0.03, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+      table2: {pos_w: 100, rot_w: 50, pos_m: [-0.1, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, 0.5]}
+    - robot: LINK_HIP_ROLL_R
+      human: right_hip
+      role: right_hip
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.4267755048530407, -0.5637931078484661, -0.5637931078484661, -0.4267755048530407]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.4267755048530407, -0.5637931078484661, -0.5637931078484661, -0.4267755048530407]}
+    - robot: LINK_KNEE_PITCH_R
+      human: right_knee
+      role: right_knee
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+    - robot: LINK_FOOT_R
+      human: right_foot
+      role: right_foot
+      table1: {pos_w: 100, rot_w: 50, pos_m: [-0.1, -0.03, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+      table2: {pos_w: 100, rot_w: 50, pos_m: [-0.1, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, 0.5]}
+    - robot: LINK_WAIST_YAW
+      human: spine3
+      role: torso
+      note: T800 MJCF body. PM01 used LINK_TORSO_YAW.
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+      table2: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, -0.5, -0.5, -0.5]}
+    - robot: LINK_SHOULDER_ROLL_L
+      human: left_shoulder
+      role: left_shoulder
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.70710678, 0.0, -0.70710678, 0.0]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.70710678, 0.0, -0.70710678, 0.0]}
+    - robot: LINK_ELBOW_PITCH_L
+      human: left_elbow
+      role: left_elbow
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.7071067811865475, 0.0, 0.7071067811865475, 0.0]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [1.0, 0.0, 0.0, 0.0]}
+    - robot: LINK_WRIST_END_L
+      human: left_wrist
+      role: left_wrist
+      note: SONIC tracked body. Offsets copied from PM01 LINK_ELBOW_END (T800 dummy wrist rpy=0).
+      table1: {pos_w: 10, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.7071067811865475, 0.0, 0.7071067811865475, 0.0]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [1.0, 0.0, 0.0, 0.0]}
+    - robot: LINK_SHOULDER_ROLL_R
+      human: right_shoulder
+      role: right_shoulder
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.0, 0.70710678, 0.0, 0.70710678]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.0, 0.70710678, 0.0, 0.70710678]}
+    - robot: LINK_ELBOW_PITCH_R
+      human: right_elbow
+      role: right_elbow
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.0, 0.7071067811865475, 0.0, 0.7071067811865475]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.0, 0.0, 0.0, -1.0]}
+    - robot: LINK_WRIST_END_R
+      human: right_wrist
+      role: right_wrist
+      table1: {pos_w: 10, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.0, 0.7071067811865475, 0.0, 0.7071067811865475]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.0, 0.0, 0.0, -1.0]}
+    - robot: LINK_HEAD_YAW
+      human: head
+      role: head
+      note: SONIC tracks head. PM01 GMR config has no head body. Quat is identity until T-pose.
+      table1: {pos_w: 50, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [1.0, 0.0, 0.0, 0.0]}
+      table2: {pos_w: 100, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [1.0, 0.0, 0.0, 0.0]}
+
+bvh_lafan1:
+  human_root_name: Hips
+  human_height_assumption_m: 1.8
+  ground_height_m: 0.0
+  human_scale_table:
+    Hips: 1.0
+    Spine2: 1.0
+    LeftUpLeg: 1.0
+    RightUpLeg: 1.0
+    LeftLeg: 1.0
+    RightLeg: 1.0
+    LeftFootMod: 1.0
+    RightFootMod: 1.0
+    LeftArm: 1.0
+    RightArm: 1.0
+    LeftForeArm: 1.0
+    RightForeArm: 1.0
+    LeftHand: 1.0
+    RightHand: 1.0
+    Head: 1.0
+  bodies:
+    - robot: LINK_BASE
+      human: Hips
+      role: pelvis
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, 0.5, 0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, 0.5, 0.5]}
+    - robot: LINK_HIP_ROLL_L
+      human: LeftUpLeg
+      role: left_hip
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+    - robot: LINK_KNEE_PITCH_L
+      human: LeftLeg
+      role: left_knee
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+    - robot: LINK_FOOT_L
+      human: LeftFootMod
+      role: left_foot
+      table1: {pos_w: 100, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.70710678, 0.70710678, 0.0, 0.0]}
+      table2: {pos_w: 100, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.70710678, 0.70710678, 0.0, 0.0]}
+    - robot: LINK_HIP_ROLL_R
+      human: RightUpLeg
+      role: right_hip
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+    - robot: LINK_KNEE_PITCH_R
+      human: RightLeg
+      role: right_knee
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, 0.5, 0.5, -0.5]}
+    - robot: LINK_FOOT_R
+      human: RightFootMod
+      role: right_foot
+      table1: {pos_w: 100, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.70710678, 0.70710678, 0.0, 0.0]}
+      table2: {pos_w: 100, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.70710678, 0.70710678, 0.0, 0.0]}
+    - robot: LINK_WAIST_YAW
+      human: Spine2
+      role: torso
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, 0.5, 0.5]}
+      table2: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, 0.5, 0.5]}
+    - robot: LINK_SHOULDER_ROLL_L
+      human: LeftArm
+      role: left_shoulder
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, -0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, -0.5, -0.5]}
+    - robot: LINK_ELBOW_PITCH_L
+      human: LeftForeArm
+      role: left_elbow
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+    - robot: LINK_WRIST_END_L
+      human: LeftHand
+      role: left_wrist
+      table1: {pos_w: 10, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+    - robot: LINK_SHOULDER_ROLL_R
+      human: RightArm
+      role: right_shoulder
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, -0.5, -0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [0.5, 0.5, -0.5, -0.5]}
+    - robot: LINK_ELBOW_PITCH_R
+      human: RightForeArm
+      role: right_elbow
+      table1: {pos_w: 0, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+    - robot: LINK_WRIST_END_R
+      human: RightHand
+      role: right_wrist
+      table1: {pos_w: 10, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+      table2: {pos_w: 10, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [-0.5, -0.5, 0.5, 0.5]}
+    - robot: LINK_HEAD_YAW
+      human: Head
+      role: head
+      table1: {pos_w: 50, rot_w: 10, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [1.0, 0.0, 0.0, 0.0]}
+      table2: {pos_w: 100, rot_w: 5, pos_m: [0.0, 0.0, 0.0], quat_wxyz: [1.0, 0.0, 0.0, 0.0]}

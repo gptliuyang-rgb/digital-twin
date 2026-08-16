@@ -25,6 +25,17 @@ def flag_order_swap(mse: np.ndarray, hand_slice: slice) -> list[int]:
     return [int(i) for i, v in enumerate(hand) if v > 10.0 * med]
 
 
+def named_hand_outliers(mse: np.ndarray, spec, side: str) -> list[dict]:
+    layout = command_layout(spec)
+    sl = slice(*layout[f"{side}_hand_q"])
+    idx = flag_order_swap(mse, sl)
+    hand_mse = mse[sl]
+    return [
+        {"index": i, "joint": spec.joint_order[i], "mse": float(hand_mse[i])}
+        for i in idx
+    ]
+
+
 def evaluate_episode(pred_chunks: np.ndarray, gt_chunks: np.ndarray, spec=None) -> dict:
     spec = spec or load_hand_spec()
     layout = command_layout(spec)
@@ -38,6 +49,8 @@ def evaluate_episode(pred_chunks: np.ndarray, gt_chunks: np.ndarray, spec=None) 
         "mse_mean": float(mse.mean()),
         "left_hand_outliers": flag_order_swap(mse, lh),
         "right_hand_outliers": flag_order_swap(mse, rh),
+        "left_hand_outlier_names": named_hand_outliers(mse, spec, "left"),
+        "right_hand_outlier_names": named_hand_outliers(mse, spec, "right"),
         "chunk_step_mse": np.mean((pred_chunks - gt_chunks) ** 2, axis=(0, 2)).tolist()
         if pred_chunks.ndim == 3
         else None,
