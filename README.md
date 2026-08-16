@@ -6,6 +6,8 @@ This repository is the **P1 digital-twin layer**: frozen command contracts, offi
 
 Policy client code under `runtime/` and `vla/client/` does not import MuJoCo or Isaac. Only `sim/*_backend` / `hand/backends/mujoco_backend.py` talk to a simulator.
 
+QR scan uses IBVS (`runtime/ibvs.py`) plus real decode. Combined T800+Hand 2 policy eval is refused until the wrist flange SE(3) is CAD-measured — identity is not a substitute.
+
 ## Layout
 
 ```

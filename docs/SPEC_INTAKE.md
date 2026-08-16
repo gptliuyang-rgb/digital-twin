@@ -24,7 +24,7 @@ Priority:
 | `t800_wrist_to_hand_mount.{pos,quat}` | SONIC tracks `LINK_WRIST_END_*` (T800) or `LINK_WRIST_ROLL_*` (T800 Pro). A constant SE(3) bias here is a constant VLA error. | Assemble Hand 2 mount STEP against T800 wrist flange CAD | Identity transform **only** for kinematic bring-up; forbidden for policy eval. |
 | `controller_safety.max_delta_q_rad` / `velocity_limit_rad_s` | Safety filter is shared sim/real. Wrong limits either clip every command or pass through dangerous jumps. | From firmware / SDK effort+rate limits, then 50% margin | Soft-clip to `joint_limits_rad` only; log that rate limits are unset. |
 | `fingertip_geometry_radius_m` | Live soft-pad radius. Official Beta 1 pad hardness is unlocked. | Caliper the pad on the unit / E2 | Derived MJCF uses palmar-pulp spheres from the **distal skeleton STL** (`fitted_pad_spheres.yaml`). That is **not** this field. Do not copy those radii here. |
-| `hardware_has_tactile` | Beta 1 has no tactile; Beta 2 does. Wrong assumption changes the observation spec. | Ask FAE / look at the unit | Assume Beta 1 (`has_tactile: false`) until contradicted. |
+| whether YOUR unit is Beta 2 | Beta 1: no tactile. Beta 2: thumb 40 taxels, others 34, each 3-axis force + temperature; needs fw v2.1.0 + SDK ≥ 2026.7.21 | Ask FAE / `hand.hw_version()` | Assume Beta 1 (`has_tactile: false`) until contradicted. |
 
 P0 count in the table: 10 line-items (friction is one physical experiment producing two coefficients).
 

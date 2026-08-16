@@ -49,3 +49,25 @@
 - **Context:** Product copy says 29 DoF excluding hands. Native SDK `serial_t800.urdf` has **25** revolute and dummy `LINK_WRIST_END_*`. `serial_t800pro.urdf` has **43** revolute, of which 14 are a built-in 7-DoF hand we replace, leaving **29** body DoF including wrist pitch/roll.
 - **Decision:** Keep ADR-001 (T800 dummy wrist) unless the physical SKU is T800 Pro. SONIC body link on Pro is `LINK_WRIST_ROLL_*`.
 - **Consequences:** Box-handling workspace on non-Pro T800 is elbow-yaw only. Record the SKU before retargeting BONES-SEED.
+
+## ADR-008 — QR scan is IBVS, never open-loop wrist pose
+
+- **Status:** accepted
+- **Context:** SONIC 3-point teleop mean wrist error is ~6 cm. QR stickers are 2–8 cm. Open-loop VLA wrist commands cannot register a box.
+- **Decision:** Coarse VLA approach to ±10 cm, then `runtime/ibvs.py` (Chaumette 2006 point feature) at 20–30 Hz until `simulate_scan` actually decodes. Camera intrinsics come from `calib_real.yaml` or an explicitly labelled `CameraIntrinsics.synthetic_pinhole()` — never a silent webcam default.
+- **Consequences:** L3/real scan success is a decode, not a distance. Synthetic pinhole envelope is geometry+decode, not RTX.
+
+## ADR-009 — No identity T800↔Hand weld for policy eval
+
+- **Status:** accepted
+- **Context:** Hand-side mount→wrist offset is in official with-mount MJCF. T800 flange SE(3) is not. An identity weld would inject a constant VLA wrist bias into every ckpt.
+- **Decision:** `assets/combined/assemble.py` writes `weld_recipe.yaml` and raises `PolicyEvalBlocked` for policy eval until CAD fills `t800_wrist_to_hand_mount`. Dummy elbow→`LINK_WRIST_END_*` from the T800 URDF is recorded and is **not** the hand flange.
+- **Consequences:** Hand-only MuJoCo tracking may run. Combined-robot L2/L3 may not.
+
+## ADR-010 — Soft-body Δm is not a CoM
+
+- **Status:** accepted
+- **Context:** Product 0.745 kg vs skeleton 0.6207 kg. Δ = 0.1243 kg is arithmetic, not a hang-test.
+- **Decision:** `sim/hand_mass.py` exposes the budget and refuses SONIC load-aware training until `com_in_wrist_frame_m` is measured.
+- **Consequences:** Do not attach the delta at the skeleton CoM and call it the physical hand.
+
