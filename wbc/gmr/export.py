@@ -16,6 +16,7 @@ import yaml
 
 from interface.schema import REPO_ROOT
 from wbc.dims import load_t800_sonic
+from wbc.foot_frame import assert_foot_frame
 
 BODY_MAP_PATH = Path(__file__).with_name("body_map.yaml")
 TPOSE_OFFSETS_PATH = Path(__file__).with_name("tpose_offsets.yaml")
@@ -113,7 +114,9 @@ def params_overlay(
 def sonic_tracked_bodies(body_map: dict[str, Any] | None = None) -> dict[str, str]:
     """role → MJCF body, intersected with t800_sonic.yaml tracked_bodies."""
     body_map = body_map or load_body_map()
-    sonic = load_t800_sonic()["tracked_bodies"]
+    sonic_cfg = load_t800_sonic()
+    assert_foot_frame(sonic_cfg)
+    sonic = sonic_cfg["tracked_bodies"]
     by_role = {b["role"]: b["robot"] for b in body_map["smplx"]["bodies"]}
     out = {}
     for role in SONIC_TRACKED_ROLES:

@@ -71,4 +71,11 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     elbows = cfg.get("optional_elbow_bodies", {})
     if elbows.get("left_elbow") == "LINK_ELBOW_YAW_L":
         raise ValueError("5-point elbow must be LINK_ELBOW_PITCH_* (joint), not YAW (forearm)")
+    foot = cfg.get("foot_frame", {})
+    if foot.get("decision") != "mjcf_link_foot_at_ankle_roll":
+        raise ValueError("foot_frame.decision must be mjcf_link_foot_at_ankle_roll (ADR-024)")
+    if cfg["tracked_bodies"].get("left_foot") != "LINK_FOOT_L":
+        raise ValueError("SONIC left_foot must be MJCF LINK_FOOT_L, not the URDF sole")
+    if cfg["tracked_bodies"].get("right_foot") != "LINK_FOOT_R":
+        raise ValueError("SONIC right_foot must be MJCF LINK_FOOT_R, not the URDF sole")
     return cfg

@@ -53,6 +53,27 @@ tracked_bodies:   # set B; must match frames.yaml
   left_foot: LINK_FOOT_L
   right_foot: LINK_FOOT_R
 
+# ADR-024. Pick one foot frame for GMR + SONIC and never mix with the URDF sole.
+# Official MJCF LINK_FOOT_* is a child of LINK_ANKLE_ROLL with pos=0 (ankle-roll origin).
+# Official URDF J_FIXED_FOOT_* places LINK_FOOT_* at xyz="0 0 -0.06453" in that parent.
+# MJCF collision boxes live on the MJCF LINK_FOOT body at pos z=-0.054 m (fore/hind).
+foot_frame:
+  decision: mjcf_link_foot_at_ankle_roll
+  tracked_body_left: LINK_FOOT_L
+  tracked_body_right: LINK_FOOT_R
+  mjcf_body_pos_in_parent_m: [0.0, 0.0, 0.0]
+  urdf_fixed_joint: [J_FIXED_FOOT_L, J_FIXED_FOOT_R]
+  urdf_sole_in_mjcf_foot_m: [0.0, 0.0, -0.06453]   # m; rotate by foot R then add to xpos
+  mjcf_collision_box_z_in_foot_m: -0.054          # m; serial_t800.xml collision_*_foot pos z
+  forbidden: urdf_link_foot_as_sonic_body
+  source_mjcf: third_party/engineai-native-sdk/assets/resource/robot/t800/xml/serial_links.xml
+  source_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+  note: >
+    GMR and SONIC track official MJCF LINK_FOOT_* (coincident with ankle-roll).
+    Do not retarget to URDF LINK_FOOT_* — that is a 64.53 mm sole offset, not a
+    different tracked body. Sole world pos = xpos_foot + R_foot @ urdf_sole_in_mjcf_foot_m.
+    Collision height is a different number (−54 mm box center) and is not the SONIC body.
+
 # Optional 5-point teleop (elbows) — industrial box collision. Requires retrain.
 # Elbows are LINK_ELBOW_PITCH_* (GMR role, the joint bulge), not LINK_ELBOW_YAW_*
 # (forearm / dummy-wrist parent). See ADR-017 and command_schema_v1_5point.yaml.
@@ -96,6 +117,14 @@ g1_incompatible:
 # Source: third_party/engineai-native-sdk/assets/config/t800/pd_stand/default.yaml
 pd_stand:
   source: third_party/engineai-native-sdk/assets/config/t800/pd_stand/default.yaml
+  # Official EngineAI bring-up pose (rad). Not a measured actor T-pose. Not SONIC.
+  desired_joint_position:
+    - [-0.105, 0.105, 0.263, 0.145, -0.051, -0.074]   # left leg
+    - [-0.105, -0.105, -0.263, 0.145, -0.051, 0.074]  # right leg
+    - [0]                                             # torso yaw
+    - [0, 0.05, 0, -0.1, 0]                           # left arm
+    - [0, -0.05, 0, -0.1, 0]                          # right arm
+    - [0, 0]                                          # head
   stiffness:
     - [1080, 480, 880, 1000, 800, 100]   # left leg
     - [1080, 480, 880, 1000, 800, 100]   # right leg

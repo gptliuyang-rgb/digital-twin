@@ -55,6 +55,16 @@ frames:
     description: Grasp reference point (mid-palm, +offset from spec when filled).
   right_tcp:
     description: Grasp reference point.
+  left_foot:
+    description: >
+      SONIC/GMR tracked left foot (ADR-024). Official MJCF LINK_FOOT_L, coincident
+      with LINK_ANKLE_ROLL_L origin. Not the URDF sole (J_FIXED_FOOT_L z=-0.06453 m).
+    t800_link: LINK_FOOT_L
+    source: mjcf_link_foot_at_ankle_roll
+  right_foot:
+    description: SONIC/GMR tracked right foot. Official MJCF LINK_FOOT_R.
+    t800_link: LINK_FOOT_R
+    source: mjcf_link_foot_at_ankle_roll
   gun_tcp:
     description: Scanner muzzle frame when the gun-grip primitive is active.
 

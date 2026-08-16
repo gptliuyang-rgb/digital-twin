@@ -6,7 +6,8 @@
 #
 # T800 MJCF bodies (Native SDK xml/serial_links.xml) use LINK_WAIST_YAW, not
 # PM01's LINK_TORSO_YAW. Wrists are LINK_WRIST_END_* (dummy, rpy=0 on elbow yaw).
-# Feet are LINK_FOOT_* (welded at LINK_ANKLE_ROLL origin) — SONIC tracks those.
+# Feet are LINK_FOOT_* (welded at LINK_ANKLE_ROLL origin) — SONIC tracks those
+# (ADR-024). Do not retarget to URDF LINK_FOOT_* (J_FIXED_FOOT z=-0.06453 m).
 
 schema_version: "1.0"
 robot: engineai_t800

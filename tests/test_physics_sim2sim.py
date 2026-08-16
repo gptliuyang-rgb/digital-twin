@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import yaml
 
 from assets.combined.assemble import PolicyEvalBlocked
+from interface.schema import REPO_ROOT
 from sim.mujoco_env.privileged_l2 import refuse_grasp_success_key
 from sim.mujoco_env.t800_env import OFFICIAL_MJCF, T800MujocoEnv, refuse_combined_robot
 from wbc.dims import decoder_history_dim
-from wbc.pd_stand import pd_stand_kp_kd
+from wbc.pd_stand import pd_stand_kp_kd, pd_stand_q_des_rad
 
 
 def test_pd_stand_is_25() -> None:
@@ -18,16 +20,17 @@ def test_pd_stand_is_25() -> None:
     assert kd.shape == (25,)
     assert kp[0] == pytest.approx(1080.0)
     assert kd[-1] == pytest.approx(1.0)
+    q = pd_stand_q_des_rad()
+    assert q.shape == (25,)
+    assert q[0] == pytest.approx(-0.105)
 
 
 def test_foot_frame_offset_is_documented() -> None:
-    import yaml
-    from interface.schema import REPO_ROOT
-
     raw = yaml.safe_load(
         (REPO_ROOT / "assets/engineai/meta/t800_frame_offsets.yaml").read_text(encoding="utf-8")
     )
     assert raw["foot"]["delta_z_m"] == pytest.approx(0.06453)
+    assert raw["foot"]["decision"] == "mjcf_link_foot_at_ankle_roll"
     assert raw["wrist"]["match"] is True
 
 

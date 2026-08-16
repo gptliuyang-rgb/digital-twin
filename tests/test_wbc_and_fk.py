@@ -164,5 +164,8 @@ def test_pd_stand_length_is_25() -> None:
     cfg = assert_t800_config()
     kp = [x for group in cfg["pd_stand"]["stiffness"] for x in group]
     kd = [x for group in cfg["pd_stand"]["damping"] for x in group]
+    q = [x for group in cfg["pd_stand"]["desired_joint_position"] for x in group]
     assert len(kp) == 25
     assert len(kd) == 25
+    assert len(q) == 25
+    assert cfg["foot_frame"]["decision"] == "mjcf_link_foot_at_ankle_roll"
