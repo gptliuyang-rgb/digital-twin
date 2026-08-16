@@ -84,8 +84,10 @@ def parse_mjcf_joint_limits(mjcf_text: str, joint_order: list[str]) -> np.ndarra
 
     limits = np.full((len(joint_order), 2), np.nan)
     for i, name in enumerate(joint_order):
+        # `\brange=` — not `actuatorfrcrange=`. Greedy `[^>]*range=` latches onto
+        # the force range (hundreds of N·m) and silently disables the limit gate.
         match = re.search(
-            rf'<joint name="{re.escape(name)}"[^>]*range="([^"]+)"',
+            rf'<joint name="{re.escape(name)}"[^>]*\brange="([^"]+)"',
             mjcf_text,
         )
         if not match:

@@ -87,6 +87,7 @@ def test_filter_uses_official_joint_limits() -> None:
     text = T800_MJCF.read_text(encoding="utf-8")
     limits = parse_mjcf_joint_limits(text, cfg["joint_order"])
     assert limits.shape == (25, 2)
+    np.testing.assert_allclose(limits[0], [-3.316, 2.269], atol=1e-6)
     q = np.zeros((20, 25))
     ok = filter_motion_clip(q, joint_limits_rad=limits, dt_s=0.05)
     assert ok.keep

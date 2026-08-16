@@ -16,7 +16,7 @@ import yaml
 from eval.l1_kinematic import check_coupling, check_joint_limits
 from interface.schema import REPO_ROOT, CommandVector, command_dim, load_hand_spec
 from vla.adapters.case_a import CaseAConversionError, CaseAToCommandSchema, HeadNavCommand, case_a_dim
-from vla.adapters.joint_to_wrist_adapter import T800_URDF
+from vla.adapters.joint_to_wrist_adapter import T800_KINEMATICS, T800_URDF
 
 
 def _head_nav(cfg: dict) -> HeadNavCommand:
@@ -45,10 +45,10 @@ def evaluate_case_a(actions: np.ndarray, *, apply_fk: bool, cfg: dict) -> dict:
     spec = load_hand_spec()
     if not apply_fk:
         raise CaseAConversionError("L1 Case A refuses to run without apply_fk=True (ADR-020)")
-    if not T800_URDF.is_file():
+    if not T800_URDF.is_file() and not T800_KINEMATICS.is_file():
         return {
-            "status": "skipped_no_t800_urdf",
-            "note": "Clone engineai-native-sdk via scripts/bootstrap_resources.sh",
+            "status": "skipped_no_t800_kinematics",
+            "note": "Clone engineai-native-sdk or keep assets/engineai/meta/t800_kinematics.yaml",
         }
     adapter = CaseAToCommandSchema.from_t800_urdf()
     head_nav = _head_nav(cfg)

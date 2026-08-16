@@ -17,6 +17,7 @@ from interface.schema import REPO_ROOT, load_frames
 from vla.adapters.rotation import matrix_to_rot6d
 
 T800_JOINTS = REPO_ROOT / "assets" / "engineai" / "meta" / "t800_joints.yaml"
+T800_KINEMATICS = REPO_ROOT / "assets" / "engineai" / "meta" / "t800_kinematics.yaml"
 T800_URDF = (
     REPO_ROOT
     / "third_party"
@@ -65,11 +66,16 @@ class JointToWristAdapter:
             from sim.urdf_fk import UrdfTree
 
             path = urdf_path or T800_URDF
-            if not path.is_file():
+            if path.is_file():
+                self.tree = UrdfTree.from_path(path, root_link=self.root_link)
+            elif T800_KINEMATICS.is_file():
+                # Committed kinematics extract — CI without Native SDK clone.
+                self.tree = UrdfTree.from_kinematics_yaml(T800_KINEMATICS, root_link=self.root_link)
+            else:
                 raise FileNotFoundError(
-                    f"T800 URDF missing at {path}. Run scripts/bootstrap_resources.sh"
+                    f"T800 URDF missing at {path} and no kinematics YAML at {T800_KINEMATICS}. "
+                    "Run scripts/bootstrap_resources.sh"
                 )
-            self.tree = UrdfTree.from_path(path, root_link=self.root_link)
 
     def __call__(self, q_arm: np.ndarray, extra_q: dict[str, float] | None = None) -> WristPose:
         if self.fk_fn is not None:

@@ -9,8 +9,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+import yaml
 
 
 def rpy_to_matrix(roll: float, pitch: float, yaw: float) -> np.ndarray:
@@ -126,6 +128,29 @@ class UrdfTree:
     def from_path(cls, path: Path, *, root_link: str) -> UrdfTree:
         return cls.from_urdf_text(path.read_text(encoding="utf-8"), root_link=root_link)
 
+    @classmethod
+    def from_kinematics_yaml(cls, path: Path, *, root_link: str | None = None) -> UrdfTree:
+        """Load the committed kinematics-only fixture (no meshes)."""
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or "joints" not in raw:
+            raise ValueError(f"{path} is not a kinematics dump")
+        root = root_link or str(raw["root_link"])
+        joints = [
+            UrdfJoint(
+                name=str(row["name"]),
+                joint_type=str(row["type"]),
+                parent=str(row["parent"]),
+                child=str(row["child"]),
+                origin_xyz_m=np.asarray(row["origin_xyz_m"], dtype=np.float64),
+                origin_rpy_rad=np.asarray(row["origin_rpy_rad"], dtype=np.float64),
+                axis=np.asarray(row["axis"], dtype=np.float64),
+                lower_rad=None if row.get("lower_rad") is None else float(row["lower_rad"]),
+                upper_rad=None if row.get("upper_rad") is None else float(row["upper_rad"]),
+            )
+            for row in raw["joints"]
+        ]
+        return cls(joints, root_link=root)
+
     def chain_to(self, target_link: str) -> list[UrdfJoint]:
         chain: list[UrdfJoint] = []
         link = target_link
@@ -163,3 +188,94 @@ class UrdfTree:
                 raise ValueError(f"unsupported joint type {joint.joint_type} ({joint.name})")
             t = t @ t_origin @ t_motion
         return t[:3, 3].copy(), t[:3, :3].copy()
+
+
+KINEMATICS_YAML = Path(__file__).resolve().parents[1] / "assets" / "engineai" / "meta" / "t800_kinematics.yaml"
+
+
+def load_t800_kinematics(path: Path | None = None) -> dict[str, Any]:
+    raw = yaml.safe_load((path or KINEMATICS_YAML).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("t800_kinematics.yaml must be a mapping")
+    return raw
+
+
+def mjcf_joint_limits_from_kinematics(raw: dict[str, Any] | None = None) -> np.ndarray:
+    """Official MJCF `range=` as (n_dof, 2) in radians. Not actuatorfrcrange."""
+    data = raw or load_t800_kinematics()
+    order = list(data["joint_order"])
+    lim_map = data.get("mjcf_revolute_limits_rad") or {}
+    limits = np.full((len(order), 2), np.nan)
+    for i, name in enumerate(order):
+        pair = lim_map[name]
+        limits[i] = [float(pair[0]), float(pair[1])]
+    if not np.isfinite(limits).all():
+        raise ValueError("incomplete mjcf_revolute_limits_rad")
+    # Guard against the actuatorfrcrange latch (hundreds of N·m, not rad).
+    if np.max(np.abs(limits)) > 20.0:
+        raise ValueError(
+            "MJCF joint limits look like actuatorfrcrange (N·m), not range= (rad). "
+            "parse_mjcf_joint_limits must use \\brange="
+        )
+    return limits
+
+
+def q_map_from_vector(q_rad: np.ndarray, joint_order: list[str]) -> dict[str, float]:
+    q = np.asarray(q_rad, dtype=np.float64).reshape(-1)
+    if q.shape[0] != len(joint_order):
+        raise ValueError(f"q dim {q.shape[0]} != joint_order {len(joint_order)}")
+    return {name: float(v) for name, v in zip(joint_order, q, strict=True)}
+
+
+def quat_xyzw_to_matrix(q_xyzw: np.ndarray) -> np.ndarray:
+    """Motion-lib root_rot is xyzw. Local copy — do not import vla.adapters here."""
+    x, y, z, w = np.asarray(q_xyzw, dtype=np.float64).reshape(4)
+    n = float(np.sqrt(x * x + y * y + z * z + w * w))
+    if n < 1e-12:
+        raise ValueError("zero quaternion")
+    x, y, z, w = x / n, y / n, z / n, w / n
+    return np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
+
+
+def fk_bodies_pelvis(
+    tree: UrdfTree,
+    q_rad: np.ndarray,
+    *,
+    joint_order: list[str],
+    bodies: dict[str, str],
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Body poses in the URDF root (pelvis) frame. Pelvis itself is identity."""
+    q_map = q_map_from_vector(q_rad, joint_order)
+    out: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for role, link in bodies.items():
+        if link == tree.root_link:
+            out[role] = (np.zeros(3), np.eye(3))
+            continue
+        out[role] = tree.fk_link(link, q_map)
+    return out
+
+
+def fk_bodies_world(
+    tree: UrdfTree,
+    q_rad: np.ndarray,
+    *,
+    joint_order: list[str],
+    bodies: dict[str, str],
+    root_pos_m: np.ndarray,
+    root_rot_xyzw: np.ndarray,
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Apply motion_lib root pose to pelvis-frame FK."""
+    r_w = quat_xyzw_to_matrix(root_rot_xyzw)
+    p_w = np.asarray(root_pos_m, dtype=np.float64).reshape(3)
+    local = fk_bodies_pelvis(tree, q_rad, joint_order=joint_order, bodies=bodies)
+    world: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for role, (p_l, r_l) in local.items():
+        world[role] = (p_w + r_w @ p_l, r_w @ r_l)
+    return world
