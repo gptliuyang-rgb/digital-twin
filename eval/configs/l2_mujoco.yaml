@@ -1,0 +1,28 @@
+n_envs: 256
+episodes_per_config: 50
+uncalibrated: true
+note: >
+  Contact parameters are REQUIRED_INPUT. Do not treat grasp_success_rate as a
+  sim2real prediction until Phase 5 calibration is filled.
+randomize:
+  box_mass: [2.0, 20.0]
+  box_friction: [0.3, 0.9]
+  box_pose_xy: [-0.15, 0.15]
+  hand_friction: [0.6, 1.2]
+metrics:
+  - grasp_success_rate
+  - grasp_slip_distance
+  - finger_contact_count
+  - max_finger_torque
+  - stack_alignment_error
+  - release_velocity
+  - fall_rate
+  - wrist_tracking_error
+gates:
+  grasp_success_rate: ">= 0.85"
+  grasp_slip_distance: "<= 0.01"
+  fall_rate: "<= 0.02"
+  wrist_tracking_error: "<= 0.03"
+gain_scan:
+  kp_scale: [0.5, 1.0, 2.0]
+  kv_scale: [0.5, 1.0, 2.0]

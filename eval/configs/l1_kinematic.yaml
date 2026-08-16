@@ -1,0 +1,5 @@
+gates:
+  ik_success_rate: ">= 0.99"
+  ik_residual_m: "<= 0.002"
+  joint_limit_margin: 0.05
+  self_collision_alerts: 0

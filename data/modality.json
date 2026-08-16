@@ -1,0 +1,108 @@
+{
+  "schema_version": "1.0",
+  "embodiment": "engineai_t800_wuji_hand2",
+  "n_active_dof": 20,
+  "joint_order": [
+    "thumb_cmc_flex",
+    "thumb_cmc_abd",
+    "thumb_mcp",
+    "thumb_ip",
+    "index_finger_mcp_flex",
+    "index_finger_mcp_abd",
+    "index_finger_pip",
+    "index_finger_dip",
+    "middle_finger_mcp_flex",
+    "middle_finger_mcp_abd",
+    "middle_finger_pip",
+    "middle_finger_dip",
+    "ring_finger_mcp_flex",
+    "ring_finger_mcp_abd",
+    "ring_finger_pip",
+    "ring_finger_dip",
+    "pinky_mcp_flex",
+    "pinky_mcp_abd",
+    "pinky_pip",
+    "pinky_dip"
+  ],
+  "action_dim": 75,
+  "action": {
+    "head_pos": {
+      "start": 0,
+      "end": 3
+    },
+    "head_rot6d": {
+      "start": 3,
+      "end": 9
+    },
+    "left_wrist_pos": {
+      "start": 9,
+      "end": 12
+    },
+    "left_wrist_rot6d": {
+      "start": 12,
+      "end": 18
+    },
+    "right_wrist_pos": {
+      "start": 18,
+      "end": 21
+    },
+    "right_wrist_rot6d": {
+      "start": 21,
+      "end": 27
+    },
+    "pelvis_height": {
+      "start": 27,
+      "end": 28
+    },
+    "nav_cmd": {
+      "start": 28,
+      "end": 31
+    },
+    "loco_mode": {
+      "start": 31,
+      "end": 32
+    },
+    "left_hand_q": {
+      "start": 32,
+      "end": 52
+    },
+    "right_hand_q": {
+      "start": 52,
+      "end": 72
+    },
+    "left_hand_mode": {
+      "start": 72,
+      "end": 73
+    },
+    "right_hand_mode": {
+      "start": 73,
+      "end": 74
+    },
+    "tool_trigger": {
+      "start": 74,
+      "end": 75
+    }
+  },
+  "state": {
+    "left_hand_q": {
+      "dtype": "float32",
+      "shape": [
+        20
+      ],
+      "unit": "rad"
+    },
+    "right_hand_q": {
+      "dtype": "float32",
+      "shape": [
+        20
+      ],
+      "unit": "rad"
+    }
+  },
+  "video": [
+    "head_rgb",
+    "left_wrist_rgb",
+    "right_wrist_rgb"
+  ],
+  "annotation": "generated from dexhand2_spec.yaml \u2014 do not edit by hand"
+}
