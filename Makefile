@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l0-diagnose eval-l1-case-a extract-kinematics ppo-status ppo-train eval-l2-sim2sim eval-l2-physics-sim2sim
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l0-diagnose eval-l1-case-a extract-kinematics ppo-status ppo-train eval-l2-sim2sim eval-l2-physics-sim2sim eval-l2-freebase-stand
 
 PYTHON ?= python3
 
@@ -90,3 +90,6 @@ eval-l2-sim2sim:
 
 eval-l2-physics-sim2sim:
 	$(PYTHON) -m eval.l2_physics_sim2sim
+
+eval-l2-freebase-stand:
+	$(PYTHON) -m eval.l2_freebase_stand

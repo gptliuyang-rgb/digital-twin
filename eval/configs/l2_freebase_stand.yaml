@@ -1,0 +1,23 @@
+# Free-base T800 PD stand on a floor. Not a SONIC gate (ADR-024 / ADR-025).
+# Bring-up PD is EngineAI pd_stand desired_joint_position + kp/kd.
+# Fall is expected without a learned tracker. Standing is also not a pass.
+# grasp_success_rate is always JSON null. Combined T800+Hand stays PolicyEvalBlocked.
+
+schema_version: "1.0"
+physics: mujoco
+pinned_base: false
+add_floor: true
+hold_s: 3.0
+q_des: official_pd_stand_desired_joint_position   # rad; EngineAI pd_stand/default.yaml
+fall:
+  pelvis_z_m: 0.40
+  tilt_rad: 0.8
+foot_frame: mjcf_link_foot_at_ankle_roll
+gates:
+  grasp_success_rate: null
+  combined_robot: PolicyEvalBlocked
+  not_a_sonic_gate: true
+note: >
+  Official serial_t800.xml has a freejoint and no floor plane; this eval adds a
+  plane with the official collision friction (1.0, 0.005, 0.0001) — WBC floor,
+  not DexHand2 pad–cardboard. Fixture masses are placeholders and will fall.

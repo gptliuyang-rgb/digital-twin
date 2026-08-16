@@ -39,6 +39,7 @@ make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fi
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null
 make eval-l2-physics-sim2sim  # MuJoCo PD tracking; official XML or kinematics fixture
+make eval-l2-freebase-stand   # free-base PD stand on a floor; fall is not a SONIC gate
 make ppo-status         # frozen Table S1–S4 recipe; action_dim 25
 make ppo-train          # exits non-zero until SPEC_INTAKE P0 + Isaac Lab
 make extract-kinematics # official URDF → assets/engineai/meta/t800_kinematics.yaml

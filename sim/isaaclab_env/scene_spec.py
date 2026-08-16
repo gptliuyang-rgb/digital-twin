@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 
 from assets.combined.assemble import PolicyEvalBlocked
-from assets.objects.boxes import BoxSpec, sample_box
+from assets.objects.boxes import BoxSpec
 from assets.objects.pallet import EURO_PALLET_M
 from sim.mujoco_env.privileged_l2 import FIXTURE_FLOOR_FRICTION, FIXTURE_NOTE, pallet_box_mjcf
 

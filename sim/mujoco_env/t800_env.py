@@ -13,7 +13,6 @@ pad–cardboard.
 from __future__ import annotations
 
 from collections import defaultdict
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -23,7 +22,8 @@ from interface.schema import REPO_ROOT
 from sim.base_env import BaseEnv
 from sim.urdf_fk import load_t800_kinematics, rpy_to_matrix
 from wbc.dims import load_t800_sonic
-from wbc.pd_stand import pd_stand_kp_kd
+from wbc.foot_frame import urdf_sole_world_m
+from wbc.pd_stand import pd_stand_kp_kd, pd_stand_q_des_rad
 
 OFFICIAL_MJCF = (
     REPO_ROOT
@@ -141,6 +141,22 @@ def fixture_mjcf(*, pinned_base: bool, add_floor: bool) -> str:
 """
 
 
+def _spec_has_plane(spec: Any, mujoco: Any) -> bool:
+    geoms = getattr(spec, "geoms", None)
+    if geoms is None:
+        return False
+    return any(g.type == mujoco.mjtGeom.mjGEOM_PLANE for g in geoms)
+
+
+def n_plane_geoms(model: Any, mujoco: Any) -> int:
+    return int(np.sum(np.asarray(model.geom_type) == int(mujoco.mjtGeom.mjGEOM_PLANE)))
+
+
+def pelvis_tilt_rad(rot_3x3: np.ndarray) -> float:
+    """Angle between pelvis body-Z and world-Z. Identity pose is 0."""
+    return float(np.arccos(np.clip(float(np.asarray(rot_3x3).reshape(3, 3)[2, 2]), -1.0, 1.0)))
+
+
 def refuse_combined_robot() -> None:
     raise PolicyEvalBlocked(
         "T800MujocoEnv will not weld DexHand2. Fill t800_wrist_to_hand_mount first."
@@ -180,6 +196,7 @@ class T800MujocoEnv(BaseEnv):
         self.joint_order = list(self.cfg["joint_order"])
         self.tracked_bodies = dict(self.cfg["tracked_bodies"])
         self.model, self.data, self.xml_note = self._compile()
+        self.n_plane = n_plane_geoms(self.model, self._mujoco)
         self._index()
         if self.source == "official":
             self.kp, self.kd = pd_stand_kp_kd()
@@ -201,7 +218,7 @@ class T800MujocoEnv(BaseEnv):
                 free = [j for j in base.joints if j.type == mujoco.mjtJoint.mjJNT_FREE]
                 for joint in free:
                     spec.delete(joint)
-            if self.add_floor:
+            if self.add_floor and not _spec_has_plane(spec, mujoco):
                 geom = spec.worldbody.add_geom()
                 geom.name = "floor"
                 geom.type = mujoco.mjtGeom.mjGEOM_PLANE
@@ -264,9 +281,29 @@ class T800MujocoEnv(BaseEnv):
         self.data.qpos[3:7] = np.asarray(quat_wxyz, dtype=np.float64).reshape(4)
         self.data.qvel[0:6] = 0.0
 
+    def expected_nq(self) -> int:
+        return 25 if self.pinned_base else 32
+
     def body_pose(self, role: str) -> tuple[np.ndarray, np.ndarray]:
         bid = self._body_id[role]
         return self.data.xpos[bid].copy(), self.data.xmat[bid].reshape(3, 3).copy()
+
+    def foot_diagnostics(self) -> dict[str, Any]:
+        """MJCF LINK_FOOT pose plus URDF sole (ADR-024). Not a contact calibration."""
+        left_p, left_r = self.body_pose("left_foot")
+        right_p, right_r = self.body_pose("right_foot")
+        left_sole = urdf_sole_world_m(left_p, left_r)
+        right_sole = urdf_sole_world_m(right_p, right_r)
+        return {
+            "left_mjcf_foot_z_m": float(left_p[2]),
+            "right_mjcf_foot_z_m": float(right_p[2]),
+            "left_urdf_sole_z_m": float(left_sole[2]),
+            "right_urdf_sole_z_m": float(right_sole[2]),
+            "mean_mjcf_foot_z_m": float(0.5 * (left_p[2] + right_p[2])),
+            "mean_urdf_sole_z_m": float(0.5 * (left_sole[2] + right_sole[2])),
+            "foot_frame": "mjcf_link_foot_at_ankle_roll",
+            "ncon": int(self.data.ncon),
+        }
 
     def apply_pd(self, q_des: np.ndarray) -> np.ndarray:
         q = self.get_q()
@@ -289,7 +326,10 @@ class T800MujocoEnv(BaseEnv):
         return self._obs()
 
     def hold(self, seconds: float, q_des: np.ndarray | None = None) -> dict[str, float]:
-        q = np.zeros(len(self.joint_order)) if q_des is None else np.asarray(q_des, dtype=np.float64)
+        if q_des is None:
+            q = pd_stand_q_des_rad() if self.source == "official" else np.zeros(len(self.joint_order))
+        else:
+            q = np.asarray(q_des, dtype=np.float64)
         n = int(round(seconds / float(self.model.opt.timestep)))
         vel = []
         for _ in range(max(n, 1)):
