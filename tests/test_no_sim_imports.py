@@ -10,6 +10,7 @@ SCAN = [
     REPO_ROOT / "hand" / "controller.py",
     REPO_ROOT / "runtime",
     REPO_ROOT / "vla" / "client",
+    REPO_ROOT / "wbc",
 ]
 
 
