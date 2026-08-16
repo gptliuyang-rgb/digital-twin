@@ -1,7 +1,8 @@
 # GMR IK body map for EngineAI T800.
 # Source of truth for *which* MuJoCo bodies GMR tracks. Quat/pos offsets copied
-# from GMR's official engineai_pm01 configs are labelled uncalibrated — they are
-# a T-pose starting guess, not a T800 measurement.
+# from GMR's official engineai_pm01 configs are labelled uncalibrated here.
+# `tpose_offsets.yaml` (ADR-015) overlays composed q=0 frames + link-length scale.
+# Export prefers the overlay when present.
 #
 # T800 MJCF bodies (Native SDK xml/serial_links.xml) use LINK_WAIST_YAW, not
 # PM01's LINK_TORSO_YAW. Wrists are LINK_WRIST_END_* (dummy, rpy=0 on elbow yaw).
@@ -18,8 +19,8 @@ hand_bypass: true
 quat_offset_status: uncalibrated_copied_from_gmr_pm01
 human_scale_status: uncalibrated_identity
 human_scale_note: >
-  PM01 GMR uses 0.85/0.8. T800 height is not assumed equal. Scale stays 1.0
-  until a T-pose pass replaces these numbers. Do not copy PM01 scale silently.
+  body_map keeps scale 1.0 as the uncalibrated copy. tpose_offsets.yaml
+  multiplies GMR PM01 0.85/0.8 by measured T800/PM01 link lengths at q=0.
 
 # GMR table entry: [human_name, pos_weight, rot_weight, pos_offset_m, quat_wxyz]
 # pos_offset / quat come from GMR smplx_to_pm01.json / bvh_lafan1_to_pm01.json

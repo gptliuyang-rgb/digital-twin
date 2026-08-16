@@ -47,7 +47,8 @@ def test_sonic_tracked_bodies_match_contract() -> None:
 
 
 def test_ik_config_refuses_pm01_body_names() -> None:
-    ik = ik_config("smplx")
+    # Empty overlay = body_map copy (scale 1.0). A written tpose_offsets.yaml is a later pass.
+    ik = ik_config("smplx", tpose={})
     refuse_pm01_torso_name(ik)
     assert "LINK_WAIST_YAW" in ik["ik_match_table1"]
     assert "LINK_WRIST_END_L" in ik["ik_match_table1"]

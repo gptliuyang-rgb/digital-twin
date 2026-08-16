@@ -1,7 +1,8 @@
 """Emit GMR IK JSON + params overlay from body_map.yaml and t800_sonic.yaml.
 
-Does not import MuJoCo. Does not download mocap. Quat offsets stay labelled
-uncalibrated (ADR-013).
+Does not import MuJoCo. Does not download mocap. When ``tpose_offsets.yaml``
+exists (ADR-015), quat offsets and human_scale_table come from the T-pose
+pass; otherwise they stay labelled uncalibrated copies of GMR PM01.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from interface.schema import REPO_ROOT
 from wbc.dims import load_t800_sonic
 
 BODY_MAP_PATH = Path(__file__).with_name("body_map.yaml")
+TPOSE_OFFSETS_PATH = Path(__file__).with_name("tpose_offsets.yaml")
 OUT_DIR = Path(__file__).resolve().parent
 SONIC_TRACKED_ROLES = ("pelvis", "head", "left_wrist", "right_wrist", "left_foot", "right_foot")
 
@@ -28,23 +30,44 @@ def load_body_map(path: Path | None = None) -> dict[str, Any]:
     return raw
 
 
-def _entry(body: dict[str, Any], table: str) -> list[Any]:
+def load_tpose_offsets(path: Path | None = None) -> dict[str, Any] | None:
+    path = path or TPOSE_OFFSETS_PATH
+    if not path.is_file():
+        return None
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return raw if isinstance(raw, dict) else None
+
+
+def _entry(body: dict[str, Any], table: str, *, quat_wxyz: list[float] | None = None) -> list[Any]:
     t = body[table]
+    quat = quat_wxyz if quat_wxyz is not None else [float(x) for x in t["quat_wxyz"]]
     return [
         body["human"],
         int(t["pos_w"]),
         int(t["rot_w"]),
         [float(x) for x in t["pos_m"]],
-        [float(x) for x in t["quat_wxyz"]],
+        [float(x) for x in quat],
     ]
 
 
-def ik_config(src: str, body_map: dict[str, Any] | None = None) -> dict[str, Any]:
+def ik_config(
+    src: str,
+    body_map: dict[str, Any] | None = None,
+    tpose: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build a GMR ik_configs JSON object for smplx or bvh_lafan1."""
     body_map = body_map or load_body_map()
+    if tpose is None:
+        tpose = load_tpose_offsets()
     block = body_map[src]
-    table1 = {b["robot"]: _entry(b, "table1") for b in block["bodies"]}
-    table2 = {b["robot"]: _entry(b, "table2") for b in block["bodies"]}
+    tpose_bodies = (tpose or {}).get(src, {}).get("bodies", {})
+    table1 = {}
+    table2 = {}
+    for body in block["bodies"]:
+        overlay = tpose_bodies.get(body["robot"], {})
+        table1[body["robot"]] = _entry(body, "table1", quat_wxyz=overlay.get("table1_quat_wxyz"))
+        table2[body["robot"]] = _entry(body, "table2", quat_wxyz=overlay.get("table2_quat_wxyz"))
+    scale = (tpose or {}).get(src, {}).get("human_scale_table") or block["human_scale_table"]
     payload = {
         "robot_root_name": body_map["robot_root_name"],
         "human_root_name": block["human_root_name"],
@@ -52,16 +75,21 @@ def ik_config(src: str, body_map: dict[str, Any] | None = None) -> dict[str, Any
         "human_height_assumption": float(block["human_height_assumption_m"]),
         "use_ik_match_table1": True,
         "use_ik_match_table2": True,
-        "human_scale_table": {k: float(v) for k, v in block["human_scale_table"].items()},
+        "human_scale_table": {k: float(v) for k, v in scale.items()},
         "ik_match_table1": table1,
         "ik_match_table2": table2,
     }
     return payload
 
 
-def params_overlay(body_map: dict[str, Any] | None = None) -> dict[str, Any]:
+def params_overlay(
+    body_map: dict[str, Any] | None = None,
+    tpose: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """How to register T800 in GMR params.py. Paths are repo-relative."""
     body_map = body_map or load_body_map()
+    if tpose is None:
+        tpose = load_tpose_offsets()
     key = body_map["gmr_robot_key"]
     return {
         "ROBOT_XML_DICT": {key: body_map["mjcf"]},
@@ -75,8 +103,8 @@ def params_overlay(body_map: dict[str, Any] | None = None) -> dict[str, Any]:
             "Copy these entries into third_party/GMR/general_motion_retargeting/params.py "
             "or pass --ik_config / --robot xml explicitly. Do not add T800 under unitree_g1."
         ),
-        "quat_offset_status": body_map["quat_offset_status"],
-        "human_scale_status": body_map["human_scale_status"],
+        "quat_offset_status": (tpose or {}).get("quat_offset_status", body_map["quat_offset_status"]),
+        "human_scale_status": (tpose or {}).get("human_scale_status", body_map["human_scale_status"]),
         "n_revolute": int(body_map["n_revolute"]),
         "hand_bypass": True,
     }
@@ -142,15 +170,16 @@ def export_all(out_dir: Path | None = None) -> dict[str, str]:
     out_dir = out_dir or OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     body_map = load_body_map()
+    tpose = load_tpose_offsets()
     sonic_tracked_bodies(body_map)
     written: dict[str, str] = {}
     for src, filename in (("smplx", "smplx_to_t800.json"), ("bvh_lafan1", "bvh_lafan1_to_t800.json")):
-        ik = ik_config(src, body_map)
+        ik = ik_config(src, body_map, tpose)
         refuse_pm01_torso_name(ik)
         path = out_dir / filename
         write_json(path, ik)
         written[src] = str(path)
-    overlay = params_overlay(body_map)
+    overlay = params_overlay(body_map, tpose)
     overlay_path = out_dir / "params_overlay.yaml"
     overlay_path.write_text(yaml.safe_dump(overlay, sort_keys=False), encoding="utf-8")
     written["params_overlay"] = str(overlay_path)
