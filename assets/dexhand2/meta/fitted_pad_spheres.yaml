@@ -1,7 +1,8 @@
 schema_version: '1.0'
 source: distal STL palmar-pulp fit (not live soft-pad geometry)
 note: fingertip_geometry_radius_m in dexhand2_spec.yaml stays REQUIRED_INPUT. These
-  radii are collision-primitive sizes from the skeleton distal mesh.
+  radii are collision-primitive sizes from the skeleton distal mesh. Left and right
+  are fitted independently; do not mirror.
 hands:
   right:
     thumb:
@@ -104,3 +105,104 @@ hands:
       site_to_sphere_surface_m: 0.0001127674361359127
       palmar_vertex_to_sphere_surface_m: 0.0001768892304094263
       official_site_to_distal_vertex_m: 9.588416769480995e-05
+  left:
+    thumb:
+      spheres:
+      - pos_m:
+        - -3.740498358582093e-05
+        - 0.002335101263731802
+        - -0.02984372304896943
+        radius_m: 0.0062861379177131665
+      - pos_m:
+        - 6.72871703240151e-05
+        - -0.0011524183350806736
+        - -0.024873919160582958
+        radius_m: 0.007840437263246392
+      - pos_m:
+        - -0.00015146883530508035
+        - -0.0006043888522692103
+        - -0.018158598004013416
+        radius_m: 0.009479051674342697
+      site_to_sphere_surface_m: 0.002166118290673964
+      palmar_vertex_to_sphere_surface_m: 0.0
+      official_site_to_distal_vertex_m: 0.00032523037694571333
+    index_finger:
+      spheres:
+      - pos_m:
+        - -3.319675102341053e-05
+        - 0.0017513146996328362
+        - -0.02368389496256022
+        radius_m: 0.005831105977656489
+      - pos_m:
+        - -0.00010538292756390412
+        - 0.0010786541283933438
+        - -0.01762615431856229
+        radius_m: 0.007093048144770065
+      - pos_m:
+        - 3.326628411135465e-05
+        - 0.0015248539174381028
+        - -0.011628175578377349
+        radius_m: 0.006900560704556029
+      site_to_sphere_surface_m: 0.0001124607141259424
+      palmar_vertex_to_sphere_surface_m: 0.0001768892532578387
+      official_site_to_distal_vertex_m: 9.564521897455599e-05
+    middle_finger:
+      spheres:
+      - pos_m:
+        - -3.319675102341053e-05
+        - 0.0017513146996328362
+        - -0.02368389496256022
+        radius_m: 0.005831105977656489
+      - pos_m:
+        - -0.00010538292756390412
+        - 0.0010786541283933438
+        - -0.01762615431856229
+        radius_m: 0.007093048144770065
+      - pos_m:
+        - 3.326628411135468e-05
+        - 0.0015248539174381028
+        - -0.011628175578377349
+        radius_m: 0.006900560704556029
+      site_to_sphere_surface_m: 0.00011246071412604128
+      palmar_vertex_to_sphere_surface_m: 0.0001768892532578387
+      official_site_to_distal_vertex_m: 9.564521897463341e-05
+    ring_finger:
+      spheres:
+      - pos_m:
+        - -3.319675102341053e-05
+        - 0.0017513146996328362
+        - -0.02368389496256022
+        radius_m: 0.005831105977656489
+      - pos_m:
+        - -0.00010538292756390412
+        - 0.0010786541283933438
+        - -0.01762615431856229
+        radius_m: 0.007093048144770065
+      - pos_m:
+        - 3.326628411135465e-05
+        - 0.0015248539174381028
+        - -0.011628175578377349
+        radius_m: 0.006900560704556029
+      site_to_sphere_surface_m: 0.0001124607141259424
+      palmar_vertex_to_sphere_surface_m: 0.0001768892532578387
+      official_site_to_distal_vertex_m: 9.564521897455599e-05
+    pinky:
+      spheres:
+      - pos_m:
+        - -3.319675102341053e-05
+        - 0.001751314699620006
+        - -0.02368389592288592
+        radius_m: 0.0058311062559244
+      - pos_m:
+        - -0.00010538292756388849
+        - 0.0010786541283933438
+        - -0.017626155323079574
+        radius_m: 0.00709304814295095
+      - pos_m:
+        - 3.326628411136256e-05
+        - 0.0015248539173684393
+        - -0.011628176533973756
+        radius_m: 0.006900560700279295
+      site_to_sphere_surface_m: 0.00011246067544156205
+      palmar_vertex_to_sphere_surface_m: 0.00017688929891587074
+      official_site_to_distal_vertex_m: 9.564595590052618e-05

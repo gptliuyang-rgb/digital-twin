@@ -54,6 +54,19 @@ def test_derived_pad_spheres_fit() -> None:
 
 
 @pytest.mark.skipif(not _has_official(), reason="wuji-description not cloned")
+def test_derived_left_pad_spheres_not_a_mirror() -> None:
+    left = generate("left", mit_motors=True, simplified=False)
+    right = generate("right", mit_motors=True, simplified=False)
+    assert left["n_pad_spheres"] == 15
+    assert left["gates"]["palmar_fit_ok"]
+    write_fitted_yaml([left, right])
+    ly = left["fingers"]["index_finger"]["spheres"][0]["pos_m"][1]
+    ry = right["fingers"]["index_finger"]["spheres"][0]["pos_m"][1]
+    # Palmar pulp is on opposite Y for left vs right distal frames.
+    assert ly * ry < 0 or abs(ly - ry) > 1e-4
+
+
+@pytest.mark.skipif(not _has_official(), reason="wuji-description not cloned")
 def test_simplified_capsule_budget() -> None:
     report = generate("right", mit_motors=True, simplified=True)
     audit = parse_collision_audit(DERIVED / "right_simplified_mit.xml")

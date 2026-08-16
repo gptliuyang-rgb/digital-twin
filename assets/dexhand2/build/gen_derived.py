@@ -360,15 +360,26 @@ def generate(
 
 
 def write_fitted_yaml(reports: list[dict[str, Any]]) -> Path:
-    payload = {
-        "schema_version": "1.0",
-        "source": "distal STL palmar-pulp fit (not live soft-pad geometry)",
-        "note": (
-            "fingertip_geometry_radius_m in dexhand2_spec.yaml stays REQUIRED_INPUT. "
-            "These radii are collision-primitive sizes from the skeleton distal mesh."
-        ),
-        "hands": {},
-    }
+    payload: dict[str, Any]
+    if FITTED_YAML.is_file():
+        payload = yaml.safe_load(FITTED_YAML.read_text(encoding="utf-8")) or {}
+        payload.setdefault("hands", {})
+    else:
+        payload = {
+            "schema_version": "1.0",
+            "source": "distal STL palmar-pulp fit (not live soft-pad geometry)",
+            "note": (
+                "fingertip_geometry_radius_m in dexhand2_spec.yaml stays REQUIRED_INPUT. "
+                "These radii are collision-primitive sizes from the skeleton distal mesh."
+            ),
+            "hands": {},
+        }
+    payload["source"] = "distal STL palmar-pulp fit (not live soft-pad geometry)"
+    payload["note"] = (
+        "fingertip_geometry_radius_m in dexhand2_spec.yaml stays REQUIRED_INPUT. "
+        "These radii are collision-primitive sizes from the skeleton distal mesh. "
+        "Left and right are fitted independently; do not mirror."
+    )
     for report in reports:
         payload["hands"][report["side"]] = {
             finger: {
