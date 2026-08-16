@@ -32,14 +32,31 @@ Re-run E1 and E2 (`hand/calibration/PROTOCOL.md`). Store under
 ## Eval
 
 ```bash
-make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
-make eval-l1    # limits + coupling; IK skipped without Pinocchio
-make eval-l2    # refuses success rates while uncalibrated
+make eval-l0            # works without a ckpt (synthetic demo flags a swapped channel)
+make eval-l0-diagnose   # classify action last-dim (A/B/C); no weights required
+make eval-l1            # limits + coupling; IK skipped without Pinocchio
+make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
+make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
+make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null
+make eval-l2-physics-sim2sim  # MuJoCo PD tracking; official XML or kinematics fixture
+make ppo-status         # frozen Table S1–S4 recipe; action_dim 25
+make ppo-train          # exits non-zero until SPEC_INTAKE P0 + Isaac Lab
+make extract-kinematics # official URDF → assets/engineai/meta/t800_kinematics.yaml
+make eval-qr    # synthetic pinhole QR envelope; decode is real, renderer is not RTX
+make eval-report
+make weld-recipe
+make sonic-status          # T800 decoder dim vs G1; retarget blockers
+make gmr-export            # write smplx_to_t800.json / bvh_lafan1_to_t800.json from body_map.yaml
+make usd-pads              # USDA overlay of palmar pad spheres (right hand)
+make eval-l2-priv          # privileged pallet drop; grasp_success_rate stays null
+make ingest-official && make build-assets && make check-drift
 ```
+
+IBVS for scan lives in `runtime/ibvs.py` (shared). Combined T800+hand policy eval is refused until mount SE(3) is CAD-measured.
 
 ## What this repo will not do yet
 
-- Train SONIC on T800
+- Train SONIC on T800 (`wbc/ppo/` freezes Table S1–S4; `make ppo-train` refuses; G1 checkpoints are refused; quat offsets still need a live T-pose)
 - Download GR00T / π0.5 weights
 - Claim a box-pick success rate
 - Weld Hand 2 onto T800 (`assets/combined/assemble.py` exits until mount SE(3) is filled)

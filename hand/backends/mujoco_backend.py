@@ -6,10 +6,15 @@ from typing import Any
 import numpy as np
 
 from hand.backends.base import HandBackend, HandState
+from hand.mit import mit_torque
 
 
 class MujocoBackend(HandBackend):
-    """Applies MIT-equivalent pd+ff through MuJoCo ctrl. Optional dependency."""
+    """Applies MIT τ = kp(qd−q)+kd(dqd−dq)+τ_ff.
+
+    Official MJCF uses <position> actuators (kp/kv baked into XML). Derived
+    ``*_mit.xml`` uses <motor> actuators so *this* kp/kd vector is the plant.
+    """
 
     def __init__(self, model: Any, data: Any, actuator_ids: Sequence[int]) -> None:
         try:
@@ -20,6 +25,12 @@ class MujocoBackend(HandBackend):
         self.data = data
         self.actuator_ids = list(actuator_ids)
 
+    def _is_motor(self, act_id: int) -> bool:
+        import mujoco
+
+        # mjGAIN_FIXED + force/acc biastype ≈ motor. Position actuators use affine gain.
+        return int(self.model.actuator_gaintype[act_id]) == int(mujoco.mjtGain.mjGAIN_FIXED)
+
     def write_mit(
         self,
         q_des_rad: np.ndarray,
@@ -28,17 +39,16 @@ class MujocoBackend(HandBackend):
         kp: np.ndarray,
         kd: np.ndarray,
     ) -> None:
-        # Official Hand 2 MJCF uses <position> actuators (kp/kv already on the model).
-        # We set ctrl = q_des. Feed-forward torque is added via qfrc_applied on the joint.
-        import mujoco
-
+        state = self.read_state()
+        tau = mit_torque(state.q_rad, state.dq_rad_s, q_des_rad, dq_des_rad_s, tau_ff, kp, kd)
         for i, act_id in enumerate(self.actuator_ids):
-            self.data.ctrl[act_id] = float(q_des_rad[i])
-        for i, act_id in enumerate(self.actuator_ids):
-            jnt_id = int(self.model.actuator_trnid[act_id, 0])
-            dofadr = int(self.model.jnt_dofadr[jnt_id])
-            self.data.qfrc_applied[dofadr] = float(tau_ff[i])
-        _ = mujoco  # imported for type checkers; stepping is the caller's job
+            if self._is_motor(act_id):
+                self.data.ctrl[act_id] = float(tau[i])
+            else:
+                self.data.ctrl[act_id] = float(q_des_rad[i])
+                jnt_id = int(self.model.actuator_trnid[act_id, 0])
+                dofadr = int(self.model.jnt_dofadr[jnt_id])
+                self.data.qfrc_applied[dofadr] = float(tau_ff[i])
 
     def read_state(self) -> HandState:
         q = []

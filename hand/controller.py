@@ -32,19 +32,6 @@ class SafetyLimits:
         return cls(max_delta_q_rad=float(max_delta), velocity_limit_rad_s=float(vel))
 
 
-def mit_torque(
-    q_rad: np.ndarray,
-    dq_rad_s: np.ndarray,
-    q_des_rad: np.ndarray,
-    dq_des_rad_s: np.ndarray,
-    tau_ff: np.ndarray,
-    kp: np.ndarray,
-    kd: np.ndarray,
-) -> np.ndarray:
-    """MIT force-position hybrid: τ = kp (qd − q) + kd (dqd − dq) + τ_ff."""
-    return kp * (q_des_rad - q_rad) + kd * (dq_des_rad_s - dq_rad_s) + tau_ff
-
-
 class DexHand2Controller:
     def __init__(
         self,
