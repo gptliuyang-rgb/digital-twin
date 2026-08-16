@@ -108,6 +108,21 @@
 - **Consequences:** Unit tests never import Isaac Lab. RTX visual closed loop stays `eval/l3_isaac_closedloop.py`.
 
 
+## ADR-017 — 5-point teleop tracks elbow *pitch* bodies, position-only
+
+- **Status:** accepted
+- **Context:** 3-point (head + two wrists) leaves the elbow underconstrained. Industrial boxes collide with the elbow bulge. SONIC §2.4 / agent prompt §4.3 option A is "extend hybrid encoder to 5 points, add dual elbow positions" — a retrain, not a deploy-time concat.
+- **Options:** (A) add `left_elbow_pos` / `right_elbow_pos` (6 D) on `LINK_ELBOW_PITCH_*`; (B) full elbow SE(3); (C) track `LINK_ELBOW_YAW_*` (forearm / dummy-wrist parent).
+- **Decision:** (A). `command_schema_v1` stays 75-D. `command_schema_v1_5point.yaml` is opt-in (+6 D → 81). Packing order is SONIC's: left_wrist, right_wrist, head, left_elbow, right_elbow. Orn stays 12 (wrists+head quats). Hybrid encoder cmd dim 21 → 27. `refuse_teleop_mode_mismatch()` raises if a 3-point checkpoint sees 5-point commands. Elbow body is `LINK_ELBOW_PITCH_*` (GMR role), not `LINK_ELBOW_YAW_*` (forearm, parent of dummy `LINK_WRIST_END_*`).
+- **Consequences:** A T800 SONIC trained on 3-point cannot consume 5-point tokens. Flange SE(3) and wrist CoM still block PPO. Hands still bypass WBC.
+
+## ADR-018 — L1a planner is 10 Hz cubic/SLERP, shared sim/real
+
+- **Status:** accepted
+- **Context:** SONIC deploys a 10 Hz kinematic planner producing a 0.8–2.4 s reference. VLA chunks are 5–10 Hz. Zhou 6D is not a vector space.
+- **Decision:** `wbc/planner.py` upsamples waypoints at 10 Hz. Positions: cubic Hermite. Rotations: rot6d → SO(3) → SLERP → rot6d. Hands: linear (bypass WBC but share the clock). Enums (loco_mode, hand_mode, trigger): nearest waypoint. Horizon is clamped to [0.8, 2.4] s. No MuJoCo/Isaac import.
+- **Consequences:** Cubic Hermite can overshoot a step; tests lock the linear option and SLERP geodesic. This is not SONIC's trained planner — it is the interface the trained planner must match.
+
 ## ADR-014 — Privileged L2 may drop a box on a pallet, never a grasp-success number
 
 - **Status:** accepted

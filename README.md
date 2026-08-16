@@ -11,14 +11,14 @@ QR scan uses IBVS (`runtime/ibvs.py`) plus real decode. Combined T800+Hand 2 pol
 ## Layout
 
 ```
-interface/     command_schema_v1.yaml, frames.yaml, schema.py
+interface/     command_schema_v1.yaml, command_schema_v1_5point.yaml, frames.yaml, schema.py
 assets/        dexhand2 spec + official ingest; T800 joint table
 hand/          controller, coupling, primitives, backends, calibration
 runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
-wbc/           T800 SONIC contract, GMR IK export, 3-point teleop remap, G1-checkpoint guard
+wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a planner, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
 sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
-eval/          L0–L2 harnesses
+eval/          L0–L2 harnesses, 9-cell gain scan
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK
 ```
 
@@ -40,6 +40,7 @@ make gmr-tpose         # q=0 T800 vs PM01 overlay + rewrite IK JSON
 make usd-pads           # USDA pad-sphere overlay (right and left if fitted)
 make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
 make eval-l3-priv       # Isaac Lab privileged cfg dump; still no grasp-success
+make eval-gain-scan     # 9-cell MIT kp/kv hold; grasp_success_rate stays null
 ```
 
 ## Facts already taken from official sources

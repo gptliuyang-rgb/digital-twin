@@ -41,6 +41,8 @@ class HandOnlyMujocoEnv(BaseEnv):
         derived: bool = True,
         simplified: bool = False,
         safety: SafetyLimits | None = None,
+        kp: np.ndarray | None = None,
+        kd: np.ndarray | None = None,
     ) -> None:
         try:
             import mujoco
@@ -67,6 +69,8 @@ class HandOnlyMujocoEnv(BaseEnv):
             self.spec,
             backend,
             safety=safety or SafetyLimits(max_delta_q_rad=1.0, velocity_limit_rad_s=10.0),
+            kp=kp,
+            kd=kd,
         )
         self._mujoco = mujoco
 
