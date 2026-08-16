@@ -1,0 +1,646 @@
+schema_version: '1.0'
+robot: t800
+root_link: LINK_BASE
+source_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+source_urdf_sha256: 58044bae66d3a5f2993f555548300926765832f5fcb6f2c3bfd80330c51a235c
+source_mjcf_links: third_party/engineai-native-sdk/assets/resource/robot/t800/xml/serial_links.xml
+source_mjcf_sha256: e66c08deb7124d4a546352c044cd4d70613d5423f576ff0bf78e8d76a4f36b77
+n_revolute: 25
+joint_order:
+- J00_HIP_PITCH_L
+- J01_HIP_ROLL_L
+- J02_HIP_YAW_L
+- J03_KNEE_PITCH_L
+- J04_ANKLE_PITCH_L
+- J05_ANKLE_ROLL_L
+- J06_HIP_PITCH_R
+- J07_HIP_ROLL_R
+- J08_HIP_YAW_R
+- J09_KNEE_PITCH_R
+- J10_ANKLE_PITCH_R
+- J11_ANKLE_ROLL_R
+- J12_TORSO_YAW
+- J13_SHOULDER_PITCH_L
+- J14_SHOULDER_ROLL_L
+- J15_SHOULDER_YAW_L
+- J16_ELBOW_PITCH_L
+- J17_ELBOW_YAW_L
+- J18_SHOULDER_PITCH_R
+- J19_SHOULDER_ROLL_R
+- J20_SHOULDER_YAW_R
+- J21_ELBOW_PITCH_R
+- J22_ELBOW_YAW_R
+- J23_HEAD_PITCH
+- J24_HEAD_YAW
+tracked_bodies:
+  pelvis: LINK_BASE
+  head: LINK_HEAD_YAW
+  left_wrist: LINK_WRIST_END_L
+  right_wrist: LINK_WRIST_END_R
+  left_foot: LINK_FOOT_L
+  right_foot: LINK_FOOT_R
+optional_elbow_bodies:
+  left_elbow: LINK_ELBOW_PITCH_L
+  right_elbow: LINK_ELBOW_PITCH_R
+mjcf_revolute_limits_rad:
+  J00_HIP_PITCH_L:
+  - -3.316
+  - 2.269
+  J01_HIP_ROLL_L:
+  - -1.082
+  - 2.059
+  J02_HIP_YAW_L:
+  - -1.42245
+  - 3.60228
+  J03_KNEE_PITCH_L:
+  - -0.261667
+  - 2.355
+  J04_ANKLE_PITCH_L:
+  - -0.68068
+  - 0.68068
+  J05_ANKLE_ROLL_L:
+  - -0.3491
+  - 0.1745
+  J06_HIP_PITCH_R:
+  - -3.316
+  - 2.269
+  J07_HIP_ROLL_R:
+  - -2.059
+  - 1.082
+  J08_HIP_YAW_R:
+  - -3.60228
+  - 1.42245
+  J09_KNEE_PITCH_R:
+  - -0.261667
+  - 2.355
+  J10_ANKLE_PITCH_R:
+  - -0.68068
+  - 0.68068
+  J11_ANKLE_ROLL_R:
+  - -0.1745
+  - 0.3491
+  J12_TORSO_YAW:
+  - -4.381
+  - 1.2392
+  J13_SHOULDER_PITCH_L:
+  - -2.967
+  - 2.793
+  J14_SHOULDER_ROLL_L:
+  - -0.384
+  - 2.443
+  J15_SHOULDER_YAW_L:
+  - -2.618
+  - 2.618
+  J16_ELBOW_PITCH_L:
+  - -2.286
+  - 0.262
+  J17_ELBOW_YAW_L:
+  - -2.618
+  - 2.618
+  J18_SHOULDER_PITCH_R:
+  - -2.967
+  - 2.793
+  J19_SHOULDER_ROLL_R:
+  - -2.443
+  - 0.384
+  J20_SHOULDER_YAW_R:
+  - -2.618
+  - 2.618
+  J21_ELBOW_PITCH_R:
+  - -2.286
+  - 0.262
+  J22_ELBOW_YAW_R:
+  - -2.618
+  - 2.618
+  J23_HEAD_PITCH:
+  - -0.523
+  - 0.523
+  J24_HEAD_YAW:
+  - -1.222
+  - 1.222
+joints:
+- name: J00_HIP_PITCH_L
+  type: revolute
+  parent: LINK_BASE
+  child: LINK_HIP_PITCH_L
+  origin_xyz_m:
+  - 0.0
+  - 0.079178
+  - 0.0
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.9659258671501301
+  - -0.25881889260691426
+  lower_rad: -3.316
+  upper_rad: 2.269
+- name: J01_HIP_ROLL_L
+  type: revolute
+  parent: LINK_HIP_PITCH_L
+  child: LINK_HIP_ROLL_L
+  origin_xyz_m:
+  - 0.004662
+  - 0.040322
+  - -0.10752
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 1.0
+  - 0.0
+  - 0.0
+  lower_rad: -1.082
+  upper_rad: 2.059
+- name: J02_HIP_YAW_L
+  type: revolute
+  parent: LINK_HIP_ROLL_L
+  child: LINK_HIP_YAW_L
+  origin_xyz_m:
+  - 0.0094616
+  - 0.0
+  - -0.080512
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: -1.42244667
+  upper_rad: 3.6022778
+- name: J03_KNEE_PITCH_L
+  type: revolute
+  parent: LINK_HIP_YAW_L
+  child: LINK_KNEE_PITCH_L
+  origin_xyz_m:
+  - -0.037707
+  - 0.0
+  - -0.28792
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  lower_rad: 0.0
+  upper_rad: 2.355
+- name: J04_ANKLE_PITCH_L
+  type: revolute
+  parent: LINK_KNEE_PITCH_L
+  child: LINK_ANKLE_PITCH_L
+  origin_xyz_m:
+  - -0.0027168
+  - 0.0
+  - -0.43867
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  lower_rad: -0.68068
+  upper_rad: 0.68068
+- name: J05_ANKLE_ROLL_L
+  type: revolute
+  parent: LINK_ANKLE_PITCH_L
+  child: LINK_ANKLE_ROLL_L
+  origin_xyz_m:
+  - 0.0011073
+  - 0.0
+  - -0.037928
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 1.0
+  - 0.0
+  - 0.0
+  lower_rad: -0.3491
+  upper_rad: 0.1745
+- name: J_FIXED_FOOT_L
+  type: fixed
+  parent: LINK_ANKLE_ROLL_L
+  child: LINK_FOOT_L
+  origin_xyz_m:
+  - 0.0
+  - 0.0
+  - -0.06453
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: null
+  upper_rad: null
+- name: J06_HIP_PITCH_R
+  type: revolute
+  parent: LINK_BASE
+  child: LINK_HIP_PITCH_R
+  origin_xyz_m:
+  - 0.0
+  - -0.079178
+  - 0.0
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.9659258671501301
+  - 0.25881889260691426
+  lower_rad: -3.316
+  upper_rad: 2.269
+- name: J07_HIP_ROLL_R
+  type: revolute
+  parent: LINK_HIP_PITCH_R
+  child: LINK_HIP_ROLL_R
+  origin_xyz_m:
+  - 0.004662
+  - -0.040322
+  - -0.10752
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 1.0
+  - 0.0
+  - 0.0
+  lower_rad: -2.059
+  upper_rad: 1.082
+- name: J08_HIP_YAW_R
+  type: revolute
+  parent: LINK_HIP_ROLL_R
+  child: LINK_HIP_YAW_R
+  origin_xyz_m:
+  - 0.0094616
+  - 0.0
+  - -0.080512
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: -3.6022778
+  upper_rad: 1.42244667
+- name: J09_KNEE_PITCH_R
+  type: revolute
+  parent: LINK_HIP_YAW_R
+  child: LINK_KNEE_PITCH_R
+  origin_xyz_m:
+  - -0.037707
+  - 0.0
+  - -0.28792
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  lower_rad: 0.0
+  upper_rad: 2.355
+- name: J10_ANKLE_PITCH_R
+  type: revolute
+  parent: LINK_KNEE_PITCH_R
+  child: LINK_ANKLE_PITCH_R
+  origin_xyz_m:
+  - -0.0027168
+  - 0.0
+  - -0.43867
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  lower_rad: -0.68068
+  upper_rad: 0.68068
+- name: J11_ANKLE_ROLL_R
+  type: revolute
+  parent: LINK_ANKLE_PITCH_R
+  child: LINK_ANKLE_ROLL_R
+  origin_xyz_m:
+  - 0.0011073
+  - 0.0
+  - -0.037928
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 1.0
+  - 0.0
+  - 0.0
+  lower_rad: -0.1745
+  upper_rad: 0.3491
+- name: J_FIXED_FOOT_R
+  type: fixed
+  parent: LINK_ANKLE_ROLL_R
+  child: LINK_FOOT_R
+  origin_xyz_m:
+  - 0.0
+  - -0.0
+  - -0.06453
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: null
+  upper_rad: null
+- name: J12_TORSO_YAW
+  type: revolute
+  parent: LINK_BASE
+  child: LINK_WAIST_YAW
+  origin_xyz_m:
+  - 0.0
+  - 0.0
+  - 0.10384
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: -4.381
+  upper_rad: 1.2392
+- name: J13_SHOULDER_PITCH_L
+  type: revolute
+  parent: LINK_WAIST_YAW
+  child: LINK_SHOULDER_PITCH_L
+  origin_xyz_m:
+  - -0.011
+  - 0.16303
+  - 0.27889
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.9967788796206706
+  - 0.0801989098564359
+  lower_rad: -2.967
+  upper_rad: 2.793
+- name: J14_SHOULDER_ROLL_L
+  type: revolute
+  parent: LINK_SHOULDER_PITCH_L
+  child: LINK_SHOULDER_ROLL_L
+  origin_xyz_m:
+  - 0.0
+  - 0.062533
+  - -0.015455
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 1.0
+  - 0.0
+  - 0.0
+  lower_rad: -0.384
+  upper_rad: 2.443
+- name: J15_SHOULDER_YAW_L
+  type: revolute
+  parent: LINK_SHOULDER_ROLL_L
+  child: LINK_SHOULDER_YAW_L
+  origin_xyz_m:
+  - 3.4602e-05
+  - 0.0085246
+  - -0.082712
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - -0.071497058105361
+  - 0.9974408106159878
+  lower_rad: -2.618
+  upper_rad: 2.618
+- name: J16_ELBOW_PITCH_L
+  type: revolute
+  parent: LINK_SHOULDER_YAW_L
+  child: LINK_ELBOW_PITCH_L
+  origin_xyz_m:
+  - 0.0019252
+  - 0.013597
+  - -0.15075
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.9974408106159878
+  - 0.071497058105361
+  lower_rad: -2.286
+  upper_rad: 0.262
+- name: J17_ELBOW_YAW_L
+  type: revolute
+  parent: LINK_ELBOW_PITCH_L
+  child: LINK_ELBOW_YAW_L
+  origin_xyz_m:
+  - -0.0022091
+  - 0.0094362
+  - -0.13182
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - -0.2164394402440695
+  - -0.06980281947586761
+  - 0.9737974815638278
+  lower_rad: -2.618
+  upper_rad: 2.618
+- name: J_FIXED_WAIST_L
+  type: fixed
+  parent: LINK_ELBOW_YAW_L
+  child: LINK_WRIST_END_L
+  origin_xyz_m:
+  - 0.029436
+  - 0.0124855
+  - -0.13222151
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: null
+  upper_rad: null
+- name: J18_SHOULDER_PITCH_R
+  type: revolute
+  parent: LINK_WAIST_YAW
+  child: LINK_SHOULDER_PITCH_R
+  origin_xyz_m:
+  - -0.011
+  - -0.16303
+  - 0.27889
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.9967788796206706
+  - -0.0801989098564359
+  lower_rad: -2.967
+  upper_rad: 2.793
+- name: J19_SHOULDER_ROLL_R
+  type: revolute
+  parent: LINK_SHOULDER_PITCH_R
+  child: LINK_SHOULDER_ROLL_R
+  origin_xyz_m:
+  - 0.0
+  - -0.062533
+  - -0.015455
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 1.0
+  - 0.0
+  - 0.0
+  lower_rad: -2.443
+  upper_rad: 0.384
+- name: J20_SHOULDER_YAW_R
+  type: revolute
+  parent: LINK_SHOULDER_ROLL_R
+  child: LINK_SHOULDER_YAW_R
+  origin_xyz_m:
+  - 3.4602e-05
+  - -0.0085246
+  - -0.082712
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.071497058105361
+  - 0.9974408106159878
+  lower_rad: -2.618
+  upper_rad: 2.618
+- name: J21_ELBOW_PITCH_R
+  type: revolute
+  parent: LINK_SHOULDER_YAW_R
+  child: LINK_ELBOW_PITCH_R
+  origin_xyz_m:
+  - 0.0019252
+  - -0.013597
+  - -0.15075
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.9974408106159878
+  - -0.071497058105361
+  lower_rad: -2.286
+  upper_rad: 0.262
+- name: J22_ELBOW_YAW_R
+  type: revolute
+  parent: LINK_ELBOW_PITCH_R
+  child: LINK_ELBOW_YAW_R
+  origin_xyz_m:
+  - -0.0022091
+  - -0.0094362
+  - -0.13182
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - -0.2164394402440695
+  - 0.06980281947586761
+  - 0.9737974815638278
+  lower_rad: -2.618
+  upper_rad: 2.618
+- name: J_FIXED_WAIST_R
+  type: fixed
+  parent: LINK_ELBOW_YAW_R
+  child: LINK_WRIST_END_R
+  origin_xyz_m:
+  - 0.029436
+  - -0.0124855
+  - -0.13222151
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: null
+  upper_rad: null
+- name: J23_HEAD_PITCH
+  type: revolute
+  parent: LINK_WAIST_YAW
+  child: LINK_HEAD_PITCH
+  origin_xyz_m:
+  - -0.0113
+  - 0.0
+  - 0.38604
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  lower_rad: -0.523
+  upper_rad: 0.523
+- name: J24_HEAD_YAW
+  type: revolute
+  parent: LINK_HEAD_PITCH
+  child: LINK_HEAD_YAW
+  origin_xyz_m:
+  - 0.0
+  - 0.0
+  - 0.040199
+  origin_rpy_rad:
+  - 0.0
+  - 0.0
+  - 0.0
+  axis:
+  - 0.0
+  - 0.0
+  - 1.0
+  lower_rad: -1.222
+  upper_rad: 1.222
+note: Kinematics-only extract of the official Native SDK URDF. mjcf_revolute_limits_rad
+  comes from serial_links.xml range=, not URDF <limit>. Not a mesh/inertial dump.
+  Not a G1 model.

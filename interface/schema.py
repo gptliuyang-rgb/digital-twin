@@ -20,6 +20,7 @@ REQUIRED_INPUT_TOKEN = "REQUIRED_INPUT"
 HAND_SPEC_PATH = REPO_ROOT / "assets" / "dexhand2" / "meta" / "dexhand2_spec.yaml"
 JOINT_MAP_PATH = REPO_ROOT / "assets" / "dexhand2" / "meta" / "joint_name_map.yaml"
 COMMAND_SCHEMA_PATH = Path(__file__).with_name("command_schema_v1.yaml")
+FIVE_POINT_SCHEMA_PATH = Path(__file__).with_name("command_schema_v1_5point.yaml")
 FRAMES_PATH = Path(__file__).with_name("frames.yaml")
 COUPLING_PATH = REPO_ROOT / "assets" / "dexhand2" / "meta" / "coupling.yaml"
 MOUNT_PATH = REPO_ROOT / "assets" / "dexhand2" / "meta" / "mount_transform.yaml"
@@ -210,6 +211,27 @@ def load_joint_map(path: Path | None = None) -> list[JointMapEntry]:
 
 def load_command_schema(path: Path | None = None) -> dict[str, Any]:
     return load_yaml(path or COMMAND_SCHEMA_PATH)
+
+
+def load_five_point_schema(path: Path | None = None) -> dict[str, Any]:
+    """Optional 5-point elbow extension. Does not change command_schema_v1 dim."""
+    raw = load_yaml(path or FIVE_POINT_SCHEMA_PATH)
+    extra = int(raw["extra_dim"])
+    if extra != 6:
+        raise ValueError(f"5-point extra_dim must be 6 (two elbow xyz), got {extra}")
+    if list(raw["teleop_5point_order"]) != [
+        "left_wrist",
+        "right_wrist",
+        "head",
+        "left_elbow",
+        "right_elbow",
+    ]:
+        raise ValueError("teleop_5point_order must be left_wrist, right_wrist, head, left_elbow, right_elbow")
+    return raw
+
+
+def five_point_command_dim(spec: HandSpec | None = None) -> int:
+    return command_dim(spec) + int(load_five_point_schema()["extra_dim"])
 
 
 def load_frames(path: Path | None = None) -> dict[str, Any]:
@@ -404,6 +426,7 @@ def validate_repo_spec() -> None:
     spec.require_p0_topology()
     load_joint_map()
     load_command_schema()
+    load_five_point_schema()
     load_frames()
     missing = collect_repo_required_inputs()
     if missing:
