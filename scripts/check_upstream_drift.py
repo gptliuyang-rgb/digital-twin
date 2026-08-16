@@ -19,6 +19,7 @@ WATCH = [
     "hand2/hand2_beta1/body/mjcf/left.xml",
     "hand2/hand2_beta1/body/urdf/right.urdf",
     "hand2/hand2_beta1/body/mjcf/right_with_mount.xml",
+    "hand2/hand2_beta1/attachment/wuji-hand2-description-right-mount_beta1_step.STEP",
 ]
 
 

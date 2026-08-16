@@ -113,6 +113,31 @@ t800pro:
     head:
     - J41_HEAD_PITCH
     - J42_HEAD_YAW
+t800_dummy_wrist_from_elbow:
+  left:
+    joint: J_FIXED_WAIST_L
+    parent: LINK_ELBOW_YAW_L
+    child: LINK_WRIST_END_L
+    pos_m:
+    - 0.029436
+    - 0.0124855
+    - -0.13222151
+    rpy_rad:
+    - 0.0
+    - 0.0
+    - 0.0
+  right:
+    joint: J_FIXED_WAIST_R
+    parent: LINK_ELBOW_YAW_R
+    child: LINK_WRIST_END_R
+    pos_m:
+    - 0.029436
+    - -0.0124855
+    - -0.13222151
+    rpy_rad:
+    - 0.0
+    - 0.0
+    - 0.0
 note: T800 Native SDK URDF has 25 revolute DoF and dummy LINK_WRIST_END_* (no wrist
   pitch/roll). T800 Pro URDF has wrist pitch/roll plus a 7-DoF built-in hand per side
   that we replace with Wuji Hand 2. Body DoF excluding those built-in hands is revolute_excluding_builtin_hands.

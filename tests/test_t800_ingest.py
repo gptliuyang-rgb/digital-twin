@@ -13,6 +13,9 @@ def test_t800_revolute_count() -> None:
     assert doc["t800"]["revolute_count"] == 25
     assert "J18_WRIST_PITCH_L" not in doc["t800"]["groups"].get("wrist", [])
     assert doc["end_effector_frames"]["left_wrist"] == "LINK_WRIST_END_L"
+    dummy = doc["t800_dummy_wrist_from_elbow"]
+    assert dummy["left"]["child"] == "LINK_WRIST_END_L"
+    assert dummy["right"]["pos_m"][1] == pytest.approx(-0.0124855)
 
 
 @pytest.mark.skipif(not T800PRO_URDF.is_file(), reason="T800 Pro URDF missing")

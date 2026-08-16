@@ -8,8 +8,28 @@ from pathlib import Path
 
 import numpy as np
 
+from assets.dexhand2.build.ingest_official import official_mjcf
 from hand.coupling import Coupling
 from interface.schema import load_hand_spec
+
+
+def _mujoco_zero_sites() -> dict | str:
+    try:
+        import mujoco
+    except ImportError:
+        return "skipped_no_mujoco"
+    path = official_mjcf("right")
+    if not path.is_file():
+        return "skipped_no_official_mjcf"
+    model = mujoco.MjModel.from_xml_path(path.as_posix())
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    sites = {}
+    for i in range(model.nsite):
+        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_SITE, i)
+        if name and name.endswith("_tip"):
+            sites[name] = data.site_xpos[i].tolist()
+    return {"n_qpos": int(model.nq), "n_nu": int(model.nu), "zero_pose_sites": sites}
 
 
 def check_joint_limits(q: np.ndarray, spec, margin: float = 0.05) -> dict:
@@ -43,6 +63,7 @@ def main() -> None:
         "coupling": check_coupling(q[0], spec),
         "ik": "skipped_no_pinocchio",
         "self_collision": "skipped_no_fcl",
+        "mujoco_fk": _mujoco_zero_sites(),
         "note": "Geometry IK/FCL require Pinocchio/FCL. Limit + coupling checks always run.",
     }
     out = Path(args.out)

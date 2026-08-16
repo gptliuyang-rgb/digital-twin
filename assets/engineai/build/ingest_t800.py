@@ -29,6 +29,30 @@ def parse_revolute(path: Path) -> list[dict]:
     return joints
 
 
+def dummy_wrist_origins(urdf_text: str) -> dict:
+    out = {}
+    for side, joint in (("left", "J_FIXED_WAIST_L"), ("right", "J_FIXED_WAIST_R")):
+        block = re.search(
+            rf'<joint name="{joint}" type="fixed">(.*?)</joint>',
+            urdf_text,
+            re.S,
+        )
+        if not block:
+            continue
+        origin = re.search(r'<origin xyz="([^"]+)" rpy="([^"]+)"', block.group(1))
+        parent = re.search(r'<parent link="([^"]+)"', block.group(1))
+        child = re.search(r'<child link="([^"]+)"', block.group(1))
+        if origin and parent and child:
+            out[side] = {
+                "joint": joint,
+                "parent": parent.group(1),
+                "child": child.group(1),
+                "pos_m": [float(x) for x in origin.group(1).split()],
+                "rpy_rad": [float(x) for x in origin.group(2).split()],
+            }
+    return out
+
+
 def classify(name: str) -> str:
     u = name.upper()
     if any(k in u for k in ("THUMB", "INDEX", "MIDDLE", "RING", "PINKY", "FINGER")):
@@ -64,6 +88,7 @@ def summarize(path: Path, robot: str) -> dict:
 def build() -> dict:
     t800 = summarize(T800_URDF, "t800")
     pro = summarize(T800PRO_URDF, "t800pro") if T800PRO_URDF.is_file() else None
+    dummy = dummy_wrist_origins(T800_URDF.read_text(encoding="utf-8")) if T800_URDF.is_file() else {}
     doc = {
         "schema_version": "1.0",
         "robot": "t800",
@@ -84,6 +109,7 @@ def build() -> dict:
         },
         "t800": t800,
         "t800pro": pro,
+        "t800_dummy_wrist_from_elbow": dummy,
         "note": (
             "T800 Native SDK URDF has 25 revolute DoF and dummy LINK_WRIST_END_* "
             "(no wrist pitch/roll). T800 Pro URDF has wrist pitch/roll plus a 7-DoF "

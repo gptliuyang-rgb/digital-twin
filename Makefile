@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe
 
 PYTHON ?= python3
 
@@ -37,3 +37,9 @@ eval-l2:
 
 eval-qr:
 	$(PYTHON) -m eval.qr_envelope
+
+eval-report:
+	$(PYTHON) -m eval.report.generate
+
+weld-recipe:
+	$(PYTHON) -m assets.combined.assemble || true
