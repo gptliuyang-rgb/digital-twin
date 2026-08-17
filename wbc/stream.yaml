@@ -1,0 +1,39 @@
+# SONIC paper §3.5 four-rate stack: command stream at 500 Hz.
+# arXiv:2511.07820v3. Shared sim/real. Hands still bypass WBC.
+# Not Table S4. Not pad–cardboard. Not DexHand2's 1 kHz MIT ring.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 §3.5 Deployment (four concurrent loops)"
+adr: ADR-039
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+
+# Paper loops (Hz):
+#   kinematic planner  10
+#   policy inference   50
+#   operator input    100   # recorded; not this module
+#   command stream    500   # this module — PD instruction ring
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+command_stream_hz: 500
+
+# Integer factors only. Rounding a non-divisor is refused.
+factor_planner_to_stream: 50   # 500 / 10
+factor_policy_to_stream: 10    # 500 / 50
+
+# ADR-021 sonic_command_hz: 50 is the policy/token rate, not this ring.
+policy_token_hz_ref: vla/chunk_clock.yaml#sonic_command_hz
+
+pos_interp: cubic_hermite
+rot_interp: slerp_so3
+hand_interp: linear
+nav_eval: closed_form_eq8   # never Hermite-resample a 10 Hz spring sampling
+
+note: >
+  Same binary in sim and on the robot. The 500 Hz ring interpolates 10 Hz L1a
+  refs and 50 Hz policy tokens onto the joint-PD clock. Nav uses SONIC Eq. 8
+  evaluated at 500 Hz timestamps (ADR-038), not a second Hermite pass.
+  DexHand2 stays on its own 1 kHz MIT backend. Combined T800+Hand stays
+  PolicyEvalBlocked.

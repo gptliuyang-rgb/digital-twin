@@ -2,19 +2,21 @@
 
 ## Done
 
-- `assets/dexhand2/build/ingest_official.py` checks MJCF joint order, limits, mass vs spec
-- `assets/dexhand2/build/gen_derived.py` injects pad spheres fitted to official `*_tip.STL`
+- `assets/dexhand2/build/ingest_official.py` checks MJCF joint order, limits, mass vs spec, 10 contact excludes, 5 tip STLs, 5 sites
+- Collision audit: official MJCF has **zero** pad spheres; tip STLs exist on disk and are not collision
+- `assets/dexhand2/build/gen_derived.py` injects 3 palmar-pad spheres per finger from the **distal** STL (ADR-006), disables distal hull collision, optional capsule simplified variant, converts `<position>` → `<motor>` for MIT
 - Identity `hand/coupling.py`
-- `scripts/check_upstream_drift.py`
+- `scripts/check_upstream_drift.py` (run via Makefile `check-drift`)
+- Baseline markdown: `docs/reports/PHASE_1_baseline.md`
 
-## Not done (blocked)
+## Measured on this clone (`wuji-description` @ `06e5f14c`)
 
-- MuJoCo 10 s no-jitter run in CI (optional extra `.[sim]`, not installed by default)
-- Convex-piece count / CoACD (official collision stays convex hull until derived simplified variant)
-- Hardware gain identification (scan config is in `eval/configs/l2_mujoco.yaml`)
+See PHASE_1_baseline.md. Right-hand URDF skeleton mass **0.6207 kg**, 20 actuators, 5 sites.
 
-## Official baseline (from cloned wuji-description)
+Palmar-vertex → pad-sphere surface is asserted **< 2 mm** in `tests/test_derived_assets.py`. Official site → distal hull vertex is already ~0.1 mm (site sits on the bone hull, not the pulp).
 
-- 20 actuators, 5 fingertip sites, 10 contact excludes, skeleton mass 0.6207 kg
-- Tip STLs present, not used as collision in upstream MJCF (confirmed)
-- Hand 2 Beta 2 also exists upstream (tactile pad links). This repo targets Beta 1 unless `hardware_has_tactile` says otherwise.
+## Not done (blocked / optional)
+
+- MuJoCo 10 s no-jitter run in default CI (`.[sim]` extra)
+- CoACD convex decomposition (official hulls kept except distal, replaced by spheres)
+- Hardware gain identification (9-cell scan in `eval/configs/gain_scan.yaml`)

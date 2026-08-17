@@ -1,0 +1,59 @@
+# SONIC paper Table S4. arXiv:2511.07820v3 appendix S2.
+# These ranges randomize the *humanoid* / floor during motion-tracking PPO.
+# They are NOT DexHand2 pad–cardboard coefficients and MUST NOT be written
+# into dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022).
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 Table S4"
+applies_to: t800_wbc_ppo
+not_dexhand2_contact: true
+
+# PhysX has μs / μd / restitution. MuJoCo does not. ADR-037 keeps the last two
+# recorded-only: no geom_friction[1:] write, no solref/solimp map.
+recorded_only_physical: [dynamic_friction, restitution]
+
+physical:
+  static_friction: [0.3, 1.6]
+  dynamic_friction: [0.3, 1.2]   # recorded-only (ADR-037); not a second μ channel
+  restitution: [0.0, 0.5]        # recorded-only (ADR-037); not solref
+  default_joint_pos_offset_rad: [-0.01, 0.01]
+  base_com_offset_m:
+    x: [-0.075, 0.075]
+    y: [-0.1, 0.1]
+    z: [-0.1, 0.1]
+
+root_push:
+  lin_vel_mps:
+    x: [-0.5, 0.5]
+    y: [-0.5, 0.5]
+    z: [-0.2, 0.2]
+  duration_s: [1.0, 3.0]
+  ang_vel_rad_s:
+    roll: [-0.52, 0.52]
+    pitch: [-0.52, 0.52]
+    yaw: [-0.78, 0.78]
+
+target_motion:
+  pos_jitter_m:
+    x: [-0.05, 0.05]
+    y: [-0.05, 0.05]
+    z: [-0.01, 0.01]
+  ori_jitter_rad:
+    roll: [-0.1, 0.1]
+    pitch: [-0.1, 0.1]
+    yaw: [-0.2, 0.2]
+  lin_vel_jitter_mps:
+    x: [-0.5, 0.5]
+    y: [-0.5, 0.5]
+    z: [-0.2, 0.2]
+  ang_vel_jitter_rad_s:
+    roll: [-0.52, 0.52]
+    pitch: [-0.52, 0.52]
+    yaw: [-0.78, 0.78]
+  joint_jitter_rad: [-0.1, 0.1]
+
+wrist_payload:
+  # Agent prompt §4.2. Sampling is refused until com_in_wrist_frame_m is measured.
+  mass_kg: [0.0, 20.0]
+  com_offset_m: [-0.15, 0.15]
+  blocked_until: [com_in_wrist_frame_m, t800_wrist_to_hand_mount]
