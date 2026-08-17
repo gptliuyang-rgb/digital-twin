@@ -37,6 +37,7 @@ make eval-l0-diagnose   # classify action last-dim (A/B/C); no weights required
 make eval-l1            # limits + coupling; IK skipped without Pinocchio
 make eval-l1a-spring    # SONIC Eq. 8 nav spring; grasp_success_rate stays null
 make eval-l1a-stream    # SONIC §3.5 500 Hz PD stream; grasp_success_rate stays null
+make eval-l1a-operator  # SONIC §3.5 100 Hz operator loop; grasp_success_rate stays null
 make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null

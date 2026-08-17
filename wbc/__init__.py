@@ -3,6 +3,15 @@
 from wbc.checkpoint import G1CheckpointIncompatible, refuse_g1_checkpoint
 from wbc.dims import decoder_history_dim, hybrid_encoder_cmd_dim, load_t800_sonic
 from wbc.observation import ProprioHistory, heading_gravity, pack_decoder_step, policy_proprio
+from wbc.operator import (
+    OPERATOR_INPUT_HZ,
+    OperatorHold,
+    OperatorInputError,
+    OperatorWindow,
+    ingest_operator,
+    operator_to_planner,
+    operator_to_stream,
+)
 from wbc.planner import KinematicPlanner
 from wbc.spring import (
     HEADING_DAMPING_C,
@@ -37,6 +46,10 @@ __all__ = [
     "HEADING_DAMPING_C",
     "KinematicPlanner",
     "MAX_NAV_SPEED_MPS",
+    "OPERATOR_INPUT_HZ",
+    "OperatorHold",
+    "OperatorInputError",
+    "OperatorWindow",
     "POSITION_DAMPING_C",
     "RootKeyframe",
     "RootSpringRef",
@@ -56,7 +69,10 @@ __all__ = [
     "ProprioHistory",
     "heading_gravity",
     "hybrid_encoder_cmd_dim",
+    "ingest_operator",
     "load_t800_sonic",
+    "operator_to_planner",
+    "operator_to_stream",
     "pack_decoder_step",
     "policy_proprio",
     "refuse_g1_checkpoint",

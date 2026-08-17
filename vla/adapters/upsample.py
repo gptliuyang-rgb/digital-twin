@@ -2,7 +2,8 @@
 
 Integer factors only (see chunk_clock.yaml). Zhou 6D is SLERP'd on SO(3), not
 averaged. Case A chunks are refused — convert with apply_fk=True first.
-The 500 Hz PD ring is ``wbc.stream`` (ADR-039), not this module.
+The 500 Hz PD ring is ``wbc.stream`` (ADR-039) and the 100 Hz operator
+ring is ``wbc.operator`` (ADR-040), not this module.
 """
 
 from __future__ import annotations

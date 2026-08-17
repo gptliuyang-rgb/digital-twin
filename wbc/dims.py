@@ -84,4 +84,6 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         raise ValueError("control_rate_hz must be 50 (SONIC policy/token rate)")
     if int(cfg["planner_hz"]) != 10:
         raise ValueError("planner_hz must be 10 (SONIC L1a)")
+    if int(cfg["operator_input_hz"]) != 100:
+        raise ValueError("operator_input_hz must be 100 (SONIC §3.5, ADR-040)")
     return cfg

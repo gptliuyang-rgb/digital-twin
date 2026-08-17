@@ -6,7 +6,7 @@ and no combined T800+Hand weld.
 ## Done
 
 - **ADR-039.** Paper §3.5 four-rate stack: planner 10 Hz, policy 50 Hz,
-  operator 100 Hz (recorded), command stream 500 Hz (this module). YAML
+  operator 100 Hz (ADR-040), command stream 500 Hz (this module). YAML
   locks integer factors 50 and 10. `stream_planned_ref` interpolates a 10 Hz
   `PlannedRef` with the ADR-018 cubic/SLERP kernel. `stream_policy_tokens`
   interpolates 50 Hz tracker rows. `stream_nav_spring` evaluates Eq. 8 at
@@ -33,7 +33,7 @@ Isaac Lab PPO launch still refused. Pad–cardboard μ remains `REQUIRED_INPUT`.
 
 ## Not done
 
-- Operator-input 100 Hz loop (rate is recorded only)
+- Operator-input 100 Hz loop — **done in ADR-040** (`wbc/operator.py`)
 - Isaac Lab PPO launch
 - Combined T800+Hand MJCF
 - Grasp-success numbers

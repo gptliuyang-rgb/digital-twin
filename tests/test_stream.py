@@ -34,6 +34,8 @@ def test_yaml_locks_paper_rates() -> None:
     assert OPERATOR_INPUT_HZ == 100
     assert stream_factor(10) == 50
     assert stream_factor(50) == 10
+    assert stream_factor(100) == 5
+    assert cfg["factor_operator_to_stream"] == 5
     assert cfg["nav_eval"] == "closed_form_eq8"
 
 

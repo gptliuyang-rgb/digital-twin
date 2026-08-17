@@ -2,14 +2,16 @@
 # These are *labelled typicals* from Isaac-GR00T / openpi docs and the project
 # plan, not measured on your GPU. Override per ckpt after L0 diagnose.
 #
-# Naming (ADR-021 vs ADR-039):
-#   sonic_command_hz  50   policy/token rate (this file; VLA→50 Hz upsample)
-#   command_stream_hz 500  PD instruction ring (wbc/stream.yaml; SONIC §3.5)
+# Naming (ADR-021 vs ADR-039 vs ADR-040):
+#   sonic_command_hz     50   policy/token rate (this file; VLA→50 Hz upsample)
+#   operator_input_hz   100   VR/gamepad/keyboard/network (wbc/operator.yaml)
+#   command_stream_hz   500   PD instruction ring (wbc/stream.yaml; SONIC §3.5)
 # Do not linearly interpolate Zhou 6D.
 
 schema_version: "1.0"
 sonic_command_hz: 50          # Hz, SONIC policy/token rate (NOT the 500 Hz PD ring)
 planner_hz: 10                # Hz, L1a kinematic planner
+operator_input_hz: 100        # Hz, paper §3.5 operator input; see wbc/operator.yaml
 pd_stream_hz: 500             # Hz, paper §3.5 command stream; see wbc/stream.yaml
 planner_horizon_s: [0.8, 2.4]
 

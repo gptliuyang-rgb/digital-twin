@@ -54,11 +54,13 @@ def load_stream_cfg(path: Path | None = None) -> dict[str, Any]:
     if int(raw["planner_hz"]) != PLANNER_HZ:
         raise ValueError("planner_hz must stay 10 (SONIC §3.5)")
     if int(raw["operator_input_hz"]) != OPERATOR_INPUT_HZ:
-        raise ValueError("operator_input_hz must stay 100 (SONIC §3.5, recorded)")
+        raise ValueError("operator_input_hz must stay 100 (SONIC §3.5, ADR-040)")
     if int(raw["factor_planner_to_stream"]) != STREAM_HZ // PLANNER_HZ:
         raise ValueError("factor_planner_to_stream must stay 50")
     if int(raw["factor_policy_to_stream"]) != STREAM_HZ // POLICY_HZ:
         raise ValueError("factor_policy_to_stream must stay 10")
+    if int(raw["factor_operator_to_stream"]) != STREAM_HZ // OPERATOR_INPUT_HZ:
+        raise ValueError("factor_operator_to_stream must stay 5")
     if str(raw.get("nav_eval")) != "closed_form_eq8":
         raise ValueError("nav_eval must stay closed_form_eq8 (do not Hermite the spring)")
     sonic = load_t800_sonic()
@@ -68,6 +70,8 @@ def load_stream_cfg(path: Path | None = None) -> dict[str, Any]:
         raise ValueError("t800_sonic.yaml control_rate_hz drifted from 50")
     if int(sonic["planner_hz"]) != PLANNER_HZ:
         raise ValueError("t800_sonic.yaml planner_hz drifted from 10")
+    if int(sonic["operator_input_hz"]) != OPERATOR_INPUT_HZ:
+        raise ValueError("t800_sonic.yaml operator_input_hz drifted from 100")
     return raw
 
 
