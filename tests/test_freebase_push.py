@@ -66,6 +66,28 @@ def test_fixture_wbc_slide_friction_sets_floor_and_feet() -> None:
         env.set_wbc_slide_friction(0.0)
 
 
+def test_fixture_base_com_offset_adds_to_compiled_ipos() -> None:
+    pytest.importorskip("mujoco")
+    env = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=True)
+    compiled = env.compiled_base_ipos_m()
+    assert compiled.tolist() == [0.0, 0.0, 0.0]
+    bid = env.root_body_id()
+    assert env._body_name(bid) == "LINK_BASE"
+    applied = env.set_base_com_offset([0.075, 0.0, 0.0])
+    assert applied["not_wrist_com"] is True
+    assert applied["not_pad_cardboard"] is True
+    assert applied["additive_to_compiled_ipos"] is True
+    assert applied["mujoco_channel"] == "body_ipos[LINK_BASE]"
+    assert applied["offset_m"] == [0.075, 0.0, 0.0]
+    assert applied["applied_ipos_m"] == [0.075, 0.0, 0.0]
+    assert applied["body_mass_kg"] == pytest.approx(1.0)
+    assert env.model.body_ipos[bid].tolist() == pytest.approx([0.075, 0.0, 0.0])
+    env.restore_base_ipos()
+    assert env.model.body_ipos[bid].tolist() == pytest.approx([0.0, 0.0, 0.0])
+    with pytest.raises(ValueError, match="finite"):
+        env.set_base_com_offset([float("nan"), 0.0, 0.0])
+
+
 def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     pytest.importorskip("mujoco")
     from eval.l2_freebase_push import run

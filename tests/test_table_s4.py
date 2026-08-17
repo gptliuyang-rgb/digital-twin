@@ -8,13 +8,16 @@ from interface.schema import REPO_ROOT
 from wbc.ppo.recipe import load_ppo_recipe
 from wbc.ppo.table_s4 import (
     ANGVEL_AXES,
+    COM_AXES,
     SWEEP_AXES,
     VERTICAL_AXES,
     axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
+    base_com_offset_extrema,
     duration_extrema_s,
     force_n_from_impulse,
     load_table_s4,
+    physical_base_com_offset_ranges_m,
     physical_dynamic_friction_range,
     physical_restitution_range,
     physical_static_friction_range,
@@ -225,3 +228,51 @@ def test_static_friction_is_not_a_root_push_axis() -> None:
     force_names = [c["name"] for c in sustained_force_cases()]
     assert "mu_s_0.3" not in force_names
     assert "mu_s_1.6" not in force_names
+
+
+def test_base_com_offset_extrema_match_domain_rand_and_are_not_wrist_com() -> None:
+    ranges = physical_base_com_offset_ranges_m()
+    assert COM_AXES == ("x", "y", "z")
+    assert ranges["x"] == (-0.075, 0.075)
+    assert ranges["y"] == (-0.1, 0.1)
+    assert ranges["z"] == (-0.1, 0.1)
+    cases = base_com_offset_extrema()
+    assert [c["name"] for c in cases] == [
+        "com_-x",
+        "com_+x",
+        "com_-y",
+        "com_+y",
+        "com_-z",
+        "com_+z",
+    ]
+    by_name = {c["name"]: c for c in cases}
+    assert by_name["com_-x"]["offset_m"] == [-0.075, 0.0, 0.0]
+    assert by_name["com_+x"]["offset_m"] == [0.075, 0.0, 0.0]
+    assert by_name["com_-y"]["offset_m"] == [0.0, -0.1, 0.0]
+    assert by_name["com_+y"]["offset_m"] == [0.0, 0.1, 0.0]
+    assert by_name["com_-z"]["offset_m"] == [0.0, 0.0, -0.1]
+    assert by_name["com_+z"]["offset_m"] == [0.0, 0.0, 0.1]
+    assert all(c["kind"] == "wbc_base_com_ipos_offset" for c in cases)
+    assert all(c["additive_to_compiled_ipos"] is True for c in cases)
+    assert all(c["not_dexhand2_contact"] is True for c in cases)
+    assert all(c["not_pad_cardboard"] is True for c in cases)
+    assert all(c["not_wrist_com"] is True for c in cases)
+    recipe = load_ppo_recipe()
+    com = recipe["domain_rand"]["physical"]["base_com_offset_m"]
+    assert by_name["com_+x"]["offset_m"][0] == float(com["x"][1])
+    assert by_name["com_-z"]["offset_m"][2] == float(com["z"][0])
+    spec = (REPO_ROOT / "assets" / "dexhand2" / "meta" / "dexhand2_spec.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "com_in_wrist_frame_m: REQUIRED_INPUT" in spec
+    assert "base_com_offset_m" not in spec
+
+
+def test_base_com_offset_is_not_a_root_push_axis() -> None:
+    push_names = [c["name"] for c in axis_aligned_linvel_extrema_mps()]
+    com_names = [c["name"] for c in base_com_offset_extrema()]
+    assert set(com_names).isdisjoint(push_names)
+    force_names = [c["name"] for c in sustained_force_cases()]
+    assert set(com_names).isdisjoint(force_names)
+    friction_names = [c["name"] for c in static_friction_extrema()]
+    assert set(com_names).isdisjoint(friction_names)

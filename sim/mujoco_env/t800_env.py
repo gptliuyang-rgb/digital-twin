@@ -9,6 +9,8 @@ Neither source writes DexHand2 contact parameters. Floor friction on the
 free-base path defaults to the official collision default, labelled as WBC
 floor, not pad–cardboard. Table S4 physical.static_friction extrema (ADR-031)
 overwrite only ``geom_friction[0]`` on that floor and on foot collision geoms.
+Table S4 physical.base_com_offset_m extrema (ADR-032) add to compiled
+``body_ipos[LINK_BASE]``; they are not DexHand2 wrist CoM.
 """
 
 from __future__ import annotations
@@ -261,6 +263,10 @@ class T800MujocoEnv(BaseEnv):
             for i in range(int(self.model.ngeom))
             if int(self.model.geom_type[i]) == int(self._mujoco.mjtGeom.mjGEOM_PLANE)
         ]
+        # Compiled LINK_BASE inertial-frame origin. Table S4 CoM offsets add to this.
+        self._base_ipos0 = np.array(
+            self.model.body_ipos[self.root_body_id()], dtype=np.float64
+        ).copy()
 
     def _geom_name(self, gid: int) -> str:
         name = self._mujoco.mj_id2name(self.model, self._mujoco.mjtObj.mjOBJ_GEOM, int(gid))
@@ -329,6 +335,43 @@ class T800MujocoEnv(BaseEnv):
 
     def restore_geom_friction(self, friction: Any) -> None:
         self.model.geom_friction[:] = friction
+
+    def compiled_base_ipos_m(self) -> np.ndarray:
+        """LINK_BASE ``body_ipos`` as compiled from the MJCF (m, body frame)."""
+        return np.array(self._base_ipos0, dtype=np.float64)
+
+    def restore_base_ipos(self) -> None:
+        self.model.body_ipos[self.root_body_id()] = self._base_ipos0
+
+    def set_base_com_offset(self, offset_m: np.ndarray | list[float]) -> dict[str, Any]:
+        """Add Table S4 base CoM offset to compiled ``body_ipos[LINK_BASE]``.
+
+        ``offset_m`` must come from Table S4 ``physical.base_com_offset_m``, not
+        from a guessed DexHand2 wrist hang-test. The paper randomizes the *base*
+        CoM; MuJoCo's matching channel is this body's own inertial frame, not
+        a redistribution of every link. Restores via ``restore_base_ipos``.
+        """
+        delta = np.asarray(offset_m, dtype=np.float64).reshape(3)
+        if not np.isfinite(delta).all():
+            raise ValueError(f"offset_m must be finite, got {delta.tolist()}")
+        bid = self.root_body_id()
+        compiled = self.compiled_base_ipos_m()
+        applied = compiled + delta
+        self.model.body_ipos[bid] = applied
+        return {
+            "body": self._body_name(bid),
+            "body_id": int(bid),
+            "compiled_ipos_m": compiled.tolist(),
+            "offset_m": [float(x) for x in delta],
+            "applied_ipos_m": applied.tolist(),
+            "body_mass_kg": float(self.model.body_mass[bid]),
+            "subtree_mass_kg": float(self.model.body_subtreemass[bid]),
+            "mujoco_channel": "body_ipos[LINK_BASE]",
+            "additive_to_compiled_ipos": True,
+            "not_dexhand2_contact": True,
+            "not_pad_cardboard": True,
+            "not_wrist_com": True,
+        }
 
     def get_q(self) -> np.ndarray:
         return np.array([self.data.qpos[i] for i in self._qadr], dtype=np.float64)

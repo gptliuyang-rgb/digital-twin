@@ -3,7 +3,7 @@
 These numbers randomize the *humanoid* / floor during motion-tracking PPO. They
 are not DexHand2 pad–cardboard coefficients and must not enter
 dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 /
-ADR-030 / ADR-031).
+ADR-030 / ADR-031 / ADR-032).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -29,6 +29,8 @@ ANGVEL_AXES = ("roll", "pitch", "yaw")
 ANGVEL_AXIS_INDEX = {"roll": 0, "pitch": 1, "yaw": 2}
 # Table S4 "Push duration Δt ∼ [1, 3] s". Extrema only; do not invent a third T.
 DURATION_EXTREMA_S = (1.0, 3.0)
+# Table S4 physical.base_com_offset_m: x ±0.075 m, y/z ±0.1 m. Not wrist CoM.
+COM_AXES = ("x", "y", "z")
 
 
 def load_table_s4() -> dict[str, Any]:
@@ -382,4 +384,62 @@ def static_friction_extrema() -> list[dict[str, Any]]:
                 "not_pad_cardboard": True,
             }
         )
+    return out
+
+
+def physical_base_com_offset_ranges_m() -> dict[str, tuple[float, float]]:
+    """Return Table S4 physical.base_com_offset_m per axis, metres.
+
+    This is a T800 LINK_BASE inertial-frame offset, not DexHand2
+    ``com_in_wrist_frame_m``. Do not copy these numbers into dexhand2_spec.yaml.
+    """
+    raw = load_table_s4()["physical"]["base_com_offset_m"]
+    out: dict[str, tuple[float, float]] = {}
+    for axis in COM_AXES:
+        lo, hi = (float(v) for v in raw[axis])
+        if lo >= 0.0 or hi <= 0.0:
+            raise ValueError(
+                f"Table S4 base_com_offset_m {axis} must straddle zero, got {[lo, hi]}"
+            )
+        out[axis] = (lo, hi)
+    return out
+
+
+def _com_case_name(sign: str, axis: str) -> str:
+    return f"com_{sign}{axis}"
+
+
+def base_com_offset_extrema() -> list[dict[str, Any]]:
+    """Axis-aligned signed extrema of Table S4 physical.base_com_offset_m.
+
+    Six cases: ±X 0.075 m and ±Y/±Z 0.1 m. Applied in the free-base diagnostic
+    as an *additive* offset on compiled ``body_ipos[LINK_BASE]`` (ADR-032).
+    This is not a full 2³ corner grid, not a wrist-hang CoM, and must not be
+    mixed into ``push_sweep``. Restitution and ``default_joint_pos_offset_rad``
+    stay recorded-only — they have no non-invented MuJoCo map here.
+    """
+    ranges = physical_base_com_offset_ranges_m()
+    out: list[dict[str, Any]] = []
+    for axis in COM_AXES:
+        lo, hi = ranges[axis]
+        idx = AXIS_INDEX[axis]
+        for sign, value in (("-", lo), ("+", hi)):
+            vec = [0.0, 0.0, 0.0]
+            vec[idx] = float(value)
+            out.append(
+                {
+                    "name": _com_case_name(sign, axis),
+                    "axis": axis,
+                    "sign": sign,
+                    "offset_m": vec,
+                    "table_s4_field": "physical.base_com_offset_m",
+                    "kind": "wbc_base_com_ipos_offset",
+                    "mujoco_channel": "body_ipos[LINK_BASE]",
+                    "additive_to_compiled_ipos": True,
+                    "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.base_com_offset_m",
+                    "not_dexhand2_contact": True,
+                    "not_pad_cardboard": True,
+                    "not_wrist_com": True,
+                }
+            )
     return out
