@@ -1,0 +1,42 @@
+# Free-base T800 Table S4 planar root-push sweep + air-drop.
+# Not a SONIC gate (ADR-026 / ADR-027). Velocities are Table S4 root_push
+# extrema, one-shot qvel (not a sustained force, not DexHand2 pad–cardboard).
+# Grasp-success stays JSON null. Z (±0.2 m/s) is recorded in domain_rand.yaml
+# but is not swept here — a vertical impulse is a different diagnostic.
+
+schema_version: "1.0"
+physics: mujoco
+pinned_base: false
+hold_s: 3.0
+settle_s: 3.0          # inject after the leaned hold, not at t=0.5 s while still upright
+post_push_s: 2.0
+airdrop_s: 0.4
+fall:
+  pelvis_z_m: 0.40
+  tilt_rad: 0.8
+lean:
+  tilt_rad: 0.20   # diagnostic band; official 3 s hold ~0.72 rad is leaned, not fallen
+push:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push"
+  kind: one_shot_qvel
+  name: "+y"
+  lin_vel_mps: [0.0, 0.5, 0.0]   # +Y kept as the ADR-026 compatibility case
+  not_sustained_force: true
+  not_dexhand2_contact: true
+sweep:
+  axes: [x, y]                   # Table S4 |x|=|y|=0.5 m/s; z excluded (ADR-027)
+  use_table_s4_extrema: true
+  exclude_z: true
+  z_range_mps: [-0.2, 0.2]       # recorded only; not injected
+airdrop:
+  add_floor: false
+  min_drop_m: 0.20   # freejoint proof vs pinned LINK_BASE z=1.03 m; not a stand rating
+gates:
+  grasp_success_rate: null
+  combined_robot: PolicyEvalBlocked
+  not_a_sonic_gate: true
+  local_tracking_success: false
+note: >
+  Official serial_t800.xml has a freejoint and no floor plane. The hold/push
+  cases add the official collision-default floor (WBC floor, not pad–cardboard).
+  Air-drop leaves the plane off so gravity must move the freejoint.
