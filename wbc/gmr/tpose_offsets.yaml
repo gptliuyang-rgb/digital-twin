@@ -1,0 +1,928 @@
+schema_version: '1.0'
+quat_offset_status: tpose_composed_pm01_with_t800_q0_frames
+human_scale_status: tpose_scaled_from_pm01_link_lengths
+method: R_offset_t800 = R_offset_pm01 * inv(R_pm01_q0) * R_t800_q0. Head uses the
+  pelvis offset composed with inv(R_pelvis)*R_head (GMR tienkung/hi convention when
+  head frame matches pelvis at q=0).
+not_a_live_actor_tpose: true
+head_vs_pelvis_deg: 0.0
+torso_vs_pelvis_deg: 0.0
+max_t800_vs_pm01_frame_delta_deg: 0.0
+lengths_m:
+  t800_hip_to_foot: 0.8455572221641834
+  pm01_hip_to_foot: 0.7056544095908401
+  t800_shoulder_to_wrist: 0.5003013275125769
+  pm01_shoulder_to_elbow_end: 0.3353400353511008
+  ratio_leg: 1.1982596731089135
+  ratio_arm: 1.4919224511584541
+pm01_gmr_scale:
+  leg: 0.85
+  arm: 0.8
+smplx:
+  bodies:
+    LINK_BASE:
+      pm01_body: LINK_BASE
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - -0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_HIP_ROLL_L:
+      pm01_body: LINK_HIP_ROLL_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.4267755048530402
+      - -0.5637931078484655
+      - -0.5637931078484655
+      - -0.4267755048530402
+      table2_quat_wxyz:
+      - 0.4267755048530402
+      - -0.5637931078484655
+      - -0.5637931078484655
+      - -0.4267755048530402
+      copied_table1_quat_wxyz:
+      - 0.4267755048530407
+      - -0.5637931078484661
+      - -0.5637931078484661
+      - -0.4267755048530407
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_KNEE_PITCH_L:
+      pm01_body: LINK_KNEE_PITCH_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - -0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_FOOT_L:
+      pm01_body: LINK_FOOT_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - -0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_HIP_ROLL_R:
+      pm01_body: LINK_HIP_ROLL_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.4267755048530402
+      - -0.5637931078484655
+      - -0.5637931078484655
+      - -0.4267755048530402
+      table2_quat_wxyz:
+      - 0.4267755048530402
+      - -0.5637931078484655
+      - -0.5637931078484655
+      - -0.4267755048530402
+      copied_table1_quat_wxyz:
+      - 0.4267755048530407
+      - -0.5637931078484661
+      - -0.5637931078484661
+      - -0.4267755048530407
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_KNEE_PITCH_R:
+      pm01_body: LINK_KNEE_PITCH_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - -0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_FOOT_R:
+      pm01_body: LINK_FOOT_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - -0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_WAIST_YAW:
+      pm01_body: LINK_TORSO_YAW
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - -0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_SHOULDER_ROLL_L:
+      pm01_body: LINK_SHOULDER_ROLL_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.7071067835596418
+      - 0.0
+      - -0.707106778813452
+      - 0.0
+      table2_quat_wxyz:
+      - 0.7071067835596418
+      - 0.0
+      - -0.707106778813452
+      - 0.0
+      copied_table1_quat_wxyz:
+      - 0.70710678
+      - 0.0
+      - -0.70710678
+      - 0.0
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_ELBOW_PITCH_L:
+      pm01_body: LINK_ELBOW_PITCH_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.7071067811865469
+      - 0.0
+      - -0.7071067811865467
+      - 0.0
+      table2_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      copied_table1_quat_wxyz:
+      - -0.7071067811865475
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_WRIST_END_L:
+      pm01_body: LINK_ELBOW_END_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.7071067811865469
+      - 0.0
+      - -0.7071067811865467
+      - 0.0
+      table2_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      copied_table1_quat_wxyz:
+      - -0.7071067811865475
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_SHOULDER_ROLL_R:
+      pm01_body: LINK_SHOULDER_ROLL_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.0
+      - 0.7071067811865469
+      - 0.0
+      - 0.7071067811865469
+      table2_quat_wxyz:
+      - 0.0
+      - 0.7071067811865469
+      - 0.0
+      - 0.7071067811865469
+      copied_table1_quat_wxyz:
+      - 0.0
+      - 0.70710678
+      - 0.0
+      - 0.70710678
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_ELBOW_PITCH_R:
+      pm01_body: LINK_ELBOW_PITCH_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.0
+      - 0.7071067811865468
+      - 0.0
+      - 0.7071067811865468
+      table2_quat_wxyz:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.9999999999999989
+      copied_table1_quat_wxyz:
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      - 0.7071067811865475
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_WRIST_END_R:
+      pm01_body: LINK_ELBOW_END_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.0
+      - 0.7071067811865468
+      - 0.0
+      - 0.7071067811865468
+      table2_quat_wxyz:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.9999999999999989
+      copied_table1_quat_wxyz:
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      - 0.7071067811865475
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_HEAD_YAW:
+      pm01_body: LINK_HEAD_YAW
+      method: pelvis_offset_composed_with_head_vs_pelvis_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+  human_scale_table:
+    pelvis: 1.0185207221425765
+    spine3: 1.0185207221425765
+    left_hip: 1.0185207221425765
+    right_hip: 1.0185207221425765
+    left_knee: 1.0185207221425765
+    right_knee: 1.0185207221425765
+    left_foot: 1.0185207221425765
+    right_foot: 1.0185207221425765
+    left_shoulder: 1.1935379609267633
+    right_shoulder: 1.1935379609267633
+    left_elbow: 1.1935379609267633
+    right_elbow: 1.1935379609267633
+    left_wrist: 1.1935379609267633
+    right_wrist: 1.1935379609267633
+    head: 1.0185207221425765
+bvh_lafan1:
+  bodies:
+    LINK_BASE:
+      pm01_body: LINK_BASE
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_HIP_ROLL_L:
+      pm01_body: LINK_HIP_ROLL_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - 0.5
+      - 0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_KNEE_PITCH_L:
+      pm01_body: LINK_KNEE_PITCH_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - 0.5
+      - 0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_FOOT_L:
+      pm01_body: LINK_FOOT_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.7071067835596418
+      - -0.707106778813452
+      - 0.0
+      - 0.0
+      table2_quat_wxyz:
+      - 0.7071067835596418
+      - -0.707106778813452
+      - 0.0
+      - 0.0
+      copied_table1_quat_wxyz:
+      - -0.70710678
+      - 0.70710678
+      - 0.0
+      - 0.0
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_HIP_ROLL_R:
+      pm01_body: LINK_HIP_ROLL_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - 0.5
+      - 0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_KNEE_PITCH_R:
+      pm01_body: LINK_KNEE_PITCH_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      - 0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - 0.5
+      - 0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_FOOT_R:
+      pm01_body: LINK_FOOT_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.7071067835596418
+      - -0.707106778813452
+      - 0.0
+      - 0.0
+      table2_quat_wxyz:
+      - 0.7071067835596418
+      - -0.707106778813452
+      - 0.0
+      - 0.0
+      copied_table1_quat_wxyz:
+      - -0.70710678
+      - 0.70710678
+      - 0.0
+      - 0.0
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_WAIST_YAW:
+      pm01_body: LINK_TORSO_YAW
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - 0.5
+      - 0.5
+      - 0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_SHOULDER_ROLL_L:
+      pm01_body: LINK_SHOULDER_ROLL_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - 0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_ELBOW_PITCH_L:
+      pm01_body: LINK_ELBOW_PITCH_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - -0.5
+      - 0.5
+      - 0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_WRIST_END_L:
+      pm01_body: LINK_ELBOW_END_L
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - -0.5
+      - 0.5
+      - 0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_SHOULDER_ROLL_R:
+      pm01_body: LINK_SHOULDER_ROLL_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 0.5
+      - 0.5
+      - -0.5
+      - -0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_ELBOW_PITCH_R:
+      pm01_body: LINK_ELBOW_PITCH_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - -0.5
+      - 0.5
+      - 0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_WRIST_END_R:
+      pm01_body: LINK_ELBOW_END_R
+      method: pm01_offset_composed_with_t800_vs_pm01_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - -0.49999999999999944
+      - -0.49999999999999944
+      copied_table1_quat_wxyz:
+      - -0.5
+      - -0.5
+      - 0.5
+      - 0.5
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+    LINK_HEAD_YAW:
+      pm01_body: LINK_HEAD_YAW
+      method: pelvis_offset_composed_with_head_vs_pelvis_q0
+      table1_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      table2_quat_wxyz:
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      - 0.49999999999999944
+      copied_table1_quat_wxyz:
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      frame_delta_vs_pm01_deg: 0.0
+      t800_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+      pm01_q0_quat_wxyz:
+      - 0.9999999999999989
+      - 0.0
+      - 0.0
+      - 0.0
+  human_scale_table:
+    Hips: 1.0185207221425765
+    Spine2: 1.0185207221425765
+    LeftUpLeg: 1.0185207221425765
+    RightUpLeg: 1.0185207221425765
+    LeftLeg: 1.0185207221425765
+    RightLeg: 1.0185207221425765
+    LeftFootMod: 1.0185207221425765
+    RightFootMod: 1.0185207221425765
+    LeftArm: 1.1935379609267633
+    RightArm: 1.1935379609267633
+    LeftForeArm: 1.1935379609267633
+    RightForeArm: 1.1935379609267633
+    LeftHand: 1.1935379609267633
+    RightHand: 1.1935379609267633
+    Head: 1.0185207221425765
+t800_mjcf: third_party/engineai-native-sdk/assets/resource/robot/t800/xml/serial_t800.xml
+pm01_mjcf: third_party/GMR/assets/engineai_pm01/xml/serial_pm_v2.xml

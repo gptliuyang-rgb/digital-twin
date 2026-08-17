@@ -1,0 +1,32 @@
+# SONIC paper Table S2. arXiv:2511.07820v3 appendix S2.
+# These are the paper's cluster settings, not a local "just press train" default.
+# refuse_ppo_launch() still blocks until flange SE(3) and wrist CoM are measured.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 Table S2"
+algorithm: PPO
+num_parallel_envs_per_gpu: 4096
+num_steps_per_env: 24
+learning_epochs: 5
+num_mini_batches: 4
+discount_gamma: 0.99
+gae_lambda: 0.95
+clip_param: 0.2
+entropy_coef: 0.013
+value_loss_coef: 1.0
+actor_lr: 2.0e-5
+critic_lr: 1.0e-3
+max_grad_norm: 0.1
+desired_kl: 0.01
+adaptive_lr_min: 1.0e-5
+adaptive_lr_max: 2.0e-4
+init_noise_std: 0.05
+actor_std_clamp: [0.001, 0.5]
+adaptive_sampling_bin_s: 1.0
+adaptive_sampling_failure_rate_cap_beta: 200
+adaptive_sampling_blend_alpha: 0.1
+g1_last_pt_finetune: forbidden
+control_rate_hz: 50
+note: >
+  Paper trains in Isaac Lab on a 128-GPU cluster. This file freezes the recipe.
+  `make ppo-train` must refuse until wbc.retarget.retarget_blockers() is empty.

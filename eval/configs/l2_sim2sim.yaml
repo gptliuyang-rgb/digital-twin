@@ -1,0 +1,17 @@
+# Kinematic Sim2Sim (no physics). Identity tracker must report ~0 MPJPE.
+# Paper G1 real-world wrist error (~6 cm mean) is NOT a T800 gate (ADR-022).
+# grasp_success_rate is always JSON null.
+
+schema_version: "1.0"
+tracker: identity_or_injected
+physics: none
+success_fail:
+  # SONIC §2.1 local-tracking failure (not a grasp metric)
+  root_or_ee_height_err_m: 0.25
+  root_ori_err_rad: 1.0
+gates:
+  identity_mpjpe_m: "<= 1e-9"
+  identity_wrist_err_m: "<= 1e-9"
+  fall_rate: "== 0"
+  grasp_success_rate: null
+note: Combined T800+Hand remains PolicyEvalBlocked. This eval is body-only FK.

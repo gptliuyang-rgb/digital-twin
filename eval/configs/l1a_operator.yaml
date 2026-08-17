@@ -1,0 +1,15 @@
+# SONIC §3.5 100 Hz operator-input loop. Shared sim/real. Units SI.
+schema_version: "1.0"
+operator_input_hz: 100
+planner_hz: 10
+policy_hz: 50
+command_stream_hz: 500
+factor_operator_to_stream: 5
+factor_operator_to_policy: 2
+factor_operator_to_planner: 10
+horizon_s: 1.6
+nav_resample: hold_last
+note: >
+  ADR-040. Hands bypass the SONIC token and still ride this clock.
+  DexHand2 MIT is 1 kHz, not 100 Hz. grasp_success_rate stays null.
+  Combined T800+Hand stays PolicyEvalBlocked. VLA is not a 100 Hz source.
