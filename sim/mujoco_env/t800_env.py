@@ -291,6 +291,16 @@ class T800MujocoEnv(BaseEnv):
             raise ValueError("apply_root_linvel requires pinned_base=False")
         self.data.qvel[0:3] = np.asarray(lin_vel_mps, dtype=np.float64).reshape(3)
 
+    def apply_root_angvel(self, ang_vel_rad_s: np.ndarray) -> None:
+        """Set freejoint angular velocity (LINK_BASE body frame, rad/s).
+
+        Matches MuJoCo freejoint ``qvel[3:6]``. Table S4 roll/pitch/yaw map to
+        body X/Y/Z. One-shot; not a sustained torque. Pinned-base raises.
+        """
+        if self.pinned_base:
+            raise ValueError("apply_root_angvel requires pinned_base=False")
+        self.data.qvel[3:6] = np.asarray(ang_vel_rad_s, dtype=np.float64).reshape(3)
+
     def root_body_id(self) -> int:
         """SONIC pelvis / floating-base body (LINK_BASE)."""
         return int(self._body_id["pelvis"])
@@ -298,6 +308,23 @@ class T800MujocoEnv(BaseEnv):
     def root_subtree_mass_kg(self) -> float:
         """MJCF subtree mass of LINK_BASE (kg). Measured from the loaded model."""
         return float(self.model.body_subtreemass[self.root_body_id()])
+
+    def root_ang_inertia_kgm2(self) -> np.ndarray:
+        """3×3 freejoint angular inertia (kg·m²) in ``qvel[3:6]`` coordinates.
+
+        Taken from ``mj_fullM`` after ``mj_forward`` at the current pose — not a
+        T800 datasheet guess. Pose-dependent because the composite rigid body
+        changes with joint configuration. Pinned-base raises (no freejoint).
+        """
+        if self.pinned_base:
+            raise ValueError("root_ang_inertia_kgm2 requires pinned_base=False")
+        mujoco = self._mujoco
+        mujoco.mj_forward(self.model, self.data)
+        nv = int(self.model.nv)
+        dense = np.zeros((nv, nv), dtype=np.float64)
+        # MuJoCo 3.11+: mj_fullM(model, data, dst). Older (m, dst, qM) is gone.
+        mujoco.mj_fullM(self.model, self.data, dense)
+        return dense[3:6, 3:6].copy()
 
     def apply_root_force_n(self, force_xyz_n: np.ndarray) -> None:
         """World-frame force (N) on LINK_BASE via ``xfrc_applied``. Not pad–cardboard.
@@ -311,6 +338,21 @@ class T800MujocoEnv(BaseEnv):
         bid = self.root_body_id()
         self.data.xfrc_applied[bid, 0:3] = force
         self.data.xfrc_applied[bid, 3:6] = 0.0
+
+    def apply_root_torque_nm(self, torque_body_nm: np.ndarray) -> None:
+        """Body-frame torque (N·m) on LINK_BASE, written as world ``xfrc[3:6]``.
+
+        ``xfrc_applied`` torques are world-frame at the body COM. Input is in
+        the same LINK_BASE body frame as freejoint ``qvel[3:6]`` so that
+        ``τ = I ω / T`` matches one-shot angular impulse. Does not clear the
+        linear-force slots. Pinned-base raises.
+        """
+        if self.pinned_base:
+            raise ValueError("apply_root_torque_nm requires pinned_base=False")
+        tau_body = np.asarray(torque_body_nm, dtype=np.float64).reshape(3)
+        bid = self.root_body_id()
+        rot = np.asarray(self.data.xmat[bid], dtype=np.float64).reshape(3, 3)
+        self.data.xfrc_applied[bid, 3:6] = rot @ tau_body
 
     def clear_root_force(self) -> None:
         """Zero ``xfrc_applied`` on LINK_BASE. Safe on pinned-base models."""

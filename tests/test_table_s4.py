@@ -6,14 +6,19 @@ import pytest
 
 from wbc.ppo.recipe import load_ppo_recipe
 from wbc.ppo.table_s4 import (
+    ANGVEL_AXES,
     SWEEP_AXES,
+    axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
     duration_extrema_s,
     force_n_from_impulse,
     load_table_s4,
+    root_push_angvel_ranges_rad_s,
     root_push_duration_s,
     root_push_ranges_mps,
     sustained_force_cases,
+    sustained_torque_cases,
+    torque_nm_from_impulse,
 )
 
 
@@ -27,6 +32,10 @@ def test_table_s4_is_not_dexhand2_contact() -> None:
     assert ranges["z"] == (-0.2, 0.2)
     assert root_push_duration_s() == (1.0, 3.0)
     assert duration_extrema_s() == (1.0, 3.0)
+    ang = root_push_angvel_ranges_rad_s()
+    assert ang["roll"] == (-0.52, 0.52)
+    assert ang["pitch"] == (-0.52, 0.52)
+    assert ang["yaw"] == (-0.78, 0.78)
 
 
 def test_planar_extrema_match_domain_rand_and_exclude_z() -> None:
@@ -57,6 +66,8 @@ def test_z_extrema_are_opt_in() -> None:
 def test_unknown_axis_raises() -> None:
     with pytest.raises(ValueError, match="unknown Table S4 axis"):
         axis_aligned_linvel_extrema_mps(axes=("w",))
+    with pytest.raises(ValueError, match="unknown Table S4 angvel axis"):
+        axis_aligned_angvel_extrema_rad_s(axes=("spin",))
 
 
 def test_impulse_force_matches_mass_times_delta_v() -> None:
@@ -92,3 +103,66 @@ def test_sustained_force_cases_are_planar_times_duration() -> None:
     assert by_name["+y_T1.0s"]["duration_s"] == 1.0
     assert by_name["-x_T3.0s"]["lin_vel_mps"] == [-0.5, 0.0, 0.0]
     assert by_name["-x_T3.0s"]["duration_s"] == 3.0
+
+
+def test_angvel_extrema_match_domain_rand() -> None:
+    cases = axis_aligned_angvel_extrema_rad_s()
+    assert ANGVEL_AXES == ("roll", "pitch", "yaw")
+    assert [c["name"] for c in cases] == ["-roll", "+roll", "-pitch", "+pitch", "-yaw", "+yaw"]
+    by_name = {c["name"]: c["ang_vel_rad_s"] for c in cases}
+    assert by_name["-roll"] == [-0.52, 0.0, 0.0]
+    assert by_name["+roll"] == [0.52, 0.0, 0.0]
+    assert by_name["-pitch"] == [0.0, -0.52, 0.0]
+    assert by_name["+pitch"] == [0.0, 0.52, 0.0]
+    assert by_name["-yaw"] == [0.0, 0.0, -0.78]
+    assert by_name["+yaw"] == [0.0, 0.0, 0.78]
+    assert all(c["not_dexhand2_contact"] is True for c in cases)
+    assert all(c["kind"] == "one_shot_qvel" for c in cases)
+    assert all(c["not_sustained_torque"] is True for c in cases)
+    recipe = load_ppo_recipe()
+    ang = recipe["domain_rand"]["root_push"]["ang_vel_rad_s"]
+    assert by_name["+roll"][0] == float(ang["roll"][1])
+    assert by_name["-yaw"][2] == float(ang["yaw"][0])
+
+
+def test_torque_matches_inertia_times_omega() -> None:
+    torque = torque_nm_from_impulse([2.0, 2.0, 4.0], [0.0, 0.0, 0.78], 1.0)
+    assert torque == pytest.approx([0.0, 0.0, 3.12])
+    torque_t3 = torque_nm_from_impulse([2.0, 2.0, 4.0], [0.0, 0.0, 0.78], 3.0)
+    assert torque_t3 == pytest.approx([0.0, 0.0, 1.04])
+    coupled = torque_nm_from_impulse(
+        [[2.0, 0.1, 0.0], [0.1, 3.0, 0.0], [0.0, 0.0, 4.0]],
+        [0.52, 0.0, 0.0],
+        1.0,
+    )
+    assert coupled == pytest.approx([1.04, 0.052, 0.0])
+    with pytest.raises(ValueError, match="duration_s"):
+        torque_nm_from_impulse([1.0, 1.0, 1.0], [0.0, 0.0, 0.78], 0.0)
+    with pytest.raises(ValueError, match="principal inertia"):
+        torque_nm_from_impulse([1.0, 0.0, 1.0], [0.0, 0.0, 0.78], 1.0)
+
+
+def test_sustained_torque_cases_are_angvel_times_duration() -> None:
+    cases = sustained_torque_cases()
+    assert [c["name"] for c in cases] == [
+        "-roll_T1.0s",
+        "-roll_T3.0s",
+        "+roll_T1.0s",
+        "+roll_T3.0s",
+        "-pitch_T1.0s",
+        "-pitch_T3.0s",
+        "+pitch_T1.0s",
+        "+pitch_T3.0s",
+        "-yaw_T1.0s",
+        "-yaw_T3.0s",
+        "+yaw_T1.0s",
+        "+yaw_T3.0s",
+    ]
+    assert all(c["kind"] == "sustained_torque" for c in cases)
+    assert all(c["not_one_shot_qvel"] is True for c in cases)
+    assert all(c["not_dexhand2_contact"] is True for c in cases)
+    by_name = {c["name"]: c for c in cases}
+    assert by_name["+yaw_T1.0s"]["ang_vel_rad_s"] == [0.0, 0.0, 0.78]
+    assert by_name["+yaw_T1.0s"]["duration_s"] == 1.0
+    assert by_name["-roll_T3.0s"]["ang_vel_rad_s"] == [-0.52, 0.0, 0.0]
+    assert by_name["-roll_T3.0s"]["duration_s"] == 3.0

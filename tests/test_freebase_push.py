@@ -29,6 +29,12 @@ def test_pinned_base_refuses_root_linvel() -> None:
         env.apply_root_linvel(np.array([0.0, 0.5, 0.0]))
     with pytest.raises(ValueError, match="pinned_base"):
         env.apply_root_force_n(np.array([0.0, 10.0, 0.0]))
+    with pytest.raises(ValueError, match="pinned_base"):
+        env.apply_root_angvel(np.array([0.0, 0.0, 0.78]))
+    with pytest.raises(ValueError, match="pinned_base"):
+        env.apply_root_torque_nm(np.array([0.0, 0.0, 1.0]))
+    with pytest.raises(ValueError, match="pinned_base"):
+        env.root_ang_inertia_kgm2()
 
 
 def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
@@ -91,6 +97,50 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     assert t3["force_n"] == pytest.approx(
         [0.0, report["sustained_force"]["mass_kg"] * 0.5 / 3.0, 0.0]
     )
+    angvel_names = [c["name"] for c in report["angvel_sweep"]]
+    assert angvel_names == ["-roll", "+roll", "-pitch", "+pitch", "-yaw", "+yaw"]
+    assert report["angvel_sweep_summary"]["n_cases"] == 6
+    assert report["angvel_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["angvel_push"]["name"] == "+yaw"
+    assert report["angvel_push"]["kind"] == "one_shot_qvel"
+    assert report["angvel_push"]["ang_vel_rad_s"] == [0.0, 0.0, 0.78]
+    assert all(c["kind"] == "one_shot_qvel" for c in report["angvel_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["angvel_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["angvel_sweep"])
+    torque_names = [c["name"] for c in report["torque_sweep"]]
+    assert torque_names == [
+        "-roll_T1.0s",
+        "-roll_T3.0s",
+        "+roll_T1.0s",
+        "+roll_T3.0s",
+        "-pitch_T1.0s",
+        "-pitch_T3.0s",
+        "+pitch_T1.0s",
+        "+pitch_T3.0s",
+        "-yaw_T1.0s",
+        "-yaw_T3.0s",
+        "+yaw_T1.0s",
+        "+yaw_T3.0s",
+    ]
+    assert report["torque_sweep_summary"]["n_cases"] == 12
+    assert report["torque_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["sustained_torque"]["name"] == "+yaw_T1.0s"
+    assert report["sustained_torque"]["kind"] == "sustained_torque"
+    assert report["sustained_torque"]["duration_s"] == 1.0
+    assert report["sustained_torque"]["ang_vel_rad_s"] == [0.0, 0.0, 0.78]
+    assert report["sustained_torque"]["torque_formula"] == "tau = I @ omega / T"
+    inertia = np.asarray(report["sustained_torque"]["inertia_kgm2"], dtype=np.float64)
+    assert inertia.shape == (3, 3)
+    expected_tau = inertia @ np.array([0.0, 0.0, 0.78]) / 1.0
+    assert report["sustained_torque"]["torque_nm"] == pytest.approx(expected_tau.tolist())
+    assert all(c["kind"] == "sustained_torque" for c in report["torque_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["torque_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["torque_sweep"])
+    yaw_t3 = next(c for c in report["torque_sweep"] if c["name"] == "+yaw_T3.0s")
+    assert yaw_t3["duration_s"] == 3.0
+    inertia_t3 = np.asarray(yaw_t3["inertia_kgm2"], dtype=np.float64)
+    expected_tau_t3 = inertia_t3 @ np.array([0.0, 0.0, 0.78]) / 3.0
+    assert yaw_t3["torque_nm"] == pytest.approx(expected_tau_t3.tolist())
     assert report["airdrop"]["n_plane"] == 0
     assert report["airdrop"]["nq"] == 32
     assert report["airdrop"]["freejoint_moved"] is True
@@ -138,5 +188,15 @@ def test_official_push_and_airdrop_report_honestly() -> None:
     if report["hold"]["posture"] == "leaned":
         assert report["sustained_force"]["pre_push_posture"] == "leaned"
         assert all(c["pre_push_posture"] == "leaned" for c in report["force_sweep"])
+    assert report["angvel_sweep_summary"]["n_cases"] == 6
+    assert report["angvel_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["torque_sweep_summary"]["n_cases"] == 12
+    assert report["torque_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["sustained_torque"]["kind"] == "sustained_torque"
+    if report["hold"]["posture"] == "leaned":
+        assert report["angvel_push"]["pre_push_posture"] == "leaned"
+        assert report["sustained_torque"]["pre_push_posture"] == "leaned"
+        assert all(c["pre_push_posture"] == "leaned" for c in report["angvel_sweep"])
+        assert all(c["pre_push_posture"] == "leaned" for c in report["torque_sweep"])
     # Fall on any axis or duration is a diagnostic, not a SONIC fail.
     assert report["not_a_sonic_gate"] is True

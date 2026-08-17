@@ -220,4 +220,12 @@
 - **Decision:** (B). `wbc/ppo/table_s4.py` `sustained_force_cases()` is planar extrema × duration extrema (8 cases). Mass is `body_subtreemass[LINK_BASE]` from the compiled model (fixture placeholder or official XML) — not a T800 datasheet guess. Floor friction stays the official WBC collision default, not pad–cardboard. `+y_T1.0s` is the `sustained_force` compatibility key. One-shot sweep is unchanged. `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Z remains unswept.
 - **Consequences:** A 1 s force is 3× stronger than the 3 s force for the same Table S4 |v|. Bring-up PD falling under either duration is **not** a SONIC fail. Gravity, contact, and joint PD still act, so realized Δv will not equal the free-space identity. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
 
+## ADR-029 — Table S4 angular-velocity push is one-shot qvel and τ = I ω / T
+
+- **Status:** accepted
+- **Context:** Table S4 also randomizes root angular velocity: roll/pitch ±0.52 rad/s, yaw ±0.78 rad/s, with the same duration Δt ∼ [1, 3] s. ADR-027/028 only swept linear velocity. The official 3 s PD hold already leans ~41° in pitch; a roll or yaw impulse can be a different failure mode than another planar shove.
+- **Options:** (A) skip angvel until a trained tracker exists; (B) one-shot freejoint `qvel[3:6]` at the six signed extrema, plus a sustained body-frame torque τ = I ω / T for duration extrema, with I taken from the compiled `mj_fullM` angular block at the inject pose; (C) invent Newton-metre ranges or apply world-frame Euler rates.
+- **Decision:** (B). Roll/pitch/yaw map to LINK_BASE body X/Y/Z, matching MuJoCo freejoint angular `qvel`. `+yaw` is the `angvel_push` compatibility key; `+yaw_T1.0s` is the `sustained_torque` key. Inertia is pose-dependent and must be read from the loaded MJCF at inject time — not a T800 datasheet guess. Floor friction stays the official WBC collision default, not pad–cardboard. Linear one-shot and F = m v / T sweeps are unchanged. `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Linear z remains unswept.
+- **Consequences:** `make eval-l2-freebase-push` adds 6 one-shot angvel cases and 12 sustained-torque cases. Falling under bring-up PD is **not** a SONIC fail. Realized Δω will not equal the free-space identity. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
+
 

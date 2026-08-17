@@ -64,3 +64,4 @@ Isaac Lab PPO launch still refused.
 - Live actor T-pose (q=0 overlay remains)
 - Running `IsaacLabSceneRuntime` inside Isaac Sim python
 - Angular-velocity Table S4 push (roll/pitch ±0.52 rad/s, yaw ±0.78 rad/s)
+  — see ADR-029 / `docs/reports/PHASE_ANGVEL.md`
