@@ -1,0 +1,8 @@
+# L1a planner ONNX contract dump. Not a trained planner. Not G1 36-D.
+schema_version: "1.0"
+adr: ADR-046
+source: wbc/planner_onnx.yaml
+not_g1_planner_onnx: true
+not_interpolator_substitute: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked
