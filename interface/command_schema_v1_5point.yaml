@@ -1,0 +1,55 @@
+# Optional 5-point teleop extension (ADR-017). Does NOT replace command_schema_v1.
+# command_schema_v1 stays 75-D (3-point: head + two wrists). This file adds two
+# elbow *positions* only. Elbow orientation is not in the VLA action — SONIC
+# paper §2.4.2 3-point is pose; Option A for industrial boxes is "add dual
+# elbow positions" (encoder input dim change, requires a T800 SONIC retrain).
+#
+# total_dim_5point = command_dim(v1) + 6 = 81 for n_active_dof=20
+#
+# Packing into SONIC hybrid encoder is wbc/teleop.py, NOT a head-first flatten.
+# Mixing a 3-point checkpoint with 5-point commands is a dimension smash;
+# refuse_teleop_mode_mismatch() raises.
+
+schema_version: "1.1"
+extends: command_schema_v1.yaml
+status: optional_requires_sonic_retrain
+frame: robot_heading_frame
+rotation_representation: rot6d_zhou2019
+
+# SONIC vr_5point position order. Orn stays the 3-point (wrists + head) quats.
+teleop_5point_order: [left_wrist, right_wrist, head, left_elbow, right_elbow]
+vr_5point_pos_dim: 15
+vr_5point_orn_dim: 12
+hybrid_encoder_cmd_dim: 27   # 15 pos + 12 quat; 3-point is 21
+
+elbow_bodies:
+  left_elbow:
+    t800_link: LINK_ELBOW_PITCH_L
+    unit: m
+    frame: robot_heading_frame
+    relative_to: pelvis
+    note: >
+      Elbow joint body (GMR role left_elbow). Not LINK_ELBOW_YAW_L (forearm /
+      parent of the dummy wrist). Box collision cares about the elbow bulge.
+  right_elbow:
+    t800_link: LINK_ELBOW_PITCH_R
+    unit: m
+    frame: robot_heading_frame
+    relative_to: pelvis
+
+additional_fields:
+  left_elbow_pos:
+    dim: 3
+    unit: m
+    frame: robot_heading_frame
+    relative_to: pelvis
+  right_elbow_pos:
+    dim: 3
+    unit: m
+    frame: robot_heading_frame
+    relative_to: pelvis
+
+extra_dim: 6
+note: >
+  Hands, loco_mode, pelvis_height, nav_cmd stay in command_schema_v1.
+  Do not train a 3-point tracker and then concatenate elbows at deploy time.

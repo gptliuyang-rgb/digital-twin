@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from interface.schema import command_dim, command_layout, load_hand_spec
+from vla.adapters.action_space import ActionSpaceMismatch, diagnose_action_vector
 
 
 def per_dim_mse(pred: np.ndarray, gt: np.ndarray) -> np.ndarray:
@@ -25,11 +26,30 @@ def flag_order_swap(mse: np.ndarray, hand_slice: slice) -> list[int]:
     return [int(i) for i, v in enumerate(hand) if v > 10.0 * med]
 
 
+def named_hand_outliers(mse: np.ndarray, spec, side: str) -> list[dict]:
+    layout = command_layout(spec)
+    sl = slice(*layout[f"{side}_hand_q"])
+    idx = flag_order_swap(mse, sl)
+    hand_mse = mse[sl]
+    return [
+        {"index": i, "joint": spec.joint_order[i], "mse": float(hand_mse[i])}
+        for i in idx
+    ]
+
+
 def evaluate_episode(pred_chunks: np.ndarray, gt_chunks: np.ndarray, spec=None) -> dict:
     spec = spec or load_hand_spec()
+    pred = np.asarray(pred_chunks)
+    gt = np.asarray(gt_chunks)
+    expected = command_dim(spec)
+    if pred.shape[-1] != expected or gt.shape[-1] != expected:
+        raise ActionSpaceMismatch(
+            "L0 replay requires command_schema_v1. "
+            + str(diagnose_action_vector(pred, spec=spec).to_dict())
+        )
     layout = command_layout(spec)
-    pred = pred_chunks.reshape(-1, command_dim(spec))
-    gt = gt_chunks.reshape(-1, command_dim(spec))
+    pred = pred.reshape(-1, expected)
+    gt = gt.reshape(-1, expected)
     mse = per_dim_mse(pred, gt)
     lh = slice(*layout["left_hand_q"])
     rh = slice(*layout["right_hand_q"])
@@ -38,6 +58,8 @@ def evaluate_episode(pred_chunks: np.ndarray, gt_chunks: np.ndarray, spec=None) 
         "mse_mean": float(mse.mean()),
         "left_hand_outliers": flag_order_swap(mse, lh),
         "right_hand_outliers": flag_order_swap(mse, rh),
+        "left_hand_outlier_names": named_hand_outliers(mse, spec, "left"),
+        "right_hand_outlier_names": named_hand_outliers(mse, spec, "right"),
         "chunk_step_mse": np.mean((pred_chunks - gt_chunks) ** 2, axis=(0, 2)).tolist()
         if pred_chunks.ndim == 3
         else None,
