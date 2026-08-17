@@ -15,7 +15,7 @@ interface/     command_schema_v1.yaml, command_schema_v1_5point.yaml, frames.yam
 assets/        dexhand2 spec + official ingest; T800 joint table
 hand/          controller, coupling, primitives, backends, calibration
 runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
-wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a planner, G1-checkpoint guard
+wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a planner + Eq. 8 nav spring, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
 sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
 eval/          L0–L2 harnesses, 9-cell gain scan, L0 ckpt diagnose
@@ -51,6 +51,8 @@ make eval-l2-physics-sim2sim  # MuJoCo PD tracking + Table S4 clip joint_jitter 
 make eval-l2-freebase-stand   # floating-base PD stand; fall is reported, not a SONIC gate
 make eval-l2-freebase-push    # lean vs fall; Table S4 ±X/±Y/±Z one-shot + F=mv/T + angvel + τ=Iω/T + μ_slide + base CoM ipos + qpos ±0.01 rad; air-drop; μd/restitution recorded-only
 make eval-l3-isaac-bind       # Isaac reset/step if Sim python is bound; else unavailable
+make eval-l1a             # 10 Hz interpolator smoke
+make eval-l1a-spring      # SONIC Eq. 8 reverse-6 diagnostic; grasp_success_rate stays null
 ```
 
 ## Facts already taken from official sources

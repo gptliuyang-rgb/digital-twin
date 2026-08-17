@@ -292,5 +292,13 @@
 - **Decision:** (B). `recorded_only_physical()` is the source. `refuse_recorded_only_physical_map` always raises. `T800MujocoEnv.set_wbc_dynamic_friction` / `set_wbc_restitution` are the forbidden APIs. `set_wbc_slide_friction` still writes only `geom_friction[gid, 0]`. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`.
 - **Consequences:** CI fails if someone maps μd or restitution onto a geom. There is still no restitution sweep and no pad–cardboard number. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
 
+## ADR-038 — L1a nav_cmd uses SONIC Eq. 8, not a raw 1 s integrate
+
+- **Status:** accepted
+- **Context:** SONIC §3.3 (arXiv:2511.07820v3) filters navigation commands with a critically damped spring on pelvis *x*, pelvis *y*, and projected heading. Damping is 5 ln 2 (position) and 20 ln 2 (heading). Velocity commands become a target after 1.0 s; the planner keyframe is *x*(1.0). Command range is 0–6.0 m/s any heading. Equation 8 as typeset equals (x_T−x_0+(v_0+(c/2)(x_T−x_0))t) e^{−ct/2}, which at t=0 is x_T−x_0, not x_0. Table S4 is finished as sweeps + recorded-only μd/restitution (ADR-037). DexHand2 pad–cardboard remains REQUIRED_INPUT (ADR-004).
+- **Options:** (A) pass `nav_cmd` straight into L1a cubic Hermite (abrupt 6↔−6 m/s is exactly the case the paper guards); (B) implement the IC-correct critically damped solution with the paper's c and 1.0 s / 6.0 m/s numbers, clamp planar speed only, wrap heading on the shortest arc, keep the typeset formula as a documented non-runtime helper; (C) invent a different ζ or a wz clamp.
+- **Decision:** (B). `wbc/spring.py` is shared sim/real (no MuJoCo/Isaac). `KinematicPlanner.plan()` is unchanged for upper-body waypoints. `plan_nav_root()` is the nav path. Hands still bypass WBC. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Table S4 is not touched.
+- **Consequences:** `make eval-l1a-spring` dumps the reverse-6 diagnostic. This is **not** SONIC's trained generative planner, **not** a pad–cardboard number, and **not** a flange/CoM substitute. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
+
 
 

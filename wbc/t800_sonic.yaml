@@ -106,6 +106,7 @@ planner:
   pos_interp: cubic_hermite
   rot_interp: slerp_so3
   hand_interp: linear
+  nav_spring: wbc/spring.yaml   # SONIC Eq. 8; ADR-038
   note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring.
 
 g1_incompatible:

@@ -19,6 +19,7 @@ import numpy as np
 from interface.schema import CommandVector, command_dim, command_layout
 from vla.adapters.rotation import matrix_to_rot6d, rot6d_to_matrix, slerp_matrices
 from wbc.dims import load_t800_sonic
+from wbc.spring import RootSpringRef, RootSpringState, spring_root_keyframe, spring_root_trajectory
 from wbc.teleop import FivePointCommand
 
 HORIZON_S_RANGE = (0.8, 2.4)
@@ -224,4 +225,23 @@ class KinematicPlanner:
             elbows=elbow_out,
             rate_hz=self.rate_hz,
             horizon_s=self.horizon_s,
+        )
+
+    def plan_nav_root(self, state: RootSpringState, nav_cmd: np.ndarray) -> RootSpringRef:
+        """10 Hz pelvis xy + heading from SONIC Eq. 8. Hands are not in this ref.
+
+        Upper-body command_schema waypoints still go through :meth:`plan`.
+        This path only filters ``nav_cmd`` (ADR-038).
+        """
+        n_steps = int(round(self.horizon_s * self.rate_hz)) + 1
+        t_dst = np.linspace(0.0, self.horizon_s, n_steps)
+        xy, heading = spring_root_trajectory(state, nav_cmd, t_dst)
+        keyframe = spring_root_keyframe(state, nav_cmd, t_s=1.0)
+        return RootSpringRef(
+            t_s=t_dst,
+            pos_xy_m=xy,
+            heading_rad=heading,
+            rate_hz=self.rate_hz,
+            horizon_s=self.horizon_s,
+            keyframe=keyframe,
         )
