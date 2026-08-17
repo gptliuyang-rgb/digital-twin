@@ -1,14 +1,17 @@
 # Free-base T800 Table S4 planar root-push sweep + sustained force +
 # angular-velocity sweep + sustained torque + linear-z sweep +
-# WBC floor static-friction extrema + air-drop.
-# Not a SONIC gate (ADR-026 / ADR-027 / ADR-028 / ADR-029 / ADR-030 / ADR-031).
+# WBC floor static-friction extrema + base CoM ipos extrema + air-drop.
+# Not a SONIC gate (ADR-026 / ADR-027 / ADR-028 / ADR-029 / ADR-030 / ADR-031 /
+# ADR-032).
 # Velocities are Table S4 root_push extrema. One-shot qvel is ADR-027/029/030.
 # Sustained force is F = m v / T; sustained torque is τ = I ω / T for
 # duration extrema 1 s and 3 s (same impulse, not pad–cardboard).
 # Friction extrema are Table S4 physical.static_friction as MuJoCo sliding
-# on the WBC floor + foot geoms (ADR-031). Grasp-success stays JSON null.
+# on the WBC floor + foot geoms (ADR-031). CoM extrema are Table S4
+# physical.base_com_offset_m as additive body_ipos[LINK_BASE] (ADR-032).
+# Grasp-success stays JSON null.
 # Planar sweep stays ±X/±Y at 0.5 m/s. Z (±0.2 m/s) is a separate vertical
-# diagnostic. Friction is not mixed into push_sweep.
+# diagnostic. Friction and CoM are not mixed into push_sweep.
 
 schema_version: "1.0"
 physics: mujoco
@@ -90,6 +93,23 @@ friction_sweep:
   use_table_s4_extrema: true
   static_friction: [0.3, 1.6]    # Table S4 physical.static_friction; not pad–cardboard
   not_mixed_into_push_sweep: true
+com_offset:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.base_com_offset_m"
+  kind: wbc_base_com_ipos_offset
+  name: com_+x                   # +X 0.075 m kept as the ADR-032 compatibility case
+  offset_m: [0.075, 0.0, 0.0]
+  mujoco_channel: body_ipos[LINK_BASE]
+  additive_to_compiled_ipos: true
+  not_dexhand2_contact: true
+  not_pad_cardboard: true
+  not_wrist_com: true
+com_sweep:
+  use_table_s4_extrema: true
+  base_com_offset_m:
+    x: [-0.075, 0.075]
+    y: [-0.1, 0.1]
+    z: [-0.1, 0.1]
+  not_mixed_into_push_sweep: true
 angvel_sweep:
   axes: [roll, pitch, yaw]       # roll/pitch ±0.52 rad/s, yaw ±0.78 rad/s
   use_table_s4_extrema: true
@@ -110,3 +130,5 @@ note: >
   Vertical ±Z 0.2 m/s uses the same mass and F = m v / T; it is not mixed into planar.
   Friction extrema retune geom_friction[0] on the eval floor and foot geoms only.
   MuJoCo has no separate dynamic coefficient; restitution is not mapped to solref.
+  CoM extrema add Table S4 base_com_offset_m to compiled body_ipos[LINK_BASE].
+  That is T800 pelvis inertial offset, not DexHand2 com_in_wrist_frame_m.

@@ -236,8 +236,27 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     assert all(c["grasp_success_rate"] is None for c in report["friction_sweep"])
     by_mu = {c["name"]: c["mu_slide"] for c in report["friction_sweep"]}
     assert by_mu["mu_s_0.3"] == 0.3
-    assert by_mu["mu_s_1.6"] == 1.6
+    assert     by_mu["mu_s_1.6"] == 1.6
     assert "mu_slide" not in report["hold"]
+    com_names = [c["name"] for c in report["com_sweep"]]
+    assert com_names == ["com_-x", "com_+x", "com_-y", "com_+y", "com_-z", "com_+z"]
+    assert report["com_sweep_summary"]["n_cases"] == 6
+    assert report["com_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["com_offset"]["name"] == "com_+x"
+    assert report["com_offset"]["kind"] == "wbc_base_com_ipos_offset"
+    assert report["com_offset"]["offset_m"] == [0.075, 0.0, 0.0]
+    assert report["com_offset"]["not_wrist_com"] is True
+    assert report["com_offset"]["not_pad_cardboard"] is True
+    assert report["com_offset"]["additive_to_compiled_ipos"] is True
+    assert all(c["kind"] == "wbc_base_com_ipos_offset" for c in report["com_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["com_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["com_sweep"])
+    by_com = {c["name"]: c["offset_m"] for c in report["com_sweep"]}
+    assert by_com["com_-x"] == [-0.075, 0.0, 0.0]
+    assert by_com["com_+z"] == [0.0, 0.0, 0.1]
+    assert "offset_m" not in report["hold"]
+    push_names = [c["name"] for c in report["push_sweep"]]
+    assert set(com_names).isdisjoint(push_names)
     assert report["airdrop"]["n_plane"] == 0
     assert report["airdrop"]["nq"] == 32
     assert report["airdrop"]["freejoint_moved"] is True
@@ -307,5 +326,9 @@ def test_official_push_and_airdrop_report_honestly() -> None:
     assert report["friction_sweep_summary"]["not_a_sonic_gate"] is True
     assert report["friction_hold"]["kind"] == "wbc_floor_slide_friction"
     assert report["friction_hold"]["not_pad_cardboard"] is True
-    # Fall on any axis, duration, or friction extremum is a diagnostic, not a SONIC fail.
+    assert report["com_sweep_summary"]["n_cases"] == 6
+    assert report["com_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["com_offset"]["kind"] == "wbc_base_com_ipos_offset"
+    assert report["com_offset"]["not_wrist_com"] is True
+    # Fall on any axis, duration, friction, or CoM extremum is a diagnostic, not a SONIC fail.
     assert report["not_a_sonic_gate"] is True

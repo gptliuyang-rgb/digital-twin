@@ -10,8 +10,10 @@ yaw ±0.78 rad/s) as one-shot ``qvel[3:6]`` and as τ = I ω / T. ADR-030 sweeps
 Table S4 linear-z (±0.2 m/s) as its own one-shot and F = m v / T — not mixed
 into the planar 0.5 m/s cases. ADR-031 sweeps Table S4 physical.static_friction
 extrema (0.3 and 1.6) as MuJoCo sliding friction on the WBC floor and foot
-geoms — not mixed into ``push_sweep``, not pad–cardboard. Air-drop (no floor)
-proves the freejoint.
+geoms — not mixed into ``push_sweep``, not pad–cardboard. ADR-032 sweeps Table
+S4 physical.base_com_offset_m (±X 0.075 m, ±Y/±Z 0.1 m) as an additive
+``body_ipos[LINK_BASE]`` offset — not wrist CoM, not mixed into ``push_sweep``.
+Air-drop (no floor) proves the freejoint.
 ``grasp_success_rate`` stays JSON null. Combined T800+Hand stays PolicyEvalBlocked.
 """
 
@@ -36,6 +38,7 @@ from wbc.pd_stand import pd_stand_q_des_rad
 from wbc.ppo.table_s4 import (
     axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
+    base_com_offset_extrema,
     force_n_from_impulse,
     static_friction_extrema,
     sustained_force_cases,
@@ -226,6 +229,61 @@ def evaluate_friction_sweep(
             )
     finally:
         env.restore_geom_friction(backup)
+    return out
+
+
+def evaluate_com_offset_hold(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    hold_s: float,
+    offset_m: list[float] | np.ndarray,
+    case_name: str,
+) -> dict[str, Any]:
+    """3 s PD hold at one Table S4 base CoM offset extremum. Not a SONIC gate."""
+    if env.pinned_base:
+        raise ValueError("CoM-offset hold requires pinned_base=False")
+    if env.n_plane < 1:
+        raise ValueError("CoM-offset hold requires a floor plane")
+    applied = env.set_base_com_offset(offset_m)
+    metrics = evaluate_freebase_stand(env, hold_s=hold_s, cfg=cfg)
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "wbc_base_com_ipos_offset",
+        "offset_m": [float(x) for x in np.asarray(offset_m, dtype=np.float64).reshape(3)],
+        "com_applied": applied,
+        "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.base_com_offset_m",
+        "not_dexhand2_contact": True,
+        "not_pad_cardboard": True,
+        "not_wrist_com": True,
+        "additive_to_compiled_ipos": True,
+    }
+
+
+def evaluate_com_offset_sweep(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    hold_s: float,
+) -> list[dict[str, Any]]:
+    """PD hold at each Table S4 base_com_offset_m extremum. Restores ipos."""
+    cases = base_com_offset_extrema()
+    out: list[dict[str, Any]] = []
+    try:
+        for case in cases:
+            env.restore_base_ipos()
+            out.append(
+                evaluate_com_offset_hold(
+                    env,
+                    cfg=cfg,
+                    hold_s=hold_s,
+                    offset_m=case["offset_m"],
+                    case_name=str(case["name"]),
+                )
+            )
+    finally:
+        env.restore_base_ipos()
     return out
 
 
@@ -712,6 +770,8 @@ def _sweep_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
             entry["torque_nm"] = c["torque_nm"]
         if "mu_slide" in c:
             entry["mu_slide"] = c["mu_slide"]
+        if "offset_m" in c:
+            entry["offset_m"] = c["offset_m"]
         by_name[c["name"]] = entry
     return {
         "n_cases": len(cases),
@@ -799,6 +859,15 @@ def run(*, source: str = "auto") -> dict[str, Any]:
     mu_lo = next((c for c in friction_sweep if c["name"] == "mu_s_0.3"), None)
     if mu_lo is None:
         raise ValueError("Table S4 friction sweep must include mu_s_0.3 (ADR-031 compatibility)")
+    com_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=True)
+    com_sweep = evaluate_com_offset_sweep(
+        com_env,
+        cfg=cfg,
+        hold_s=float(cfg["hold_s"]),
+    )
+    com_plus_x = next((c for c in com_sweep if c["name"] == "com_+x"), None)
+    if com_plus_x is None:
+        raise ValueError("Table S4 CoM sweep must include com_+x (ADR-032 compatibility)")
     air_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=False)
     airdrop = evaluate_airdrop(
         air_env,
@@ -838,13 +907,16 @@ def run(*, source: str = "auto") -> dict[str, Any]:
         "friction_hold": mu_lo,
         "friction_sweep": friction_sweep,
         "friction_sweep_summary": _sweep_summary(friction_sweep),
+        "com_offset": com_plus_x,
+        "com_sweep": com_sweep,
+        "com_sweep_summary": _sweep_summary(com_sweep),
         "airdrop": airdrop,
         "local_tracking_success": False,
         "not_a_sonic_gate": True,
         "bringup_pd_is_not_a_balance_controller": True,
         "grasp_success_rate": None,
         "combined_robot": "PolicyEvalBlocked",
-        "success_rate_note": "lean vs fall vs planar/vertical/angvel/friction sweep vs air-drop are diagnostics; not SONIC gates",
+        "success_rate_note": "lean vs fall vs planar/vertical/angvel/friction/com sweep vs air-drop are diagnostics; not SONIC gates",
     }
     refuse_grasp_success_key(report)
     return report
@@ -893,6 +965,9 @@ def main() -> None:
         "friction_sweep_names": report["friction_sweep_summary"]["names"],
         "friction_sweep_n_fallen": report["friction_sweep_summary"]["n_fallen"],
         "friction_hold_mu_slide": report["friction_hold"]["mu_slide"],
+        "com_sweep_names": report["com_sweep_summary"]["names"],
+        "com_sweep_n_fallen": report["com_sweep_summary"]["n_fallen"],
+        "com_offset_m": report["com_offset"]["offset_m"],
         "airdrop_freejoint_moved": report["airdrop"]["freejoint_moved"],
         "airdrop_drop_m": report["airdrop"]["drop_m"],
         "not_a_sonic_gate": report["not_a_sonic_gate"],
