@@ -47,7 +47,7 @@ make extract-kinematics # dump official URDF joints + MJCF range= into t800_kine
 make ppo-status         # T800 action_dim 25 vs G1 29; launch blockers
 make ppo-train          # supposed to fail until P0 CoM/flange + Isaac Lab
 make eval-l2-sim2sim    # kinematic identity MPJPE; grasp_success_rate stays null
-make eval-l2-physics-sim2sim  # MuJoCo PD tracking on official T800 MJCF or fixture
+make eval-l2-physics-sim2sim  # MuJoCo PD tracking + Table S4 clip joint_jitter ±0.1 rad; not a SONIC gate
 make eval-l2-freebase-stand   # floating-base PD stand; fall is reported, not a SONIC gate
 make eval-l2-freebase-push    # lean vs fall; Table S4 ±X/±Y/±Z one-shot + F=mv/T + angvel + τ=Iω/T + μ_slide + base CoM ipos + qpos ±0.01 rad; air-drop
 make eval-l3-isaac-bind       # Isaac reset/step if Sim python is bound; else unavailable

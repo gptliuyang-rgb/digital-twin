@@ -260,5 +260,13 @@
 - **Decision:** (B). `default_joint_pos_offset_extrema()` is the source. `T800MujocoEnv.offset_default_joint_pos` adds to the bring-up `q_des` and **raises** if any hinge would leave its MJCF `range`. Out-of-limit clipping would invent a map. Default `hold` stays the un-offset bring-up pose. `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Restitution stays recorded-only.
 - **Consequences:** `make eval-l2-freebase-push` adds 2 joint-offset hold cases. A change in lean vs fall across ±0.01 rad is a diagnostic, **not** a SONIC fail and **not** a Hand 2 calibration. Restitution still has no non-invented `solref` map. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
 
+## ADR-034 — Table S4 target-motion joint jitter is clip dof_pos, not reset qpos
+
+- **Status:** accepted
+- **Context:** Table S4 `target_motion.joint_jitter_rad` is [−0.1, 0.1] rad (arXiv:2511.07820v3). ADR-033 swept `physical.default_joint_pos_offset_rad` (±0.01 rad) as a free-base *reset* qpos / PD-target offset. Target-motion jitter is a 10× larger perturbation of the *reference clip* the tracker is asked to follow. Pos/ori jitter of that clip's root cannot be tracked with a pinned pelvis. Mapping restitution onto `solref` would still invent a PhysX→MuJoCo conversion. These numbers must not enter `dexhand2_spec.yaml` (ADR-004) and are not Hand 2 command-latency.
+- **Options:** (A) keep target_motion recorded-only; (B) sweep the two published scalar joint-jitter extrema as a *uniform* additive offset on all 25 clip hinges during pinned-base physics Sim2Sim, keep `q_jit_+0.1` as the `joint_jitter` compatibility key, leave pos/ori/lin_vel/ang_vel target jitter recorded-only, do not mix into `push_sweep` or ADR-033; (C) independently extremize each hinge, or apply pos/ori jitter as a pinned-base pass/fail.
+- **Decision:** (B). `target_motion_joint_jitter_extrema()` is the source. `apply_clip_joint_jitter` adds to clip `dof_pos`. `T800MujocoEnv.assert_hinges_in_mjcf_range` **raises** if any frame would leave MJCF `range` — clipping would invent a map. Unjittered pinned PD tracking stays the CI gate. Jittered `local_tracking_success` is a diagnostic. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Restitution stays recorded-only. Pos/ori helpers exist in `table_s4.py` so the ranges are not re-guessed.
+- **Consequences:** `make eval-l2-physics-sim2sim` adds 2 joint-jitter cases on pinned-base. A change in joint MAE across ±0.1 rad is **not** a SONIC fail and **not** a Hand 2 calibration. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
+
 
 

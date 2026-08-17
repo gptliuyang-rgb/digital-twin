@@ -3,6 +3,8 @@
 Pinned-base is the CI gate (joint MAE + FK consistency). Free-base reports
 fall_rate; a trained SONIC policy is required before that number is meaningful.
 Combined T800+Hand stays PolicyEvalBlocked. G1 ~6 cm wrist error is not a gate.
+Table S4 target_motion.joint_jitter_rad extrema (ADR-034) are a pinned-base
+clip offset, not a SONIC gate and not ADR-033 reset-qpos.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from sim.mujoco_env.t800_env import ROOT_Z_M, T800MujocoEnv, refuse_combined_rob
 from sim.urdf_fk import KINEMATICS_YAML, UrdfTree, fk_bodies_world, load_t800_kinematics
 from wbc.gmr.synthetic_clip import synthetic_stand_clip
 from wbc.observation import ProprioHistory
+from wbc.ppo.table_s4 import target_motion_joint_jitter_extrema
 
 
 def _xyzw_to_wxyz(q: np.ndarray) -> np.ndarray:
@@ -143,6 +146,107 @@ def evaluate_physics(
     }
 
 
+def apply_clip_joint_jitter(ref: dict[str, Any], offset_rad: float) -> dict[str, Any]:
+    """Uniform additive offset on every hinge of every clip frame.
+
+    ``offset_rad`` must come from Table S4 ``target_motion.joint_jitter_rad``.
+    Root pose is unchanged (pinned-base cannot follow a jittered root).
+    """
+    offset = float(offset_rad)
+    if not np.isfinite(offset):
+        raise ValueError(f"offset_rad must be finite, got {offset}")
+    out = dict(ref)
+    q = np.asarray(ref["dof_pos"], dtype=np.float64).copy()
+    out["dof_pos"] = q + offset
+    out["joint_jitter_rad"] = offset
+    return out
+
+
+def _assert_clip_in_range(env: T800MujocoEnv, ref: dict[str, Any], *, offset_rad: float) -> int:
+    q = np.asarray(ref["dof_pos"], dtype=np.float64)
+    limited = env.assert_hinges_in_mjcf_range(
+        q.min(axis=0), what=f"target_motion joint_jitter {offset_rad:+g} rad clip-min"
+    )
+    env.assert_hinges_in_mjcf_range(
+        q.max(axis=0), what=f"target_motion joint_jitter {offset_rad:+g} rad clip-max"
+    )
+    return len(limited)
+
+
+def evaluate_joint_jitter(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    offset_rad: float,
+    case_name: str,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> dict[str, Any]:
+    """PD-track one Table S4 joint-jitter extremum. Not a SONIC gate."""
+    if not env.pinned_base:
+        raise ValueError("target_motion joint jitter sweep requires pinned_base=True")
+    ref = apply_clip_joint_jitter(ref_base, offset_rad)
+    n_limited = _assert_clip_in_range(env, ref, offset_rad=offset_rad)
+    metrics = evaluate_physics(
+        env,
+        ref,
+        height_fail_m=height_fail_m,
+        ori_fail_rad=ori_fail_rad,
+    )
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "target_motion_joint_jitter",
+        "offset_rad": float(offset_rad),
+        "n_limited_joints_checked": n_limited,
+        "table_s4_field": "target_motion.joint_jitter_rad",
+        "mujoco_channel": "clip_dof_pos",
+        "additive_to_clip_dof_pos": True,
+        "not_default_joint_pos_offset": True,
+        "not_per_joint_corner_grid": True,
+        "not_root_push": True,
+        "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.joint_jitter_rad",
+        "not_a_sonic_gate": True,
+        "not_dexhand2_contact": True,
+        "not_pad_cardboard": True,
+        "restitution_not_mapped": True,
+        "grasp_success_rate": None,
+    }
+
+
+def evaluate_joint_jitter_sweep(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> list[dict[str, Any]]:
+    """PD-track each Table S4 target_motion.joint_jitter_rad extremum."""
+    out: list[dict[str, Any]] = []
+    for case in target_motion_joint_jitter_extrema():
+        out.append(
+            evaluate_joint_jitter(
+                env,
+                ref_base,
+                offset_rad=float(case["offset_rad"]),
+                case_name=str(case["name"]),
+                height_fail_m=height_fail_m,
+                ori_fail_rad=ori_fail_rad,
+            )
+        )
+    return out
+
+
+def _jitter_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "n_cases": len(cases),
+        "names": [c["name"] for c in cases],
+        "joint_mae_rad": {c["name"]: c["joint_mae_rad"] for c in cases},
+        "local_tracking_success": {c["name"]: c["local_tracking_success"] for c in cases},
+        "not_a_sonic_gate": True,
+    }
+
+
 def run(
     *,
     source: str = "auto",
@@ -166,7 +270,7 @@ def run(
         height_fail_m=float(cfg["success_fail"]["root_or_ee_height_err_m"]),
         ori_fail_rad=float(cfg["success_fail"]["root_ori_err_rad"]),
     )
-    return {
+    report: dict[str, Any] = {
         "status": "physics_sim2sim",
         "physics": "mujoco",
         "source": env.source,
@@ -178,6 +282,22 @@ def run(
         "paper_g1_wrist_err_m_not_a_gate": 0.06,
         **metrics,
     }
+    if env.pinned_base:
+        sweep = evaluate_joint_jitter_sweep(
+            env,
+            ref,
+            height_fail_m=float(cfg["success_fail"]["root_or_ee_height_err_m"]),
+            ori_fail_rad=float(cfg["success_fail"]["root_ori_err_rad"]),
+        )
+        plus = next((c for c in sweep if c["name"] == "q_jit_+0.1"), None)
+        if plus is None:
+            raise ValueError(
+                "Table S4 joint-jitter sweep must include q_jit_+0.1 (ADR-034 compatibility)"
+            )
+        report["joint_jitter"] = plus
+        report["joint_jitter_sweep"] = sweep
+        report["joint_jitter_sweep_summary"] = _jitter_summary(sweep)
+    return report
 
 
 def main() -> None:
@@ -206,7 +326,12 @@ def main() -> None:
         "grasp_success_rate",
         "decoder_input_dim",
     )
-    print(json.dumps({k: report[k] for k in keys}, indent=2))
+    summary = {k: report[k] for k in keys}
+    if report.get("joint_jitter_sweep_summary"):
+        summary["joint_jitter_sweep_names"] = report["joint_jitter_sweep_summary"]["names"]
+        summary["joint_jitter_mae_rad"] = report["joint_jitter_sweep_summary"]["joint_mae_rad"]
+        summary["joint_jitter_offset_rad"] = report["joint_jitter"]["offset_rad"]
+    print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":

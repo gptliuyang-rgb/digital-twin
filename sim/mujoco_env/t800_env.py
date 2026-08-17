@@ -13,6 +13,8 @@ Table S4 physical.base_com_offset_m extrema (ADR-032) add to compiled
 ``body_ipos[LINK_BASE]``; they are not DexHand2 wrist CoM. Table S4
 physical.default_joint_pos_offset_rad extrema (ADR-033) add to the
 actuated-hinge reset qpos and PD target; the freejoint is not offset.
+Table S4 target_motion.joint_jitter_rad extrema (ADR-034) add to the
+pinned-base *clip* ``dof_pos``, not the robot reset pose.
 """
 
 from __future__ import annotations
@@ -381,6 +383,26 @@ class T800MujocoEnv(BaseEnv):
             return pd_stand_q_des_rad()
         return np.zeros(len(self.joint_order), dtype=np.float64)
 
+    def assert_hinges_in_mjcf_range(self, q_rad: np.ndarray, *, what: str) -> list[str]:
+        """Raise if any limited hinge leaves its MJCF ``range``. Do not clip."""
+        q = np.asarray(q_rad, dtype=np.float64).reshape(len(self.joint_order))
+        if not np.isfinite(q).all():
+            raise ValueError(f"{what}: q_rad must be finite, got {q.tolist()}")
+        mujoco = self._mujoco
+        limited: list[str] = []
+        for name, val in zip(self.joint_order, q, strict=True):
+            jid = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name))
+            if jid < 0:
+                raise KeyError(f"joint {name} missing from {self.xml_note}")
+            if int(self.model.jnt_limited[jid]):
+                lo, hi = (float(x) for x in self.model.jnt_range[jid])
+                if val < lo - 1e-12 or val > hi + 1e-12:
+                    raise ValueError(
+                        f"{what} puts {name} at {float(val)} rad outside [{lo}, {hi}]"
+                    )
+                limited.append(name)
+        return limited
+
     def offset_default_joint_pos(self, offset_rad: float) -> dict[str, Any]:
         """Add Table S4 default_joint_pos_offset to every actuated hinge.
 
@@ -395,20 +417,7 @@ class T800MujocoEnv(BaseEnv):
             raise ValueError(f"offset_rad must be finite, got {offset}")
         q0 = self.default_q_des_rad()
         q = q0 + offset
-        mujoco = self._mujoco
-        limited: list[str] = []
-        for name, val in zip(self.joint_order, q, strict=True):
-            jid = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name))
-            if jid < 0:
-                raise KeyError(f"joint {name} missing from {self.xml_note}")
-            if int(self.model.jnt_limited[jid]):
-                lo, hi = (float(x) for x in self.model.jnt_range[jid])
-                if val < lo - 1e-12 or val > hi + 1e-12:
-                    raise ValueError(
-                        f"default_joint_pos + {offset} rad puts {name} at {val} rad "
-                        f"outside [{lo}, {hi}]"
-                    )
-                limited.append(name)
+        limited = self.assert_hinges_in_mjcf_range(q, what=f"default_joint_pos + {offset} rad")
         return {
             "offset_rad": offset,
             "n_joints": int(len(q0)),

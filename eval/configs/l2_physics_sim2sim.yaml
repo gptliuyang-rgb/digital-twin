@@ -24,3 +24,13 @@ note: >
   Official XML uses Native SDK inertias + pd_stand. The kinematics fixture uses
   placeholder 1 kg / 0.01 kg·m² bodies and mild PD — not a sim2real number.
   G1 ~6 cm wrist error is not a T800 gate.
+target_motion_joint_jitter:
+  table_s4_field: target_motion.joint_jitter_rad
+  compatibility_key: q_jit_+0.1
+  not_a_sonic_gate: true
+  not_default_joint_pos_offset: true
+  note: >
+    Uniform additive on clip dof_pos (±0.1 rad). Pinned-base only. Not
+    physical.default_joint_pos_offset (±0.01 rad reset qpos). Pos/ori
+    target jitter is recorded in table_s4.py and not swept here — a pinned
+    pelvis cannot follow a jittered root. Restitution stays unmapped.

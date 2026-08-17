@@ -60,6 +60,21 @@ def test_fixture_pinned_compiles_and_tracks() -> None:
     assert report["fk_consistency_no_feet_m"] < 0.02
     assert report["foot_urdf_mjcf_delta_z_m"] < 0.005
     assert report["source"] == "fixture"
+    assert report["joint_jitter"]["name"] == "q_jit_+0.1"
+    assert report["joint_jitter"]["kind"] == "target_motion_joint_jitter"
+    assert report["joint_jitter"]["offset_rad"] == 0.1
+    assert report["joint_jitter"]["not_a_sonic_gate"] is True
+    assert report["joint_jitter"]["not_default_joint_pos_offset"] is True
+    assert report["joint_jitter"]["grasp_success_rate"] is None
+    names = [c["name"] for c in report["joint_jitter_sweep"]]
+    assert names == ["q_jit_-0.1", "q_jit_+0.1"]
+    assert report["joint_jitter_sweep_summary"]["n_cases"] == 2
+    assert report["joint_jitter_sweep_summary"]["not_a_sonic_gate"] is True
+    assert all(c["kind"] == "target_motion_joint_jitter" for c in report["joint_jitter_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["joint_jitter_sweep"])
+    by_off = {c["name"]: c["offset_rad"] for c in report["joint_jitter_sweep"]}
+    assert by_off["q_jit_-0.1"] == -0.1
+    assert by_off["q_jit_+0.1"] == 0.1
 
 
 @pytest.mark.skipif(not OFFICIAL_MJCF.is_file(), reason="engineai Native SDK not cloned")
@@ -82,3 +97,38 @@ def test_official_pinned_pd_and_fk() -> None:
     assert report["joint_mae_rad"] < 0.15
     # G1 6 cm figure is recorded, not used as a gate.
     assert report["paper_g1_wrist_err_m_not_a_gate"] == 0.06
+    assert report["joint_jitter_sweep_summary"]["n_cases"] == 2
+    assert report["joint_jitter_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["joint_jitter"]["kind"] == "target_motion_joint_jitter"
+    assert report["joint_jitter"]["not_default_joint_pos_offset"] is True
+    assert report["joint_jitter"]["grasp_success_rate"] is None
+    # Jittered tracking is a diagnostic, not a SONIC fail.
+    assert report["joint_jitter"]["not_a_sonic_gate"] is True
+
+
+def test_clip_joint_jitter_is_uniform_and_refuses_free_base() -> None:
+    pytest.importorskip("mujoco")
+    from eval.l2_physics_sim2sim import apply_clip_joint_jitter, evaluate_joint_jitter
+    from wbc.gmr.synthetic_clip import synthetic_stand_clip
+
+    ref = synthetic_stand_clip(n_frames=8, fps=50.0, amplitude_rad=0.03)
+    jittered = apply_clip_joint_jitter(ref, 0.1)
+    delta = np.asarray(jittered["dof_pos"]) - np.asarray(ref["dof_pos"])
+    assert delta == pytest.approx(np.full_like(delta, 0.1))
+    assert jittered["root_pos"] is ref["root_pos"]
+    env = T800MujocoEnv(source="fixture", pinned_base=True)
+    env.assert_hinges_in_mjcf_range(np.zeros(25), what="zero")
+    with pytest.raises(ValueError, match="outside"):
+        env.assert_hinges_in_mjcf_range(np.full(25, 2.0), what="huge")
+    with pytest.raises(ValueError, match="finite"):
+        env.assert_hinges_in_mjcf_range(np.array([np.nan] * 25), what="nan")
+    free = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=True)
+    with pytest.raises(ValueError, match="pinned_base"):
+        evaluate_joint_jitter(
+            free,
+            ref,
+            offset_rad=0.1,
+            case_name="q_jit_+0.1",
+            height_fail_m=0.25,
+            ori_fail_rad=1.0,
+        )
