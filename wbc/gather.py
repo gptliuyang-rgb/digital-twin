@@ -16,7 +16,9 @@ until SPEC_INTAKE measures one). Encoder ``motion_*_10frame_step5`` is a
 future look-ahead assembled from a caller-supplied 50 Hz reference
 (ADR-042). ADR-043 adds official ``encoder_mode_4`` plus the teleop
 lower-body + VR 3-point list; unused superset slots are zero-filled.
-G1 encoder ONNX / 650-D / 1751-D / wrist / SMPL channels are refused.
+ADR-044 adds the official ``low_latency/`` layout: g1/teleop
+``*_10frame_step1`` (no root_z); SMPL/wrist ``*_4frame_step1`` stay refused.
+G1 encoder ONNX / 650-D / 1751-D / 1247-D / wrist / SMPL channels are refused.
 VR 3-point is packed from ``command_schema_v1``, not a PICO SDK.
 Not Table S4. Not pad–cardboard. Not an invented clip.
 """
@@ -39,19 +41,25 @@ from vla.adapters.rotation import quaternion_wxyz_to_matrix
 from wbc.checkpoint import refuse_g1_checkpoint
 from wbc.dims import (
     ANCHOR_ORI_DIM,
+    ENCODER_VARIANT_DEFAULT,
+    ENCODER_VARIANT_LOW_LATENCY,
     G1_DECODER_INPUT_DIM,
     G1_ENCODER_MOTION_DIM,
+    G1_ENCODER_MOTION_DIM_LOW_LATENCY,
     G1_ENCODER_ONNX_DIM,
+    G1_ENCODER_ONNX_DIM_LOW_LATENCY,
     G1_ENCODER_ONNX_DIM_UNPATCHED,
     G1_N_DOF,
     HISTORY_FRAMES,
     ROOT_Z_DIM,
+    SMPL_LOW_LATENCY_FRAMES,
     T800_N_LOWER_BODY_DOF,
     TOKEN_DIM,
     decoder_history_dim,
     encoder_motion_dim,
     load_t800_sonic,
     t800_encoder_onnx_dim,
+    t800_encoder_onnx_dim_low_latency,
 )
 from wbc.motion_ref import (
     MotionHold,
@@ -66,6 +74,16 @@ from wbc.stream import OPERATOR_INPUT_HZ, PLANNER_HZ, POLICY_HZ, STREAM_HZ
 from wbc.teleop import FivePointCommand, command_to_vr_3point
 
 GATHER_YAML = Path(__file__).with_name("obs_gather.yaml")
+GATHER_LOW_LATENCY_YAML = Path(__file__).with_name("obs_gather_low_latency.yaml")
+_G1_ENCODER_DIMS_FORBIDDEN = frozenset(
+    {
+        G1_ENCODER_MOTION_DIM,
+        G1_ENCODER_MOTION_DIM_LOW_LATENCY,
+        G1_ENCODER_ONNX_DIM,
+        G1_ENCODER_ONNX_DIM_UNPATCHED,
+        G1_ENCODER_ONNX_DIM_LOW_LATENCY,
+    }
+)
 _HISTORY_NAME = re.compile(r"^(?P<base>.+)_(?P<n>\d+)frame_step(?P<s>\d+)$")
 _FORBIDDEN_NAME_BITS = ("finger", "hand_q", "dexhand", "tactile")
 
@@ -194,23 +212,59 @@ def load_gather_cfg(path: Path | None = None) -> dict[str, Any]:
     mode_names = {str(m.get("name", "")).lower() for m in encoder.get("encoder_modes", [])}
     if default_mode not in mode_names:
         raise ObsGatherError(f"default_encoder_mode {default_mode!r} is not in encoder_modes")
+    variant = encoder_variant_of(raw)
+    steps, _frames, four = motion_history_horizons(enabled_names)
+    if four:
+        raise ObsGatherError(
+            f"{four} is the official SMPL/wrist 4frame_step1 horizon. "
+            "T800 t800/teleop modes use 10frame_step1. SMPL and wrists stay refused."
+        )
+    if len(steps) > 1:
+        raise ObsGatherError(
+            f"encoder_observations mix look-ahead steps {sorted(steps)}. "
+            "Official default is 10frame_step5; official low_latency is 10frame_step1. "
+            "Do not concatenate the two YAMLs."
+        )
+    if variant == ENCODER_VARIANT_DEFAULT and 1 in steps:
+        raise ObsGatherError(
+            "default encoder_variant cannot list *_step1 motion names. "
+            "Use wbc/obs_gather_low_latency.yaml (ADR-044)."
+        )
+    if variant == ENCODER_VARIANT_LOW_LATENCY and 5 in steps:
+        raise ObsGatherError(
+            "low_latency encoder_variant cannot list *_step5 motion names. "
+            "Default 10frame_step5 stays in wbc/obs_gather.yaml (ADR-043)."
+        )
+    z_names = [n for n in enabled_names if "root_z" in n]
+    if variant == ENCODER_VARIANT_LOW_LATENCY and z_names:
+        raise ObsGatherError(
+            f"{z_names} are omitted from official low_latency/observation_config.yaml. "
+            "Do not carry motion_root_z_* into the step1 layout."
+        )
     expected_enc = int(raw["expected_encoder_dim"])
     g1_enc = int(raw["g1_encoder_dim_forbidden"])
     if g1_enc != G1_ENCODER_MOTION_DIM:
         raise ObsGatherError(f"g1_encoder_dim_forbidden drifted from {G1_ENCODER_MOTION_DIM}")
     g1_onnx = int(raw["g1_encoder_onnx_dim_forbidden"])
-    if g1_onnx != G1_ENCODER_ONNX_DIM:
-        raise ObsGatherError(f"g1_encoder_onnx_dim_forbidden drifted from {G1_ENCODER_ONNX_DIM}")
-    window = encoder_motion_dim(int(raw["n_dof"]))
+    include_z = variant == ENCODER_VARIANT_DEFAULT
+    window = encoder_motion_dim(int(raw["n_dof"]), include_root_z=include_z)
     if int(raw.get("encoder_motion_window_dim", window)) != window:
         raise ObsGatherError(
             f"encoder_motion_window_dim {raw.get('encoder_motion_window_dim')} != {window}"
         )
-    t800_enc = t800_encoder_onnx_dim(n_dof=int(raw["n_dof"]))
+    if variant == ENCODER_VARIANT_DEFAULT:
+        t800_enc = t800_encoder_onnx_dim(n_dof=int(raw["n_dof"]))
+        if g1_onnx != G1_ENCODER_ONNX_DIM:
+            raise ObsGatherError(f"g1_encoder_onnx_dim_forbidden drifted from {G1_ENCODER_ONNX_DIM}")
+    else:
+        t800_enc = t800_encoder_onnx_dim_low_latency(n_dof=int(raw["n_dof"]))
+        if g1_onnx != G1_ENCODER_ONNX_DIM_LOW_LATENCY:
+            raise ObsGatherError(
+                f"g1_encoder_onnx_dim_forbidden drifted from {G1_ENCODER_ONNX_DIM_LOW_LATENCY}"
+            )
     if expected_enc != t800_enc:
         raise ObsGatherError(f"expected_encoder_dim {expected_enc} != T800 {t800_enc}")
-    if expected_enc in (G1_ENCODER_MOTION_DIM, G1_ENCODER_ONNX_DIM, G1_ENCODER_ONNX_DIM_UNPATCHED):
-        refuse_g1_checkpoint(n_dof=G1_N_DOF)
+    _refuse_g1_encoder_dims(expected_enc)
     return raw
 
 
@@ -219,6 +273,42 @@ def parse_history_name(name: str) -> tuple[str, int, int] | None:
     if match is None:
         return None
     return match.group("base"), int(match.group("n")), int(match.group("s"))
+
+
+def encoder_variant_of(cfg: dict[str, Any]) -> str:
+    raw = str(cfg.get("encoder_variant", ENCODER_VARIANT_DEFAULT)).lower().replace("-", "_")
+    if raw in ("default", "step5", "release"):
+        return ENCODER_VARIANT_DEFAULT
+    if raw in ("low_latency", "lowlatency", "step1"):
+        return ENCODER_VARIANT_LOW_LATENCY
+    raise ObsGatherError(
+        f"encoder_variant {raw!r} is not wired. Allowed: default, low_latency. "
+        "Do not invent a v1.1/heading mix in this YAML."
+    )
+
+
+def motion_history_horizons(names: list[str]) -> tuple[set[int], set[int], list[str]]:
+    """Return (steps, n_frames, four_frame_names) for motion_* history observations."""
+    steps: set[int] = set()
+    frames: set[int] = set()
+    four: list[str] = []
+    for name in names:
+        parsed = parse_history_name(name)
+        if parsed is None:
+            continue
+        base, n_frames, step = parsed
+        if not base.startswith("motion_"):
+            continue
+        if n_frames == SMPL_LOW_LATENCY_FRAMES:
+            four.append(name)
+        steps.add(step)
+        frames.add(n_frames)
+    return steps, frames, four
+
+
+def _refuse_g1_encoder_dims(dim: int) -> None:
+    if dim in _G1_ENCODER_DIMS_FORBIDDEN:
+        refuse_g1_checkpoint(n_dof=G1_N_DOF)
 
 
 def _refuse_hand_name(name: str) -> None:
@@ -490,8 +580,7 @@ class ObsGather:
         self.encoder_mode_name = str(self.cfg.get("default_encoder_mode", "t800")).lower()
         if self.total_dim == G1_DECODER_INPUT_DIM:
             refuse_g1_checkpoint(decoder_input_dim=G1_DECODER_INPUT_DIM)
-        if self.encoder_dim in (G1_ENCODER_MOTION_DIM, G1_ENCODER_ONNX_DIM, G1_ENCODER_ONNX_DIM_UNPATCHED):
-            refuse_g1_checkpoint(n_dof=G1_N_DOF)
+        _refuse_g1_encoder_dims(self.encoder_dim)
         expected = int(self.cfg["expected_total_dim"])
         if self.total_dim != expected:
             raise ObsGatherError(f"compiled dim {self.total_dim} != expected {expected}")
@@ -563,10 +652,12 @@ class ObsGather:
         return out
 
     def assemble_encoder(self, mode: str | None = None) -> np.ndarray:
-        """Encoder INPUT (842-D on T800). Does not run G1 model_encoder.onnx.
+        """Encoder INPUT (842-D default / 831-D low-latency on T800). Does not run G1 ONNX.
 
         Official multi-mode layout: concatenate the YAML superset, zero-fill
         observations that are not in the active mode's required_observations.
+        Default YAML is 10frame_step5 (ADR-043). low_latency YAML is
+        10frame_step1 with no root_z (ADR-044). SMPL 4frame_step1 stays refused.
         """
         if mode is not None:
             self.set_encoder_mode(mode)
@@ -762,6 +853,11 @@ def _slot_for_name(name: str, cfg: dict[str, Any], offset: int) -> ObsSlot:
             "(vr_3point_local_target + vr_3point_local_orn_target)."
         )
     parsed = parse_history_name(name)
+    if parsed is not None and parsed[0].startswith("motion_") and parsed[1] == SMPL_LOW_LATENCY_FRAMES:
+        raise ObsGatherError(
+            f"observation {name!r} is the official SMPL/wrist 4frame_step1 horizon. "
+            "T800 t800/teleop modes use 10frame. Do not pack a 4-frame body window."
+        )
     if name == "token_state":
         dim = single_frame_dim(name, n_dof, token_dim)
         fn: GatherFn = _fill_token
@@ -804,7 +900,10 @@ def compile_observations(cfg: dict[str, Any] | None = None) -> tuple[list[ObsSlo
 
 
 def compile_encoder_observations(cfg: dict[str, Any] | None = None) -> tuple[list[ObsSlot], int]:
-    """Official encoder_observations SUPERSET. T800 842-D; G1 1751/650 refused."""
+    """Official encoder_observations SUPERSET. T800 842-D default / 831-D low-latency.
+
+    G1 1751 / 1247 / 650 / 640 refused.
+    """
     cfg = cfg if cfg is not None else load_gather_cfg()
     encoder = cfg["encoder"]
     slots: list[ObsSlot] = []
@@ -815,8 +914,7 @@ def compile_encoder_observations(cfg: dict[str, Any] | None = None) -> tuple[lis
         slot = _slot_for_name(str(entry["name"]), cfg, offset)
         slots.append(slot)
         offset += slot.dim
-    if offset in (G1_ENCODER_MOTION_DIM, G1_ENCODER_ONNX_DIM, G1_ENCODER_ONNX_DIM_UNPATCHED):
-        refuse_g1_checkpoint(n_dof=G1_N_DOF)
+    _refuse_g1_encoder_dims(offset)
     expected = int(cfg["expected_encoder_dim"])
     if offset != expected:
         raise ObsGatherError(f"compiled encoder dim {offset} != expected {expected}")

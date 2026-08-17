@@ -38,6 +38,7 @@ csv_enabled: false
 expected_total_dim: 874
 g1_total_dim_forbidden: 994
 
+encoder_variant: default
 # Encoder motion-reference window (official observation_config.yaml names).
 # Look-ahead, not robot-state history. step5 = 0.1 s at 50 Hz, 10 frames = 0.9 s.
 # Full-body motion window: T800 570 / G1 650 (forbidden).
@@ -46,6 +47,7 @@ g1_total_dim_forbidden: 994
 # Official G1 model_encoder.onnx is not loaded (ADR-011). Token_state stays
 # an external 64-D (planner / ZMQ / later T800 ONNX). VR 3-point is packed
 # from command_schema_v1 — not a PICO / CloudXR / Isaac Teleop SDK.
+# Low-latency 10frame_step1 lives in obs_gather_low_latency.yaml (ADR-044).
 not_smpl_encoder: true
 n_lower_body_dof: 12         # J00–J11. Same count as G1 legs; not a G1 copy.
 n_wrist_dof: 0               # T800 dummy wrists; motion_*_wrists_* is refused

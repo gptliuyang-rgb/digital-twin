@@ -12,6 +12,8 @@ Those are a **future look-ahead** at 50 Hz with step 5 (0.1 s), 10 frames,
 does **not** load G1 ``model_encoder.onnx``.
 
 T800 dims replace G1 29 with 25: 250+250+60+10 = 570 (G1 650 is refused).
+Low-latency g1/teleop names are ``*_10frame_step1`` (no root_z): T800 560
+(G1 640 is refused). SMPL/wrist ``*_4frame_step1`` is refused.
 Wrist ``motion_*_wrists_*`` is G1 6-DoF; T800 dummy wrists have 0 DoF.
 Hands still bypass WBC.
 """
@@ -206,6 +208,13 @@ class MotionCursor:
 def refuse_g1_encoder_onnx(path: str | Path | None = None) -> None:
     """Official model_encoder.onnx is Unitree G1. Do not load it on T800."""
     label = str(path) if path is not None else "model_encoder.onnx"
+    lowered = label.lower().replace("\\", "/")
+    if "low_latency" in lowered:
+        raise G1CheckpointIncompatible(
+            f"{label} is a G1 low-latency encoder (ONNX input 1247-D). "
+            "T800 low-latency encoder input is 831-D (10frame_step1, no "
+            "SMPL/wrists/root_z). Retrain; do not load G1 ONNX."
+        )
     raise G1CheckpointIncompatible(
         f"{label} is a G1 encoder (ONNX input 1751-D, motion window 650-D). "
         "T800 encoder input is 842-D (motion window 570-D). Retrain; do not load G1 ONNX."
