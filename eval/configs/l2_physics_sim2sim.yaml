@@ -1,0 +1,76 @@
+# Physics Sim2Sim on T800 (body only). Pinned-base PD tracking is the CI gate.
+# Free-base reports fall_rate; without a trained SONIC policy it is expected to be high.
+# grasp_success_rate is always JSON null (ADR-004 / ADR-023).
+# Combined T800+Hand remains PolicyEvalBlocked.
+
+schema_version: "1.0"
+physics: mujoco
+sources: [official_serial_t800, kinematics_fixture]
+pinned_base: true
+control_rate_hz: 50
+sim_timestep_s: 0.002
+n_frames: 40
+amplitude_rad: 0.05
+success_fail:
+  root_or_ee_height_err_m: 0.25
+  root_ori_err_rad: 1.0
+  pinned_joint_mae_rad: 0.15
+  pinned_fk_consistency_no_feet_m: 0.005
+  official_foot_urdf_mjcf_delta_z_m: 0.06453
+gates:
+  grasp_success_rate: null
+  combined_robot: PolicyEvalBlocked
+note: >
+  Official XML uses Native SDK inertias + pd_stand. The kinematics fixture uses
+  placeholder 1 kg / 0.01 kg·m² bodies and mild PD — not a sim2real number.
+  G1 ~6 cm wrist error is not a T800 gate.
+target_motion_joint_jitter:
+  table_s4_field: target_motion.joint_jitter_rad
+  compatibility_key: q_jit_+0.1
+  not_a_sonic_gate: true
+  not_default_joint_pos_offset: true
+  note: >
+    Uniform additive on clip dof_pos (±0.1 rad). Pinned-base only. Not
+    physical.default_joint_pos_offset (±0.01 rad reset qpos).
+target_motion_pos_jitter:
+  table_s4_field: target_motion.pos_jitter_m
+  compatibility_key: pos_+x
+  not_a_sonic_gate: true
+  not_a_height_ori_gate: true
+  note: >
+    Additive on clip root_pos (±xy 0.05 m / z 0.01 m). Negative control:
+    joint MAE stays, MPJPE vs jittered root moves by about the offset.
+    Do not pass/fail against 0.25 m height — that band swallows ±0.05 m.
+    Not a root_push. Restitution stays unmapped.
+target_motion_ori_jitter:
+  table_s4_field: target_motion.ori_jitter_rad
+  compatibility_key: ori_+yaw
+  not_a_sonic_gate: true
+  not_a_height_ori_gate: true
+  note: >
+    World-frame RPY on clip root_rot (±roll/pitch 0.1 rad / yaw ±0.2 rad).
+    Negative control: joint MAE stays, pelvis ori error vs jittered root
+    moves by about the offset. Do not pass/fail against 1.0 rad ori —
+    that band swallows ±0.2 rad. lin_vel/ang_vel use a synthetic walk clip.
+target_motion_lin_vel_jitter:
+  table_s4_field: target_motion.lin_vel_jitter_mps
+  compatibility_key: lin_vel_+x
+  not_a_sonic_gate: true
+  not_a_root_push: true
+  not_a_height_ori_gate: true
+  note: >
+    Additive on clip root_linvel (±xy 0.5 m/s / z 0.2 m/s). Requires a walk
+    clip — stand velocity is zero and is refused. Negative control: joint
+    MAE stays, target linvel moves by the offset. Not a root_push (robot
+    qvel). Restitution stays unmapped.
+target_motion_ang_vel_jitter:
+  table_s4_field: target_motion.ang_vel_jitter_rad_s
+  compatibility_key: ang_vel_+yaw
+  not_a_sonic_gate: true
+  not_a_root_push: true
+  not_a_height_ori_gate: true
+  note: >
+    Additive on clip root_angvel (±roll/pitch 0.52 rad/s / yaw ±0.78 rad/s).
+    Same walk clip as lin_vel. Negative control: joint MAE stays, target
+    angvel moves by the offset. Not a root_push angvel. Restitution stays
+    unmapped.
