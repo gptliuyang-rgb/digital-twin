@@ -131,6 +131,9 @@ def test_decoder_dims_g1_vs_t800() -> None:
     assert decoder_history_dim(25) == 874
     assert decoder_history_dim(29) == G1_DECODER_INPUT_DIM
     assert cfg["decoder_input_dim"] != G1_DECODER_INPUT_DIM
+    assert cfg["command_stream_hz"] == 500
+    assert cfg["control_rate_hz"] == 50
+    assert cfg["planner_hz"] == 10
 
 
 def test_refuse_g1_checkpoint() -> None:

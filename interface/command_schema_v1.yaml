@@ -48,6 +48,7 @@ fields:
     unit: "[m/s, m/s, rad/s]"
     meaning: [vx, vy, wz]
     spring: wbc/spring.yaml   # SONIC §3.3 Eq. 8; planar speed ≤ 6.0 m/s (ADR-038)
+    pd_stream: wbc/stream.yaml  # SONIC §3.5 500 Hz PD ring (ADR-039)
   loco_mode:
     dim: 1
     enum: [0, 1, 2]

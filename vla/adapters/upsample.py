@@ -1,7 +1,8 @@
-"""Upsample a command_schema_v1 chunk from VLA infer_hz to SONIC's 50 Hz stream.
+"""Upsample a command_schema_v1 chunk from VLA infer_hz to SONIC's 50 Hz policy/token rate.
 
 Integer factors only (see chunk_clock.yaml). Zhou 6D is SLERP'd on SO(3), not
 averaged. Case A chunks are refused — convert with apply_fk=True first.
+The 500 Hz PD ring is ``wbc.stream`` (ADR-039), not this module.
 """
 
 from __future__ import annotations

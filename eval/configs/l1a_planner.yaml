@@ -8,7 +8,9 @@ rot_interp: slerp_so3       # Zhou rot6d → SO(3) → SLERP → rot6d
 hand_interp: linear         # rad
 elbow_interp: cubic_hermite # 5-point extra, metres
 nav_spring: wbc/spring.yaml
+command_stream: wbc/stream.yaml
 note: >
   Hands bypass the SONIC token. The planner still upsamples left_hand_q /
   right_hand_q so the DexHand2 ring shares the 10 Hz clock. nav_cmd is
   filtered by the §3.3 spring (ADR-038) before the root reference is built.
+  The 10 Hz window is then streamed at 500 Hz (ADR-039) onto the PD clock.

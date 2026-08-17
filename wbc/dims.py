@@ -78,4 +78,10 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         raise ValueError("SONIC left_foot must be MJCF LINK_FOOT_L, not the URDF sole")
     if cfg["tracked_bodies"].get("right_foot") != "LINK_FOOT_R":
         raise ValueError("SONIC right_foot must be MJCF LINK_FOOT_R, not the URDF sole")
+    if int(cfg["command_stream_hz"]) != 500:
+        raise ValueError("command_stream_hz must be 500 (SONIC §3.5, ADR-039)")
+    if int(cfg["control_rate_hz"]) != 50:
+        raise ValueError("control_rate_hz must be 50 (SONIC policy/token rate)")
+    if int(cfg["planner_hz"]) != 10:
+        raise ValueError("planner_hz must be 10 (SONIC L1a)")
     return cfg

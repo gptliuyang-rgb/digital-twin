@@ -20,9 +20,10 @@ def load_chunk_clock(path: Path | None = None) -> dict[str, Any]:
 
 
 def upsample_factor(model: str, *, command_hz: int | None = None) -> int:
-    """Integer factor from VLA infer rate to SONIC command stream.
+    """Integer factor from VLA infer rate to SONIC's 50 Hz policy/token rate.
 
     Non-integer ratios are refused — use the L1a planner, do not round silently.
+    Default ``command_hz`` is ``sonic_command_hz`` (50), not the 500 Hz PD ring.
     """
     cfg = load_chunk_clock()
     models = cfg["models"]

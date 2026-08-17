@@ -12,9 +12,9 @@ source_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/ser
 source_model_yaml: third_party/engineai-native-sdk/assets/config/t800/model/default.yaml
 n_revolute: 25
 floating_base_link: LINK_BASE
-control_rate_hz: 50
-command_stream_hz: 500
-planner_hz: 10
+control_rate_hz: 50          # Hz, SONIC policy / tracker token (ADR-021 sonic_command_hz)
+command_stream_hz: 500       # Hz, SONIC §3.5 PD instruction ring (ADR-039)
+planner_hz: 10               # Hz, L1a kinematic planner
 hand_bypass: true   # DexHand2 is NOT in the SONIC action; see command_schema hand_slice
 
 # IsaacLab / SONIC joint order = Native SDK revolute order (J00 … J24).
@@ -107,7 +107,8 @@ planner:
   rot_interp: slerp_so3
   hand_interp: linear
   nav_spring: wbc/spring.yaml   # SONIC Eq. 8; ADR-038
-  note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring.
+  command_stream: wbc/stream.yaml  # 500 Hz PD ring; ADR-039
+  note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring. The 500 Hz stream interpolates this 10 Hz window onto the PD clock.
 
 g1_incompatible:
   g1_n_dof: 29
