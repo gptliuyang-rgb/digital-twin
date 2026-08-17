@@ -31,6 +31,16 @@ frames:
     t800_link: LINK_WRIST_END_R
     t800pro_link: LINK_WRIST_ROLL_R
     source: engineai_native_sdk assets/config/t800/model/default.yaml end_effector_frames
+  left_elbow:
+    description: >
+      5-point teleop elbow body (industrial box collision). GMR role left_elbow.
+      This is LINK_ELBOW_PITCH_L, not the forearm LINK_ELBOW_YAW_L.
+    t800_link: LINK_ELBOW_PITCH_L
+    t800pro_link: LINK_ELBOW_PITCH_L
+  right_elbow:
+    description: 5-point teleop elbow body. GMR role right_elbow.
+    t800_link: LINK_ELBOW_PITCH_R
+    t800pro_link: LINK_ELBOW_PITCH_R
   left_hand_root:
     description: Wuji Hand 2 left root link (official MJCF/URDF).
     wuji_link: l_wrist
@@ -45,6 +55,16 @@ frames:
     description: Grasp reference point (mid-palm, +offset from spec when filled).
   right_tcp:
     description: Grasp reference point.
+  left_foot:
+    description: >
+      SONIC/GMR tracked left foot (ADR-024). Official MJCF LINK_FOOT_L, coincident
+      with LINK_ANKLE_ROLL_L origin. Not the URDF sole (J_FIXED_FOOT_L z=-0.06453 m).
+    t800_link: LINK_FOOT_L
+    source: mjcf_link_foot_at_ankle_roll
+  right_foot:
+    description: SONIC/GMR tracked right foot. Official MJCF LINK_FOOT_R.
+    t800_link: LINK_FOOT_R
+    source: mjcf_link_foot_at_ankle_roll
   gun_tcp:
     description: Scanner muzzle frame when the gun-grip primitive is active.
 
