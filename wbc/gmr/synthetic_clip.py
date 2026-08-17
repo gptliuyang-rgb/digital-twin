@@ -14,6 +14,13 @@ from wbc.dims import load_t800_sonic
 from wbc.filter import filter_motion_clip
 from wbc.gmr.motion_lib import validate_motion_lib
 
+# Diagnostic carrier for Table S4 target_motion lin_vel / ang_vel jitter
+# (ADR-036). Not a T800 gait, not a datasheet walk speed, not the paper
+# jitter itself. Magnitudes sit *inside* the published ±0.5 m/s / ±0.78 rad/s
+# extrema so −X / −yaw cannot cancel the carrier through zero.
+SYNTHETIC_WALK_LINVEL_MPS = (0.35, 0.0, 0.0)
+SYNTHETIC_WALK_ANGVEL_RAD_S = (0.0, 0.0, 0.25)
+
 
 def synthetic_stand_clip(
     *,
@@ -39,6 +46,40 @@ def synthetic_stand_clip(
         "dof_pos": q,
         "source": "synthetic_stand_not_bones_seed",
         "robot": cfg["robot"],
+    }
+
+
+def synthetic_walk_clip(
+    *,
+    n_frames: int = 60,
+    fps: float = 30.0,
+    n_dof: int | None = None,
+    amplitude_rad: float = 0.02,
+) -> dict[str, Any]:
+    """Stand *pose* plus a labelled root-velocity carrier.
+
+    Joints and ``root_pos`` / ``root_rot`` match ``synthetic_stand_clip`` so a
+    pinned pelvis can still PD-track the hinges. ``root_linvel`` / ``root_angvel``
+    are filled so Table S4 lin_vel / ang_vel jitter is additive on non-zero
+    content (a stand clip is degenerate: jitter would *be* the velocity).
+    Not BONES-SEED and not a T800 gait. Pose is *not* integrated from the
+    carrier — mixing translation into this sweep would confound the joint-MAE
+    negative control.
+    """
+    stand = synthetic_stand_clip(
+        n_frames=n_frames, fps=fps, n_dof=n_dof, amplitude_rad=amplitude_rad
+    )
+    n = int(np.asarray(stand["dof_pos"]).shape[0])
+    linvel = np.asarray(SYNTHETIC_WALK_LINVEL_MPS, dtype=np.float64).reshape(3)
+    angvel = np.asarray(SYNTHETIC_WALK_ANGVEL_RAD_S, dtype=np.float64).reshape(3)
+    return {
+        **stand,
+        "root_linvel": np.tile(linvel, (n, 1)),
+        "root_angvel": np.tile(angvel, (n, 1)),
+        "source": "synthetic_walk_not_bones_seed",
+        "pose_is_stand": True,
+        "walk_linvel_mps": linvel.tolist(),
+        "walk_angvel_rad_s": angvel.tolist(),
     }
 
 

@@ -72,5 +72,3 @@ Isaac Lab PPO launch still refused. Pad–cardboard μ remains `REQUIRED_INPUT`.
 - Diagnose a real GR00T / π0.5 dump once provided
 - Table S4 `dynamic_friction`, `restitution`
   (recorded; restitution has no non-invented MuJoCo map)
-- Table S4 `target_motion` lin_vel / ang_vel jitter
-  (recorded; stand clip has no velocity content to jitter)

@@ -110,6 +110,38 @@ def test_fixture_pinned_compiles_and_tracks() -> None:
     assert report["pos_jitter"]["root_pos_err_m"] == pytest.approx(0.05, abs=0.02)
     assert abs(report["ori_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
     assert report["ori_jitter"]["pelvis_ori_err_rad"] == pytest.approx(0.2, abs=0.05)
+    assert report["lin_vel_jitter"]["name"] == "lin_vel_+x"
+    assert report["lin_vel_jitter"]["kind"] == "target_motion_lin_vel_jitter"
+    assert report["lin_vel_jitter"]["offset_mps"] == [0.5, 0.0, 0.0]
+    assert report["lin_vel_jitter"]["not_a_sonic_gate"] is True
+    assert report["lin_vel_jitter"]["not_root_push"] is True
+    assert report["lin_vel_jitter"]["grasp_success_rate"] is None
+    assert [c["name"] for c in report["lin_vel_jitter_sweep"]] == [
+        "lin_vel_-x",
+        "lin_vel_+x",
+        "lin_vel_-y",
+        "lin_vel_+y",
+        "lin_vel_-z",
+        "lin_vel_+z",
+    ]
+    assert report["lin_vel_jitter_sweep_summary"]["n_cases"] == 6
+    assert report["ang_vel_jitter"]["name"] == "ang_vel_+yaw"
+    assert report["ang_vel_jitter"]["kind"] == "target_motion_ang_vel_jitter"
+    assert report["ang_vel_jitter"]["offset_rad_s"] == [0.0, 0.0, 0.78]
+    assert report["ang_vel_jitter"]["not_root_push"] is True
+    assert [c["name"] for c in report["ang_vel_jitter_sweep"]] == [
+        "ang_vel_-roll",
+        "ang_vel_+roll",
+        "ang_vel_-pitch",
+        "ang_vel_+pitch",
+        "ang_vel_-yaw",
+        "ang_vel_+yaw",
+    ]
+    assert report["ang_vel_jitter_sweep_summary"]["n_cases"] == 6
+    assert abs(report["lin_vel_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["lin_vel_jitter"]["target_linvel_mean_mps"][0] == pytest.approx(0.85, abs=1e-6)
+    assert abs(report["ang_vel_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["ang_vel_jitter"]["target_angvel_mean_rad_s"][2] == pytest.approx(1.03, abs=1e-6)
 
 
 @pytest.mark.skipif(not OFFICIAL_MJCF.is_file(), reason="engineai Native SDK not cloned")
@@ -149,6 +181,15 @@ def test_official_pinned_pd_and_fk() -> None:
     assert report["pos_jitter"]["root_pos_err_m"] == pytest.approx(0.05, abs=0.02)
     assert abs(report["ori_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
     assert report["ori_jitter"]["pelvis_ori_err_rad"] == pytest.approx(0.2, abs=0.05)
+    assert report["lin_vel_jitter_sweep_summary"]["n_cases"] == 6
+    assert report["lin_vel_jitter"]["not_root_push"] is True
+    assert report["lin_vel_jitter"]["grasp_success_rate"] is None
+    assert report["ang_vel_jitter_sweep_summary"]["n_cases"] == 6
+    assert report["ang_vel_jitter"]["not_a_sonic_gate"] is True
+    assert abs(report["lin_vel_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["lin_vel_jitter"]["target_linvel_mean_mps"][0] == pytest.approx(0.85, abs=1e-6)
+    assert abs(report["ang_vel_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["ang_vel_jitter"]["target_angvel_mean_rad_s"][2] == pytest.approx(1.03, abs=1e-6)
 
 
 def test_clip_joint_jitter_is_uniform_and_refuses_free_base() -> None:
@@ -215,6 +256,61 @@ def test_clip_pos_ori_jitter_is_root_only_and_refuses_free_base() -> None:
             ref,
             offset_rad=[0.0, 0.0, 0.2],
             case_name="ori_+yaw",
+            height_fail_m=0.25,
+            ori_fail_rad=1.0,
+        )
+
+
+def test_clip_vel_jitter_refuses_stand_clip_and_free_base() -> None:
+    pytest.importorskip("mujoco")
+    from eval.l2_physics_sim2sim import (
+        apply_clip_ang_vel_jitter,
+        apply_clip_lin_vel_jitter,
+        evaluate_ang_vel_jitter,
+        evaluate_lin_vel_jitter,
+    )
+    from wbc.gmr.synthetic_clip import (
+        SYNTHETIC_WALK_ANGVEL_RAD_S,
+        SYNTHETIC_WALK_LINVEL_MPS,
+        synthetic_stand_clip,
+        synthetic_walk_clip,
+    )
+
+    stand = synthetic_stand_clip(n_frames=8, fps=50.0, amplitude_rad=0.03)
+    with pytest.raises(ValueError, match="degenerate"):
+        apply_clip_lin_vel_jitter(stand, [0.5, 0.0, 0.0])
+    with pytest.raises(ValueError, match="degenerate"):
+        apply_clip_ang_vel_jitter(stand, [0.0, 0.0, 0.78])
+    walk = synthetic_walk_clip(n_frames=8, fps=50.0, amplitude_rad=0.03)
+    lin = apply_clip_lin_vel_jitter(walk, [0.5, 0.0, 0.0])
+    delta = np.asarray(lin["root_linvel"]) - np.asarray(walk["root_linvel"])
+    assert delta == pytest.approx(np.tile([0.5, 0.0, 0.0], (8, 1)))
+    assert np.asarray(lin["dof_pos"]) == pytest.approx(np.asarray(walk["dof_pos"]))
+    assert np.asarray(lin["root_pos"]) == pytest.approx(np.asarray(walk["root_pos"]))
+    assert lin["root_linvel"][0].tolist()[0] == pytest.approx(
+        SYNTHETIC_WALK_LINVEL_MPS[0] + 0.5
+    )
+    ang = apply_clip_ang_vel_jitter(walk, [0.0, 0.0, 0.78])
+    assert np.asarray(ang["dof_pos"]) == pytest.approx(np.asarray(walk["dof_pos"]))
+    assert ang["root_angvel"][0].tolist()[2] == pytest.approx(
+        SYNTHETIC_WALK_ANGVEL_RAD_S[2] + 0.78
+    )
+    free = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=True)
+    with pytest.raises(ValueError, match="pinned_base"):
+        evaluate_lin_vel_jitter(
+            free,
+            walk,
+            offset_mps=[0.5, 0.0, 0.0],
+            case_name="lin_vel_+x",
+            height_fail_m=0.25,
+            ori_fail_rad=1.0,
+        )
+    with pytest.raises(ValueError, match="pinned_base"):
+        evaluate_ang_vel_jitter(
+            free,
+            walk,
+            offset_rad_s=[0.0, 0.0, 0.78],
+            case_name="ang_vel_+yaw",
             height_fail_m=0.25,
             ori_fail_rad=1.0,
         )

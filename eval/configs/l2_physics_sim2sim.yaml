@@ -51,4 +51,26 @@ target_motion_ori_jitter:
     World-frame RPY on clip root_rot (±roll/pitch 0.1 rad / yaw ±0.2 rad).
     Negative control: joint MAE stays, pelvis ori error vs jittered root
     moves by about the offset. Do not pass/fail against 1.0 rad ori —
-    that band swallows ±0.2 rad. lin_vel/ang_vel target jitter stay recorded.
+    that band swallows ±0.2 rad. lin_vel/ang_vel use a synthetic walk clip.
+target_motion_lin_vel_jitter:
+  table_s4_field: target_motion.lin_vel_jitter_mps
+  compatibility_key: lin_vel_+x
+  not_a_sonic_gate: true
+  not_a_root_push: true
+  not_a_height_ori_gate: true
+  note: >
+    Additive on clip root_linvel (±xy 0.5 m/s / z 0.2 m/s). Requires a walk
+    clip — stand velocity is zero and is refused. Negative control: joint
+    MAE stays, target linvel moves by the offset. Not a root_push (robot
+    qvel). Restitution stays unmapped.
+target_motion_ang_vel_jitter:
+  table_s4_field: target_motion.ang_vel_jitter_rad_s
+  compatibility_key: ang_vel_+yaw
+  not_a_sonic_gate: true
+  not_a_root_push: true
+  not_a_height_ori_gate: true
+  note: >
+    Additive on clip root_angvel (±roll/pitch 0.52 rad/s / yaw ±0.78 rad/s).
+    Same walk clip as lin_vel. Negative control: joint MAE stays, target
+    angvel moves by the offset. Not a root_push angvel. Restitution stays
+    unmapped.

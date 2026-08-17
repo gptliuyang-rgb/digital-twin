@@ -3,7 +3,7 @@
 These numbers randomize the *humanoid* / floor during motion-tracking PPO. They
 are not DexHand2 pad–cardboard coefficients and must not enter
 dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 /
-ADR-030 / ADR-031 / ADR-032 / ADR-033 / ADR-034 / ADR-035).
+ADR-030 / ADR-031 / ADR-032 / ADR-033 / ADR-034 / ADR-035 / ADR-036).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -37,6 +37,11 @@ COM_AXES = ("x", "y", "z")
 # MPJPE vs the jittered root moves. Not a 0.25 m / 1.0 rad height/ori gate.
 POS_JITTER_AXES = ("x", "y", "z")
 ORI_JITTER_AXES = ("roll", "pitch", "yaw")
+# Table S4 target_motion lin_vel/ang_vel jitter. Same numeric bounds as
+# root_push, but these perturb the *reference clip* (ADR-036), not robot qvel.
+# Stand-clip velocity is identically zero — extrema live on a walk clip.
+LIN_VEL_JITTER_AXES = ("x", "y", "z")
+ANG_VEL_JITTER_AXES = ("roll", "pitch", "yaw")
 
 
 def load_table_s4() -> dict[str, Any]:
@@ -668,6 +673,127 @@ def target_motion_ori_jitter_extrema() -> list[dict[str, Any]]:
                     "not_root_push": True,
                     "not_height_ori_gate": True,
                     "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.ori_jitter_rad",
+                    "not_dexhand2_contact": True,
+                    "not_pad_cardboard": True,
+                    "restitution_not_mapped": True,
+                }
+            )
+    return out
+
+
+def target_motion_lin_vel_jitter_ranges_mps() -> dict[str, tuple[float, float]]:
+    """Return Table S4 target_motion.lin_vel_jitter_mps per axis, m/s.
+
+    Reference-root linear-velocity jitter, not a robot root_push. A stand
+    clip has zero velocity, so ADR-036 sweeps these extrema on a synthetic
+    walk clip as a negative control (joint MAE stays; target linvel moves).
+    Not a 0.25 m / 1.0 rad height/ori gate.
+    """
+    raw = load_table_s4()["target_motion"]["lin_vel_jitter_mps"]
+    out: dict[str, tuple[float, float]] = {}
+    for axis in LIN_VEL_JITTER_AXES:
+        lo, hi = (float(v) for v in raw[axis])
+        if lo >= 0.0 or hi <= 0.0:
+            raise ValueError(
+                f"Table S4 target_motion.lin_vel_jitter_mps {axis} must straddle zero, got {[lo, hi]}"
+            )
+        out[axis] = (lo, hi)
+    return out
+
+
+def target_motion_lin_vel_jitter_extrema() -> list[dict[str, Any]]:
+    """Axis-aligned signed extrema of Table S4 target_motion.lin_vel_jitter_mps.
+
+    Six cases: ±X/±Y 0.5 m/s and ±Z 0.2 m/s. Names are ``lin_vel_±axis`` so
+    they do not collide with root_push ``±x`` or pos jitter ``pos_±x``.
+    ``lin_vel_+x`` is the ``lin_vel_jitter`` compatibility key.
+    """
+    ranges = target_motion_lin_vel_jitter_ranges_mps()
+    out: list[dict[str, Any]] = []
+    for axis in LIN_VEL_JITTER_AXES:
+        lo, hi = ranges[axis]
+        idx = AXIS_INDEX[axis]
+        for sign, value in (("-", lo), ("+", hi)):
+            vec = [0.0, 0.0, 0.0]
+            vec[idx] = float(value)
+            out.append(
+                {
+                    "name": f"lin_vel_{sign}{axis}",
+                    "axis": axis,
+                    "sign": sign,
+                    "offset_mps": vec,
+                    "table_s4_field": "target_motion.lin_vel_jitter_mps",
+                    "kind": "target_motion_lin_vel_jitter",
+                    "mujoco_channel": "clip_root_linvel",
+                    "additive_to_clip_root_linvel": True,
+                    "not_joint_jitter": True,
+                    "not_pos_ori_jitter": True,
+                    "not_root_push": True,
+                    "not_height_ori_gate": True,
+                    "source": (
+                        "He et al., SONIC, arXiv:2511.07820v3 "
+                        "Table S4 target_motion.lin_vel_jitter"
+                    ),
+                    "not_dexhand2_contact": True,
+                    "not_pad_cardboard": True,
+                    "restitution_not_mapped": True,
+                }
+            )
+    return out
+
+
+def target_motion_ang_vel_jitter_ranges_rad_s() -> dict[str, tuple[float, float]]:
+    """Return Table S4 target_motion.ang_vel_jitter_rad_s per axis, rad/s.
+
+    Reference-root angular-velocity jitter, not a robot angvel push. ADR-036
+    sweeps these extrema on a synthetic walk clip. Not mixed into root_push
+    ang_vel. Not a 1.0 rad ori gate.
+    """
+    raw = load_table_s4()["target_motion"]["ang_vel_jitter_rad_s"]
+    out: dict[str, tuple[float, float]] = {}
+    for axis in ANG_VEL_JITTER_AXES:
+        lo, hi = (float(v) for v in raw[axis])
+        if lo >= 0.0 or hi <= 0.0:
+            raise ValueError(
+                f"Table S4 target_motion.ang_vel_jitter_rad_s {axis} must straddle zero, got {[lo, hi]}"
+            )
+        out[axis] = (lo, hi)
+    return out
+
+
+def target_motion_ang_vel_jitter_extrema() -> list[dict[str, Any]]:
+    """Axis-aligned signed extrema of Table S4 target_motion.ang_vel_jitter_rad_s.
+
+    Six cases: ±roll/±pitch 0.52 rad/s and ±yaw 0.78 rad/s. Names are
+    ``ang_vel_±axis`` so they do not collide with root_push ``±yaw``.
+    ``ang_vel_+yaw`` is the ``ang_vel_jitter`` compatibility key.
+    """
+    ranges = target_motion_ang_vel_jitter_ranges_rad_s()
+    out: list[dict[str, Any]] = []
+    for axis in ANG_VEL_JITTER_AXES:
+        lo, hi = ranges[axis]
+        idx = ANGVEL_AXIS_INDEX[axis]
+        for sign, value in (("-", lo), ("+", hi)):
+            vec = [0.0, 0.0, 0.0]
+            vec[idx] = float(value)
+            out.append(
+                {
+                    "name": f"ang_vel_{sign}{axis}",
+                    "axis": axis,
+                    "sign": sign,
+                    "offset_rad_s": vec,
+                    "table_s4_field": "target_motion.ang_vel_jitter_rad_s",
+                    "kind": "target_motion_ang_vel_jitter",
+                    "mujoco_channel": "clip_root_angvel",
+                    "additive_to_clip_root_angvel": True,
+                    "not_joint_jitter": True,
+                    "not_pos_ori_jitter": True,
+                    "not_root_push": True,
+                    "not_height_ori_gate": True,
+                    "source": (
+                        "He et al., SONIC, arXiv:2511.07820v3 "
+                        "Table S4 target_motion.ang_vel_jitter"
+                    ),
                     "not_dexhand2_contact": True,
                     "not_pad_cardboard": True,
                     "restitution_not_mapped": True,

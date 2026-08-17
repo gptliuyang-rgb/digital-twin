@@ -9,6 +9,10 @@ Table S4 target_motion pos/ori jitter extrema (ADR-035) are a pinned-base
 *negative control* on clip root: joint MAE stays, MPJPE vs the jittered root
 moves. Not a 0.25 m / 1.0 rad height/ori gate — those bands swallow the paper
 ranges.
+Table S4 target_motion lin_vel/ang_vel jitter extrema (ADR-036) are a
+pinned-base negative control on a *walk clip* (stand velocity is zero, so
+jitter there would be degenerate): joint MAE stays; target linvel/angvel
+move. Not a root_push and not a height/ori gate.
 """
 
 from __future__ import annotations
@@ -28,13 +32,18 @@ from interface.schema import REPO_ROOT
 from sim.mujoco_env.t800_env import ROOT_Z_M, T800MujocoEnv, refuse_combined_robot
 from sim.urdf_fk import KINEMATICS_YAML, UrdfTree, fk_bodies_world, load_t800_kinematics
 from vla.adapters.rotation import matrix_to_quaternion_wxyz, quaternion_wxyz_to_matrix, rpy_to_matrix
-from wbc.gmr.synthetic_clip import synthetic_stand_clip
+from wbc.gmr.synthetic_clip import synthetic_stand_clip, synthetic_walk_clip
 from wbc.observation import ProprioHistory
 from wbc.ppo.table_s4 import (
+    target_motion_ang_vel_jitter_extrema,
     target_motion_joint_jitter_extrema,
+    target_motion_lin_vel_jitter_extrema,
     target_motion_ori_jitter_extrema,
     target_motion_pos_jitter_extrema,
 )
+
+# Stand-clip velocity RMS below this is treated as empty content (ADR-036).
+_VEL_CONTENT_RMS_MIN = 1e-3
 
 
 def _xyzw_to_wxyz(q: np.ndarray) -> np.ndarray:
@@ -53,6 +62,49 @@ def _xyzw_to_matrix(q: np.ndarray) -> np.ndarray:
 
 def _matrix_to_xyzw(matrix: np.ndarray) -> np.ndarray:
     return _wxyz_to_xyzw(matrix_to_quaternion_wxyz(matrix))
+
+
+def clip_root_linvel(ref: dict[str, Any]) -> np.ndarray:
+    """Return (T, 3) world linvel. Explicit field, else finite-diff of ``root_pos``."""
+    pos = np.asarray(ref["root_pos"], dtype=np.float64)
+    if "root_linvel" in ref:
+        vel = np.asarray(ref["root_linvel"], dtype=np.float64)
+        if vel.shape != pos.shape:
+            raise ValueError(f"root_linvel expected {pos.shape}, got {vel.shape}")
+        return vel
+    dt = 1.0 / float(ref["fps"])
+    vel = np.zeros_like(pos)
+    if pos.shape[0] >= 2:
+        vel[:-1] = (pos[1:] - pos[:-1]) / dt
+        vel[-1] = vel[-2]
+    return vel
+
+
+def clip_root_angvel(ref: dict[str, Any]) -> np.ndarray:
+    """Return (T, 3) world angvel. Explicit field, else zeros (no invented SO(3) log)."""
+    n = int(np.asarray(ref["root_pos"]).shape[0])
+    if "root_angvel" in ref:
+        vel = np.asarray(ref["root_angvel"], dtype=np.float64)
+        if vel.shape != (n, 3):
+            raise ValueError(f"root_angvel expected ({n}, 3), got {vel.shape}")
+        return vel
+    return np.zeros((n, 3), dtype=np.float64)
+
+
+def _velocity_rms(arr: np.ndarray) -> float:
+    a = np.asarray(arr, dtype=np.float64)
+    return float(np.sqrt(np.mean(np.square(a))))
+
+
+def _require_velocity_content(arr: np.ndarray, *, field: str, unit: str) -> float:
+    rms = _velocity_rms(arr)
+    if rms < _VEL_CONTENT_RMS_MIN:
+        raise ValueError(
+            f"{field} jitter requires non-zero {field} content "
+            f"(rms {rms} {unit} < {_VEL_CONTENT_RMS_MIN}); "
+            "stand clip is degenerate — use synthetic_walk_clip"
+        )
+    return rms
 
 
 def evaluate_physics(
@@ -88,7 +140,11 @@ def evaluate_physics(
     ori_fail = 0
     root_pos_err: list[float] = []
     pelvis_ori_err: list[float] = []
+    linvel_err: list[float] = []
+    angvel_err: list[float] = []
     last_a = np.zeros(len(order))
+    v_tgt_all = clip_root_linvel(ref)
+    w_tgt_all = clip_root_angvel(ref)
 
     for i in range(q_ref.shape[0]):
         q_des = q_ref[i]
@@ -146,6 +202,9 @@ def evaluate_physics(
         if pelvis_ori_err[-1] > ori_fail_rad:
             ori_fail += 1
         omega = np.zeros(3) if env.pinned_base else np.asarray(env.data.qvel[3:6], dtype=np.float64)
+        v_sim = np.zeros(3) if env.pinned_base else np.asarray(env.data.qvel[0:3], dtype=np.float64)
+        linvel_err.append(float(np.linalg.norm(v_sim - v_tgt_all[i])))
+        angvel_err.append(float(np.linalg.norm(omega - w_tgt_all[i])))
         yaw = float(np.arctan2(pelvis_r[1, 0], pelvis_r[0, 0]))
         hist.push(q_sim, env.get_dq(), omega, last_a, yaw)
         last_a = q_des.copy()
@@ -164,6 +223,10 @@ def evaluate_physics(
         "joint_mae_rad": float(np.mean(joint_mae)),
         "root_pos_err_m": float(np.mean(root_pos_err)),
         "pelvis_ori_err_rad": float(np.mean(pelvis_ori_err)),
+        "root_linvel_err_mps": float(np.mean(linvel_err)),
+        "root_angvel_err_rad_s": float(np.mean(angvel_err)),
+        "target_linvel_mean_mps": np.mean(v_tgt_all, axis=0).tolist(),
+        "target_angvel_mean_rad_s": np.mean(w_tgt_all, axis=0).tolist(),
         "height_fail_frames": height_fail,
         "ori_fail_frames": ori_fail,
         "local_tracking_success": bool(success) if env.pinned_base else False,
@@ -429,6 +492,164 @@ def evaluate_ori_jitter_sweep(
     return out
 
 
+def apply_clip_lin_vel_jitter(ref: dict[str, Any], offset_mps: Sequence[float]) -> dict[str, Any]:
+    """Uniform additive offset on clip ``root_linvel``. Pose and ``dof_pos`` stay.
+
+    ``offset_mps`` must come from Table S4 ``target_motion.lin_vel_jitter_mps``.
+    Refuses a stand clip (zero velocity is degenerate). Not a root_push.
+    """
+    offset = np.asarray(offset_mps, dtype=np.float64).reshape(3)
+    if not np.isfinite(offset).all():
+        raise ValueError(f"offset_mps must be finite, got {offset}")
+    if "root_linvel" not in ref:
+        raise ValueError(
+            "lin_vel jitter requires root_linvel; stand clip is degenerate — use synthetic_walk_clip"
+        )
+    vel = np.asarray(ref["root_linvel"], dtype=np.float64).copy()
+    _require_velocity_content(vel, field="root_linvel", unit="m/s")
+    out = dict(ref)
+    out["root_linvel"] = vel + offset
+    out["lin_vel_jitter_mps"] = offset.tolist()
+    return out
+
+
+def apply_clip_ang_vel_jitter(ref: dict[str, Any], offset_rad_s: Sequence[float]) -> dict[str, Any]:
+    """Uniform additive offset on clip ``root_angvel``. Pose and ``dof_pos`` stay.
+
+    ``offset_rad_s`` is ``[roll, pitch, yaw]`` from Table S4
+    ``target_motion.ang_vel_jitter_rad_s``. Refuses a stand clip.
+    """
+    offset = np.asarray(offset_rad_s, dtype=np.float64).reshape(3)
+    if not np.isfinite(offset).all():
+        raise ValueError(f"offset_rad_s must be finite, got {offset}")
+    if "root_angvel" not in ref:
+        raise ValueError(
+            "ang_vel jitter requires root_angvel; stand clip is degenerate — use synthetic_walk_clip"
+        )
+    vel = np.asarray(ref["root_angvel"], dtype=np.float64).copy()
+    _require_velocity_content(vel, field="root_angvel", unit="rad/s")
+    out = dict(ref)
+    out["root_angvel"] = vel + offset
+    out["ang_vel_jitter_rad_s"] = offset.tolist()
+    return out
+
+
+def evaluate_lin_vel_jitter(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    offset_mps: Sequence[float],
+    case_name: str,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> dict[str, Any]:
+    """PD-track one Table S4 lin-vel-jitter extremum. Not a SONIC / push gate."""
+    if not env.pinned_base:
+        raise ValueError("target_motion lin_vel jitter sweep requires pinned_base=True")
+    offset = np.asarray(offset_mps, dtype=np.float64).reshape(3)
+    ref = apply_clip_lin_vel_jitter(ref_base, offset)
+    metrics = evaluate_physics(
+        env,
+        ref,
+        height_fail_m=height_fail_m,
+        ori_fail_rad=ori_fail_rad,
+    )
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "target_motion_lin_vel_jitter",
+        "offset_mps": offset.tolist(),
+        "expected_target_linvel_delta_mps": float(np.linalg.norm(offset)),
+        "table_s4_field": "target_motion.lin_vel_jitter_mps",
+        "mujoco_channel": "clip_root_linvel",
+        "additive_to_clip_root_linvel": True,
+        "not_pos_ori_jitter": True,
+        "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.lin_vel_jitter",
+        **_NEG_CONTROL,
+    }
+
+
+def evaluate_ang_vel_jitter(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    offset_rad_s: Sequence[float],
+    case_name: str,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> dict[str, Any]:
+    """PD-track one Table S4 ang-vel-jitter extremum. Not a SONIC / push gate."""
+    if not env.pinned_base:
+        raise ValueError("target_motion ang_vel jitter sweep requires pinned_base=True")
+    offset = np.asarray(offset_rad_s, dtype=np.float64).reshape(3)
+    ref = apply_clip_ang_vel_jitter(ref_base, offset)
+    metrics = evaluate_physics(
+        env,
+        ref,
+        height_fail_m=height_fail_m,
+        ori_fail_rad=ori_fail_rad,
+    )
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "target_motion_ang_vel_jitter",
+        "offset_rad_s": offset.tolist(),
+        "expected_target_angvel_delta_rad_s": float(np.linalg.norm(offset)),
+        "table_s4_field": "target_motion.ang_vel_jitter_rad_s",
+        "mujoco_channel": "clip_root_angvel",
+        "additive_to_clip_root_angvel": True,
+        "not_pos_ori_jitter": True,
+        "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.ang_vel_jitter",
+        **_NEG_CONTROL,
+    }
+
+
+def evaluate_lin_vel_jitter_sweep(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> list[dict[str, Any]]:
+    """PD-track each Table S4 target_motion.lin_vel_jitter_mps extremum."""
+    out: list[dict[str, Any]] = []
+    for case in target_motion_lin_vel_jitter_extrema():
+        out.append(
+            evaluate_lin_vel_jitter(
+                env,
+                ref_base,
+                offset_mps=list(case["offset_mps"]),
+                case_name=str(case["name"]),
+                height_fail_m=height_fail_m,
+                ori_fail_rad=ori_fail_rad,
+            )
+        )
+    return out
+
+
+def evaluate_ang_vel_jitter_sweep(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> list[dict[str, Any]]:
+    """PD-track each Table S4 target_motion.ang_vel_jitter_rad_s extremum."""
+    out: list[dict[str, Any]] = []
+    for case in target_motion_ang_vel_jitter_extrema():
+        out.append(
+            evaluate_ang_vel_jitter(
+                env,
+                ref_base,
+                offset_rad_s=list(case["offset_rad_s"]),
+                case_name=str(case["name"]),
+                height_fail_m=height_fail_m,
+                ori_fail_rad=ori_fail_rad,
+            )
+        )
+    return out
+
+
 def _jitter_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "n_cases": len(cases),
@@ -449,6 +670,21 @@ def _root_jitter_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
         "pelvis_ori_err_rad": {c["name"]: c["pelvis_ori_err_rad"] for c in cases},
         "not_a_sonic_gate": True,
         "not_a_height_ori_gate": True,
+    }
+
+
+def _vel_jitter_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "n_cases": len(cases),
+        "names": [c["name"] for c in cases],
+        "joint_mae_rad": {c["name"]: c["joint_mae_rad"] for c in cases},
+        "root_linvel_err_mps": {c["name"]: c["root_linvel_err_mps"] for c in cases},
+        "root_angvel_err_rad_s": {c["name"]: c["root_angvel_err_rad_s"] for c in cases},
+        "target_linvel_mean_mps": {c["name"]: c["target_linvel_mean_mps"] for c in cases},
+        "target_angvel_mean_rad_s": {c["name"]: c["target_angvel_mean_rad_s"] for c in cases},
+        "not_a_sonic_gate": True,
+        "not_a_height_ori_gate": True,
+        "not_a_root_push": True,
     }
 
 
@@ -526,6 +762,34 @@ def run(
         report["ori_jitter"] = plus_ori
         report["ori_jitter_sweep"] = ori_sweep
         report["ori_jitter_sweep_summary"] = _root_jitter_summary(ori_sweep)
+        walk = synthetic_walk_clip(n_frames=n_frames, fps=50.0, amplitude_rad=amplitude_rad)
+        if abs(float(walk["root_pos"][0, 2]) - ROOT_Z_M) > 1e-6:
+            walk = dict(walk)
+            wroot = np.asarray(walk["root_pos"]).copy()
+            wroot[:, 2] = ROOT_Z_M
+            walk["root_pos"] = wroot
+        lin_sweep = evaluate_lin_vel_jitter_sweep(
+            env, walk, height_fail_m=h_fail, ori_fail_rad=o_fail
+        )
+        plus_lin = next((c for c in lin_sweep if c["name"] == "lin_vel_+x"), None)
+        if plus_lin is None:
+            raise ValueError(
+                "Table S4 lin-vel-jitter sweep must include lin_vel_+x (ADR-036 compatibility)"
+            )
+        report["lin_vel_jitter"] = plus_lin
+        report["lin_vel_jitter_sweep"] = lin_sweep
+        report["lin_vel_jitter_sweep_summary"] = _vel_jitter_summary(lin_sweep)
+        ang_sweep = evaluate_ang_vel_jitter_sweep(
+            env, walk, height_fail_m=h_fail, ori_fail_rad=o_fail
+        )
+        plus_ang = next((c for c in ang_sweep if c["name"] == "ang_vel_+yaw"), None)
+        if plus_ang is None:
+            raise ValueError(
+                "Table S4 ang-vel-jitter sweep must include ang_vel_+yaw (ADR-036 compatibility)"
+            )
+        report["ang_vel_jitter"] = plus_ang
+        report["ang_vel_jitter_sweep"] = ang_sweep
+        report["ang_vel_jitter_sweep_summary"] = _vel_jitter_summary(ang_sweep)
     return report
 
 
@@ -572,6 +836,18 @@ def main() -> None:
         ]
         summary["ori_jitter_offset_rad"] = report["ori_jitter"]["offset_rad"]
         summary["ori_jitter_not_a_height_ori_gate"] = True
+    if report.get("lin_vel_jitter_sweep_summary"):
+        summary["lin_vel_jitter_sweep_names"] = report["lin_vel_jitter_sweep_summary"]["names"]
+        summary["lin_vel_jitter_target_mean_mps"] = report["lin_vel_jitter"]["target_linvel_mean_mps"]
+        summary["lin_vel_jitter_offset_mps"] = report["lin_vel_jitter"]["offset_mps"]
+        summary["lin_vel_jitter_not_a_root_push"] = True
+    if report.get("ang_vel_jitter_sweep_summary"):
+        summary["ang_vel_jitter_sweep_names"] = report["ang_vel_jitter_sweep_summary"]["names"]
+        summary["ang_vel_jitter_target_mean_rad_s"] = report["ang_vel_jitter"][
+            "target_angvel_mean_rad_s"
+        ]
+        summary["ang_vel_jitter_offset_rad_s"] = report["ang_vel_jitter"]["offset_rad_s"]
+        summary["ang_vel_jitter_not_a_root_push"] = True
     print(json.dumps(summary, indent=2))
 
 

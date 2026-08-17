@@ -18,6 +18,9 @@ pinned-base *clip* ``dof_pos``, not the robot reset pose.
 Table S4 target_motion pos/ori jitter extrema (ADR-035) add to clip
 ``root_pos`` / ``root_rot``. A pinned pelvis cannot follow them; they are
 a negative control, not a 0.25 m / 1.0 rad height/ori gate.
+Table S4 target_motion lin_vel/ang_vel jitter extrema (ADR-036) add to
+clip ``root_linvel`` / ``root_angvel`` on a walk clip. A stand clip is
+refused (zero velocity is degenerate). Not a root_push.
 """
 
 from __future__ import annotations

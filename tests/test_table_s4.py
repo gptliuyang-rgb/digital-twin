@@ -7,8 +7,10 @@ import pytest
 from interface.schema import REPO_ROOT
 from wbc.ppo.recipe import load_ppo_recipe
 from wbc.ppo.table_s4 import (
+    ANG_VEL_JITTER_AXES,
     ANGVEL_AXES,
     COM_AXES,
+    LIN_VEL_JITTER_AXES,
     ORI_JITTER_AXES,
     POS_JITTER_AXES,
     SWEEP_AXES,
@@ -31,8 +33,12 @@ from wbc.ppo.table_s4 import (
     static_friction_extrema,
     sustained_force_cases,
     sustained_torque_cases,
+    target_motion_ang_vel_jitter_extrema,
+    target_motion_ang_vel_jitter_ranges_rad_s,
     target_motion_joint_jitter_extrema,
     target_motion_joint_jitter_range_rad,
+    target_motion_lin_vel_jitter_extrema,
+    target_motion_lin_vel_jitter_ranges_mps,
     target_motion_ori_jitter_extrema,
     target_motion_ori_jitter_ranges_rad,
     target_motion_pos_jitter_extrema,
@@ -405,6 +411,81 @@ def test_target_motion_pos_and_ori_jitter_extrema_match_domain_rand() -> None:
     assert by_ori["ori_+pitch"][1] == float(tm["ori_jitter_rad"]["pitch"][1])
 
 
+def test_synthetic_walk_clip_has_velocity_content() -> None:
+    from wbc.gmr.synthetic_clip import (
+        SYNTHETIC_WALK_ANGVEL_RAD_S,
+        SYNTHETIC_WALK_LINVEL_MPS,
+        synthetic_stand_clip,
+        synthetic_walk_clip,
+    )
+
+    stand = synthetic_stand_clip(n_frames=4, fps=50.0, amplitude_rad=0.02)
+    walk = synthetic_walk_clip(n_frames=4, fps=50.0, amplitude_rad=0.02)
+    assert "root_linvel" not in stand
+    assert "root_angvel" not in stand
+    assert walk["source"] == "synthetic_walk_not_bones_seed"
+    assert walk["pose_is_stand"] is True
+    assert walk["root_linvel"][0].tolist() == list(SYNTHETIC_WALK_LINVEL_MPS)
+    assert walk["root_angvel"][0].tolist() == list(SYNTHETIC_WALK_ANGVEL_RAD_S)
+    assert walk["dof_pos"].shape == stand["dof_pos"].shape
+    assert walk["root_pos"][0].tolist() == stand["root_pos"][0].tolist()
+
+
+def test_target_motion_lin_vel_and_ang_vel_jitter_extrema_match_domain_rand() -> None:
+    assert LIN_VEL_JITTER_AXES == ("x", "y", "z")
+    assert ANG_VEL_JITTER_AXES == ("roll", "pitch", "yaw")
+    lin_ranges = target_motion_lin_vel_jitter_ranges_mps()
+    assert lin_ranges["x"] == (-0.5, 0.5)
+    assert lin_ranges["y"] == (-0.5, 0.5)
+    assert lin_ranges["z"] == (-0.2, 0.2)
+    lin = target_motion_lin_vel_jitter_extrema()
+    assert [c["name"] for c in lin] == [
+        "lin_vel_-x",
+        "lin_vel_+x",
+        "lin_vel_-y",
+        "lin_vel_+y",
+        "lin_vel_-z",
+        "lin_vel_+z",
+    ]
+    by_lin = {c["name"]: c["offset_mps"] for c in lin}
+    assert by_lin["lin_vel_+x"] == [0.5, 0.0, 0.0]
+    assert by_lin["lin_vel_-z"] == [0.0, 0.0, -0.2]
+    assert all(c["kind"] == "target_motion_lin_vel_jitter" for c in lin)
+    assert all(c["additive_to_clip_root_linvel"] is True for c in lin)
+    assert all(c["not_root_push"] is True for c in lin)
+    assert all(c["not_height_ori_gate"] is True for c in lin)
+    assert all(c["mujoco_channel"] == "clip_root_linvel" for c in lin)
+    ang_ranges = target_motion_ang_vel_jitter_ranges_rad_s()
+    assert ang_ranges["roll"] == (-0.52, 0.52)
+    assert ang_ranges["pitch"] == (-0.52, 0.52)
+    assert ang_ranges["yaw"] == (-0.78, 0.78)
+    ang = target_motion_ang_vel_jitter_extrema()
+    assert [c["name"] for c in ang] == [
+        "ang_vel_-roll",
+        "ang_vel_+roll",
+        "ang_vel_-pitch",
+        "ang_vel_+pitch",
+        "ang_vel_-yaw",
+        "ang_vel_+yaw",
+    ]
+    by_ang = {c["name"]: c["offset_rad_s"] for c in ang}
+    assert by_ang["ang_vel_+roll"] == [0.52, 0.0, 0.0]
+    assert by_ang["ang_vel_-yaw"] == [0.0, 0.0, -0.78]
+    assert all(c["kind"] == "target_motion_ang_vel_jitter" for c in ang)
+    assert all(c["additive_to_clip_root_angvel"] is True for c in ang)
+    assert all(c["not_root_push"] is True for c in ang)
+    assert all(c["mujoco_channel"] == "clip_root_angvel" for c in ang)
+    recipe = load_ppo_recipe()
+    tm = recipe["domain_rand"]["target_motion"]
+    assert by_lin["lin_vel_+y"][1] == float(tm["lin_vel_jitter_mps"]["y"][1])
+    assert by_ang["ang_vel_+pitch"][1] == float(tm["ang_vel_jitter_rad_s"]["pitch"][1])
+    spec = (REPO_ROOT / "assets" / "dexhand2" / "meta" / "dexhand2_spec.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "lin_vel_jitter_mps" not in spec
+    assert "command_latency_ms: REQUIRED_INPUT" in spec
+
+
 def test_target_motion_jitter_is_not_a_root_push_or_physical_hold() -> None:
     push_names = [c["name"] for c in axis_aligned_linvel_extrema_mps()]
     ang_names = [c["name"] for c in axis_aligned_angvel_extrema_rad_s()]
@@ -414,6 +495,8 @@ def test_target_motion_jitter_is_not_a_root_push_or_physical_hold() -> None:
     jit_names = [c["name"] for c in target_motion_joint_jitter_extrema()]
     pos_names = [c["name"] for c in target_motion_pos_jitter_extrema()]
     ori_names = [c["name"] for c in target_motion_ori_jitter_extrema()]
+    lin_names = [c["name"] for c in target_motion_lin_vel_jitter_extrema()]
+    angvel_jit_names = [c["name"] for c in target_motion_ang_vel_jitter_extrema()]
     assert set(jit_names).isdisjoint(push_names)
     assert set(jit_names).isdisjoint(qpos_names)
     assert set(jit_names).isdisjoint(com_names)
@@ -421,3 +504,7 @@ def test_target_motion_jitter_is_not_a_root_push_or_physical_hold() -> None:
     assert set(pos_names).isdisjoint(push_names)
     assert set(ori_names).isdisjoint(ang_names)
     assert set(pos_names).isdisjoint(com_names)
+    assert set(lin_names).isdisjoint(push_names)
+    assert set(lin_names).isdisjoint(pos_names)
+    assert set(angvel_jit_names).isdisjoint(ang_names)
+    assert set(angvel_jit_names).isdisjoint(ori_names)

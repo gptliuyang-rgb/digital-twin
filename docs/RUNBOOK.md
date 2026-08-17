@@ -38,7 +38,7 @@ make eval-l1            # limits + coupling; IK skipped without Pinocchio
 make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null
-make eval-l2-physics-sim2sim  # MuJoCo PD tracking; official XML or kinematics fixture
+make eval-l2-physics-sim2sim  # MuJoCo PD tracking; official XML or kinematics fixture; Table S4 joint/pos/ori + lin_vel/ang_vel walk-clip jitter
 make eval-l2-freebase-stand   # free-base PD stand on a floor; fall is not a SONIC gate
 make eval-l2-freebase-push    # lean vs fall + Table S4 ±X/±Y + ±Z one-shot + F=mv/T + angvel + τ=Iω/T + μ_slide + base CoM ipos + qpos ±0.01 rad + air-drop
 make eval-l3-isaac-bind       # IsaacLabSceneRuntime.reset/step if bound; else unavailable
