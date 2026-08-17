@@ -1,0 +1,17 @@
+ROBOT_XML_DICT:
+  engineai_t800: third_party/engineai-native-sdk/assets/resource/robot/t800/xml/serial_t800.xml
+ROBOT_BASE_DICT:
+  engineai_t800: LINK_BASE
+IK_CONFIG_DICT:
+  smplx:
+    engineai_t800: wbc/gmr/smplx_to_t800.json
+  bvh_lafan1:
+    engineai_t800: wbc/gmr/bvh_lafan1_to_t800.json
+VIEWER_CAM_DISTANCE_DICT:
+  engineai_t800: 2.5
+note: Copy these entries into third_party/GMR/general_motion_retargeting/params.py
+  or pass --ik_config / --robot xml explicitly. Do not add T800 under unitree_g1.
+quat_offset_status: tpose_composed_pm01_with_t800_q0_frames
+human_scale_status: tpose_scaled_from_pm01_link_lengths
+n_revolute: 25
+hand_bypass: true
