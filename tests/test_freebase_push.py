@@ -43,11 +43,23 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     assert report["hold"]["posture"] in ("upright", "leaned", "fallen")
     assert report["hold"]["local_tracking_success"] is False
     assert report["lateral_push"]["kind"] == "one_shot_qvel"
+    assert report["lateral_push"]["name"] == "+y"
     assert report["lateral_push"]["lin_vel_mps"] == [0.0, 0.5, 0.0]
     assert report["lateral_push"]["injected"] is True
     assert "pre_push_posture" in report["lateral_push"]
     assert report["lateral_push"]["pre_push_posture"] in ("upright", "leaned", "fallen")
     assert report["lateral_push"]["posture"] in ("upright", "leaned", "fallen")
+    names = [c["name"] for c in report["push_sweep"]]
+    assert names == ["-x", "+x", "-y", "+y"]
+    assert report["push_sweep_summary"]["n_cases"] == 4
+    assert report["push_sweep_summary"]["not_a_sonic_gate"] is True
+    by_name = {c["name"]: c["lin_vel_mps"] for c in report["push_sweep"]}
+    assert by_name["-x"] == [-0.5, 0.0, 0.0]
+    assert by_name["+x"] == [0.5, 0.0, 0.0]
+    assert by_name["-y"] == [0.0, -0.5, 0.0]
+    assert by_name["+y"] == [0.0, 0.5, 0.0]
+    assert all(c["kind"] == "one_shot_qvel" for c in report["push_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["push_sweep"])
     assert report["airdrop"]["n_plane"] == 0
     assert report["airdrop"]["nq"] == 32
     assert report["airdrop"]["freejoint_moved"] is True
@@ -86,3 +98,8 @@ def test_official_push_and_airdrop_report_honestly() -> None:
     # Push is applied to the leaned hold (settle_s = hold_s), not to t=0.5 s upright.
     if report["hold"]["posture"] == "leaned":
         assert report["lateral_push"]["pre_push_posture"] == "leaned"
+        assert all(c["pre_push_posture"] == "leaned" for c in report["push_sweep"])
+    assert report["push_sweep_summary"]["n_cases"] == 4
+    assert report["push_sweep_summary"]["not_a_sonic_gate"] is True
+    # Fall on any axis is a diagnostic, not a SONIC fail.
+    assert report["not_a_sonic_gate"] is True

@@ -7,7 +7,7 @@ Continues ADR-025 free-base PD stand. Still no grasp-success number and no combi
 - **ADR-026.** Posture is `upright | leaned | fallen`. The official 3 s hold at ~0.72 rad (~41°) is **leaned**, not a stand. Fall bands stay 0.40 m / 0.80 rad. Lean band is 0.20 rad (diagnostic, not CAD).
 - `eval/lean_classify.py` — pure function, no MuJoCo.
 - `T800MujocoEnv.apply_root_linvel` — one-shot freejoint world linear velocity. Pinned-base raises.
-- `eval/l2_freebase_push.py` — hold + Table S4 +Y 0.5 m/s one-shot `qvel` injected **after** the 3 s leaned hold + no-floor air-drop. `local_tracking_success` always false.
+- `eval/l2_freebase_push.py` — hold + Table S4 planar sweep (`±X` / `±Y` 0.5 m/s, ADR-027) injected **after** the 3 s leaned hold + no-floor air-drop. `lateral_push` remains the `+y` case. `local_tracking_success` always false.
 - `eval/l3_isaac_bind.py` — calls `IsaacLabSceneRuntime.reset/step` only when Isaac Sim python is bound; otherwise `isaac_bind_unavailable`.
 - `make eval-l2-freebase-push`, `make eval-l3-isaac-bind`.
 

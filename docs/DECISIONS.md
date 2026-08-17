@@ -204,4 +204,12 @@
 - **Decision:** (B). `eval/lean_classify.py` labels posture. Lean tilt band is 0.20 rad (diagnostic, not CAD). `T800MujocoEnv.apply_root_linvel` sets freejoint linear velocity. `make eval-l2-freebase-push` runs hold + push + air-drop. `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Floor friction remains the official WBC collision default, not pad–cardboard. `make eval-l3-isaac-bind` calls `IsaacLabSceneRuntime.reset/step` only when `isaaclab` and `omni.usd` import; otherwise it reports `isaac_bind_unavailable`.
 - **Consequences:** A 41° lean is `leaned`, not a SONIC pass. A push that knocks the robot over is also not a SONIC fail. Air-drop `freejoint_moved` is the freejoint proof. Isaac bind does not load T800+Hand. Flange SE(3) and wrist CoM still block PPO / GMR-on-BONES-SEED / combined weld.
 
+## ADR-027 — Table S4 planar push sweep is ±X/±Y extrema, still not a SONIC gate
+
+- **Status:** accepted
+- **Context:** ADR-026 injected only +Y 0.5 m/s. SONIC Table S4 randomizes root linear velocity independently on x and y in ±0.5 m/s (z is ±0.2 m/s). The official 3 s PD hold leans ~41°, likely sagittal. A single +Y hit can hide an axis that stays leaned or one that falls sooner.
+- **Options:** (A) keep the single +Y case; (B) sweep the four planar extrema from `wbc/ppo/domain_rand.yaml` as one-shot `qvel` after the same settle, keep +Y as the `lateral_push` compatibility key; (C) also sweep z and treat any fall as a SONIC fail.
+- **Decision:** (B). `wbc/ppo/table_s4.py` is the single source of extrema. Default sweep is `+x -x +y -y`. Z is recorded and excluded (vertical impulse is a different diagnostic). `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Floor friction remains the official WBC collision default, not pad–cardboard.
+- **Consequences:** `make eval-l2-freebase-push` wall time is ~4× the single-axis case. Fall on any axis is **not** a SONIC fail. PPO launch, GMR-on-BONES-SEED, and the combined weld remain blocked on flange SE(3) and wrist CoM.
+
 
