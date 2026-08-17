@@ -2,6 +2,16 @@
 
 from wbc.checkpoint import G1CheckpointIncompatible, refuse_g1_checkpoint
 from wbc.dims import decoder_history_dim, hybrid_encoder_cmd_dim, load_t800_sonic
+from wbc.gather import (
+    HardwareHold,
+    HardwareSnapshot,
+    ObsGather,
+    ObsGatherError,
+    StateLogger,
+    compile_observations,
+    grouped_history_to_interleaved,
+    interleaved_history_to_grouped,
+)
 from wbc.observation import ProprioHistory, heading_gravity, pack_decoder_step, policy_proprio
 from wbc.operator import (
     OPERATOR_INPUT_HZ,
@@ -43,6 +53,14 @@ from wbc.teleop import (
 __all__ = [
     "FivePointCommand",
     "G1CheckpointIncompatible",
+    "HardwareHold",
+    "HardwareSnapshot",
+    "ObsGather",
+    "ObsGatherError",
+    "StateLogger",
+    "compile_observations",
+    "grouped_history_to_interleaved",
+    "interleaved_history_to_grouped",
     "HEADING_DAMPING_C",
     "KinematicPlanner",
     "MAX_NAV_SPEED_MPS",

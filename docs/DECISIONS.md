@@ -314,4 +314,12 @@
 - **Decision:** (B). `wbc/operator.py` is shared sim/real (no MuJoCo/Isaac/PICO). Integer factors only (100→500 = 5, 100→50 = 2, 100→10 = 10). Live `OperatorHold` is hold-last between 100 Hz pushes onto 500 Hz reads. Hands still bypass WBC and ride the clock. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`.
 - **Consequences:** `make eval-l1a-operator` dumps the 1.6 s counts (161 / 81 / 17 / 801). This is **not** SONIC's trained generative planner, **not** a PICO SDK, **not** the Hand 2 1 kHz MIT ring, **not** a pad–cardboard number, and **not** a flange/CoM substitute. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
 
+## ADR-041 — Observation gathering is YAML-driven grouped history, not invented latency
+
+- **Status:** accepted
+- **Context:** SONIC paper S7 (arXiv:2511.07820v3) gathers IMU orientation / angular velocity and joint q/dq at the 50 Hz control tick, remaps to policy joint order, and pushes a snapshot into a dual-purpose logger (ring + CSV). Observation order is a YAML registry compiled to (function, offset, dim) triples. Official GEAR-SONIC `observation_config.yaml` concatenates grouped blocks `token | ω_hist | q_hist | dq_hist | a_hist | g_hist`. Existing `ProprioHistory` packs interleaved 10×(ω,q,dq,a,g). Both are 874-D on T800 / 994-D on G1. Inventing a 40–150 ms sensor delay would violate SPEC_INTAKE. DexHand2 joints must not enter the WBC vector. Hardware may publish at 500 Hz; the paper uses latest-data-wins.
+- **Options:** (A) keep only interleaved `ProprioHistory` and skip the YAML registry; (B) compile `wbc/obs_gather.yaml` to the official grouped layout with T800 25-DoF dims, 50 Hz ring + 500 Hz `HardwareHold`, delay ticks locked at 0, G1 994 / 29-DoF / hand names refused, provide grouped↔interleaved converters; (C) copy G1 29-DoF names and fill typical IMU noise.
+- **Decision:** (B). `wbc/gather.py` is shared sim/real (no MuJoCo/Isaac/PICO). Default total is 64+30+250+250+250+30 = 874. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`.
+- **Consequences:** `make eval-l1a-gather` dumps the compiled slots. Loading a T800 ONNX trained on interleaved packing needs `grouped_history_to_interleaved` (or a YAML that lists per-frame slots). Do not invent IMU bias or camera delay. Encoder `motion_*` observations and a measured latency model are still future work. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
+
 

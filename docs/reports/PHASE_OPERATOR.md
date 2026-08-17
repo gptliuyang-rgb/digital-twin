@@ -45,3 +45,4 @@ Isaac Lab PPO launch still refused. Pad–cardboard μ remains `REQUIRED_INPUT`.
 - Diagnose a real GR00T / π0.5 dump once provided
 - Re-measure official XML MAE for the walk-clip sweep when Native SDK is cloned
 - SONIC's trained generative kinematic planner (this is still only interpolators + Eq. 8 + the 100/500 Hz rings)
+- Observation gathering at the four rates is ADR-041 (`wbc/gather.py`), not this module

@@ -110,7 +110,8 @@ planner:
   nav_spring: wbc/spring.yaml   # SONIC Eq. 8; ADR-038
   command_stream: wbc/stream.yaml  # 500 Hz PD ring; ADR-039
   operator_input: wbc/operator.yaml  # 100 Hz operator ring; ADR-040
-  note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring. The 500 Hz stream interpolates 10 Hz L1a, 50 Hz tokens, and 100 Hz operator samples onto the PD clock.
+  obs_gather: wbc/obs_gather.yaml  # 50 Hz YAML observation assembler; ADR-041 / paper S7
+  note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring. The 500 Hz stream interpolates 10 Hz L1a, 50 Hz tokens, and 100 Hz operator samples onto the PD clock. The 50 Hz control loop assembles decoder observations from the StateLogger ring (paper S7).
 
 g1_incompatible:
   g1_n_dof: 29
