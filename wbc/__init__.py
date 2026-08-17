@@ -7,9 +7,11 @@ from wbc.dims import (
     load_t800_sonic,
     t800_encoder_onnx_dim,
     t800_encoder_onnx_dim_low_latency,
+    t800_encoder_onnx_dim_v1_1,
 )
 from wbc.gather import (
     GATHER_LOW_LATENCY_YAML,
+    GATHER_SONIC_V1_1_YAML,
     GATHER_YAML,
     HardwareHold,
     HardwareSnapshot,
@@ -77,7 +79,9 @@ __all__ = [
     "StateLogger",
     "t800_encoder_onnx_dim",
     "t800_encoder_onnx_dim_low_latency",
+    "t800_encoder_onnx_dim_v1_1",
     "GATHER_LOW_LATENCY_YAML",
+    "GATHER_SONIC_V1_1_YAML",
     "GATHER_YAML",
     "compile_encoder_observations",
     "compile_observations",

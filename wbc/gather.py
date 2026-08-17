@@ -18,7 +18,11 @@ future look-ahead assembled from a caller-supplied 50 Hz reference
 lower-body + VR 3-point list; unused superset slots are zero-filled.
 ADR-044 adds the official ``low_latency/`` layout: g1/teleop
 ``*_10frame_step1`` (no root_z); SMPL/wrist ``*_4frame_step1`` stay refused.
-G1 encoder ONNX / 650-D / 1751-D / 1247-D / wrist / SMPL channels are refused.
+ADR-045 adds official ``sonic_v1_1/``: g1/teleop ``*_10frame_step5`` with
+``motion_anchor_orientation_heading_*`` (no root_z); SMPL/wrist
+``*_10frame_step1`` stay refused. G1 encoder ONNX / 650-D / 1751-D /
+1247-D / wrist / SMPL channels are refused. The T800 v1.1 vector is
+831-D — the same integer as low-latency, different names. Do not pair them.
 VR 3-point is packed from ``command_schema_v1``, not a PICO SDK.
 Not Table S4. Not pad–cardboard. Not an invented clip.
 """
@@ -43,12 +47,14 @@ from wbc.dims import (
     ANCHOR_ORI_DIM,
     ENCODER_VARIANT_DEFAULT,
     ENCODER_VARIANT_LOW_LATENCY,
+    ENCODER_VARIANT_SONIC_V1_1,
     G1_DECODER_INPUT_DIM,
     G1_ENCODER_MOTION_DIM,
     G1_ENCODER_MOTION_DIM_LOW_LATENCY,
     G1_ENCODER_ONNX_DIM,
     G1_ENCODER_ONNX_DIM_LOW_LATENCY,
     G1_ENCODER_ONNX_DIM_UNPATCHED,
+    G1_ENCODER_ONNX_DIM_V1_1,
     G1_N_DOF,
     HISTORY_FRAMES,
     ROOT_Z_DIM,
@@ -60,6 +66,7 @@ from wbc.dims import (
     load_t800_sonic,
     t800_encoder_onnx_dim,
     t800_encoder_onnx_dim_low_latency,
+    t800_encoder_onnx_dim_v1_1,
 )
 from wbc.motion_ref import (
     MotionHold,
@@ -75,6 +82,7 @@ from wbc.teleop import FivePointCommand, command_to_vr_3point
 
 GATHER_YAML = Path(__file__).with_name("obs_gather.yaml")
 GATHER_LOW_LATENCY_YAML = Path(__file__).with_name("obs_gather_low_latency.yaml")
+GATHER_SONIC_V1_1_YAML = Path(__file__).with_name("obs_gather_sonic_v1_1.yaml")
 _G1_ENCODER_DIMS_FORBIDDEN = frozenset(
     {
         G1_ENCODER_MOTION_DIM,
@@ -82,6 +90,7 @@ _G1_ENCODER_DIMS_FORBIDDEN = frozenset(
         G1_ENCODER_ONNX_DIM,
         G1_ENCODER_ONNX_DIM_UNPATCHED,
         G1_ENCODER_ONNX_DIM_LOW_LATENCY,
+        G1_ENCODER_ONNX_DIM_V1_1,
     }
 )
 _HISTORY_NAME = re.compile(r"^(?P<base>.+)_(?P<n>\d+)frame_step(?P<s>\d+)$")
@@ -213,7 +222,17 @@ def load_gather_cfg(path: Path | None = None) -> dict[str, Any]:
     if default_mode not in mode_names:
         raise ObsGatherError(f"default_encoder_mode {default_mode!r} is not in encoder_modes")
     variant = encoder_variant_of(raw)
+    if variant == ENCODER_VARIANT_SONIC_V1_1:
+        if raw.get("not_low_latency") is not True:
+            raise ValueError("sonic_v1_1 YAML must keep not_low_latency: true")
+        if raw.get("not_wrist_pose_augmentation_sampler") is not True:
+            raise ValueError(
+                "sonic_v1_1 YAML must keep not_wrist_pose_augmentation_sampler: true. "
+                "Wrist-pose augmentation is training-time; do not invent a sampler."
+            )
     steps, _frames, four = motion_history_horizons(enabled_names)
+    heading_ori = [n for n in enabled_names if is_heading_ori_name(n)]
+    full_ori = [n for n in enabled_names if is_full_ori_name(n)]
     if four:
         raise ObsGatherError(
             f"{four} is the official SMPL/wrist 4frame_step1 horizon. "
@@ -222,8 +241,10 @@ def load_gather_cfg(path: Path | None = None) -> dict[str, Any]:
     if len(steps) > 1:
         raise ObsGatherError(
             f"encoder_observations mix look-ahead steps {sorted(steps)}. "
-            "Official default is 10frame_step5; official low_latency is 10frame_step1. "
-            "Do not concatenate the two YAMLs."
+            "Official default and sonic_v1_1 g1/teleop are 10frame_step5; "
+            "official low_latency g1/teleop is 10frame_step1. "
+            "Official v1.1 SMPL/wrist 10frame_step1 is refused on T800. "
+            "Do not concatenate the YAMLs."
         )
     if variant == ENCODER_VARIANT_DEFAULT and 1 in steps:
         raise ObsGatherError(
@@ -233,13 +254,39 @@ def load_gather_cfg(path: Path | None = None) -> dict[str, Any]:
     if variant == ENCODER_VARIANT_LOW_LATENCY and 5 in steps:
         raise ObsGatherError(
             "low_latency encoder_variant cannot list *_step5 motion names. "
-            "Default 10frame_step5 stays in wbc/obs_gather.yaml (ADR-043)."
+            "Default 10frame_step5 stays in wbc/obs_gather.yaml (ADR-043). "
+            "SONIC v1.1 heading step5 stays in wbc/obs_gather_sonic_v1_1.yaml (ADR-045)."
+        )
+    if variant == ENCODER_VARIANT_SONIC_V1_1 and 1 in steps:
+        raise ObsGatherError(
+            "sonic_v1_1 g1/teleop names are *_10frame_step5. "
+            "Official SMPL/wrist 10frame_step1 stays refused on T800."
+        )
+    if variant == ENCODER_VARIANT_DEFAULT and heading_ori:
+        raise ObsGatherError(
+            f"{heading_ori} is the SONIC v1.1 heading-normalized ori. "
+            "Use wbc/obs_gather_sonic_v1_1.yaml (ADR-045)."
+        )
+    if variant == ENCODER_VARIANT_LOW_LATENCY and heading_ori:
+        raise ObsGatherError(
+            f"{heading_ori} is SONIC v1.1 heading ori. "
+            "low_latency uses full motion_anchor_orientation_*_step1 (ADR-044)."
+        )
+    if variant == ENCODER_VARIANT_SONIC_V1_1 and full_ori:
+        raise ObsGatherError(
+            f"{full_ori} is the default/full relative ori. "
+            "sonic_v1_1 must use motion_anchor_orientation_heading_*."
+        )
+    if variant == ENCODER_VARIANT_SONIC_V1_1 and not heading_ori:
+        raise ObsGatherError(
+            "sonic_v1_1 must list motion_anchor_orientation_heading "
+            "(robot-heading-normalized targets, ADR-045)."
         )
     z_names = [n for n in enabled_names if "root_z" in n]
-    if variant == ENCODER_VARIANT_LOW_LATENCY and z_names:
+    if variant in (ENCODER_VARIANT_LOW_LATENCY, ENCODER_VARIANT_SONIC_V1_1) and z_names:
         raise ObsGatherError(
-            f"{z_names} are omitted from official low_latency/observation_config.yaml. "
-            "Do not carry motion_root_z_* into the step1 layout."
+            f"{z_names} are omitted from official {variant}/observation_config.yaml. "
+            "Do not carry motion_root_z_* into this layout."
         )
     expected_enc = int(raw["expected_encoder_dim"])
     g1_enc = int(raw["g1_encoder_dim_forbidden"])
@@ -256,11 +303,17 @@ def load_gather_cfg(path: Path | None = None) -> dict[str, Any]:
         t800_enc = t800_encoder_onnx_dim(n_dof=int(raw["n_dof"]))
         if g1_onnx != G1_ENCODER_ONNX_DIM:
             raise ObsGatherError(f"g1_encoder_onnx_dim_forbidden drifted from {G1_ENCODER_ONNX_DIM}")
-    else:
+    elif variant == ENCODER_VARIANT_LOW_LATENCY:
         t800_enc = t800_encoder_onnx_dim_low_latency(n_dof=int(raw["n_dof"]))
         if g1_onnx != G1_ENCODER_ONNX_DIM_LOW_LATENCY:
             raise ObsGatherError(
                 f"g1_encoder_onnx_dim_forbidden drifted from {G1_ENCODER_ONNX_DIM_LOW_LATENCY}"
+            )
+    else:
+        t800_enc = t800_encoder_onnx_dim_v1_1(n_dof=int(raw["n_dof"]))
+        if g1_onnx != G1_ENCODER_ONNX_DIM_V1_1:
+            raise ObsGatherError(
+                f"g1_encoder_onnx_dim_forbidden drifted from {G1_ENCODER_ONNX_DIM_V1_1}"
             )
     if expected_enc != t800_enc:
         raise ObsGatherError(f"expected_encoder_dim {expected_enc} != T800 {t800_enc}")
@@ -276,15 +329,33 @@ def parse_history_name(name: str) -> tuple[str, int, int] | None:
 
 
 def encoder_variant_of(cfg: dict[str, Any]) -> str:
-    raw = str(cfg.get("encoder_variant", ENCODER_VARIANT_DEFAULT)).lower().replace("-", "_")
+    raw = (
+        str(cfg.get("encoder_variant", ENCODER_VARIANT_DEFAULT))
+        .lower()
+        .replace("-", "_")
+        .replace(".", "_")
+    )
     if raw in ("default", "step5", "release"):
         return ENCODER_VARIANT_DEFAULT
     if raw in ("low_latency", "lowlatency", "step1"):
         return ENCODER_VARIANT_LOW_LATENCY
+    if raw in ("sonic_v1_1", "v1_1"):
+        return ENCODER_VARIANT_SONIC_V1_1
     raise ObsGatherError(
-        f"encoder_variant {raw!r} is not wired. Allowed: default, low_latency. "
-        "Do not invent a v1.1/heading mix in this YAML."
+        f"encoder_variant {raw!r} is not wired. "
+        "Allowed: default, low_latency, sonic_v1_1. "
+        "Do not mix heading ori into the default YAML or step1 into v1.1."
     )
+
+
+def is_heading_ori_name(name: str) -> bool:
+    """Official sonic_v1_1 heading-normalized anchor orientation."""
+    return "anchor_orientation_heading" in name or "anchor_orientation_refheading" in name
+
+
+def is_full_ori_name(name: str) -> bool:
+    """Default / low-latency full relative orientation (R_robot.T @ R_ref)."""
+    return "anchor_orientation" in name and not is_heading_ori_name(name)
 
 
 def motion_history_horizons(names: list[str]) -> tuple[set[int], set[int], list[str]]:
@@ -652,12 +723,15 @@ class ObsGather:
         return out
 
     def assemble_encoder(self, mode: str | None = None) -> np.ndarray:
-        """Encoder INPUT (842-D default / 831-D low-latency on T800). Does not run G1 ONNX.
+        """Encoder INPUT (842-D default / 831-D low-latency / 831-D v1.1 on T800).
 
-        Official multi-mode layout: concatenate the YAML superset, zero-fill
-        observations that are not in the active mode's required_observations.
-        Default YAML is 10frame_step5 (ADR-043). low_latency YAML is
-        10frame_step1 with no root_z (ADR-044). SMPL 4frame_step1 stays refused.
+        Does not run G1 ONNX. Official multi-mode layout: concatenate the YAML
+        superset, zero-fill observations that are not in the active mode's
+        required_observations. Default YAML is 10frame_step5 full ori (ADR-043).
+        low_latency YAML is 10frame_step1 with no root_z (ADR-044). sonic_v1_1
+        YAML is 10frame_step5 heading ori with no root_z (ADR-045). SMPL
+        4frame_step1 and v1.1 SMPL/wrist 10frame_step1 stay refused. The two
+        831-D layouts are not interchangeable.
         """
         if mode is not None:
             self.set_encoder_mode(mode)
@@ -900,9 +974,8 @@ def compile_observations(cfg: dict[str, Any] | None = None) -> tuple[list[ObsSlo
 
 
 def compile_encoder_observations(cfg: dict[str, Any] | None = None) -> tuple[list[ObsSlot], int]:
-    """Official encoder_observations SUPERSET. T800 842-D default / 831-D low-latency.
-
-    G1 1751 / 1247 / 650 / 640 refused.
+    """Official encoder_observations SUPERSET. T800 842-D default / 831-D
+    low-latency / 831-D sonic_v1_1 (heading). G1 1751 / 1247 / 650 / 640 refused.
     """
     cfg = cfg if cfg is not None else load_gather_cfg()
     encoder = cfg["encoder"]

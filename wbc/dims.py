@@ -37,7 +37,11 @@ VR_3POINT_POS_DIM = 9
 VR_3POINT_ORN_DIM = 12
 ENCODER_VARIANT_DEFAULT = "default"
 ENCODER_VARIANT_LOW_LATENCY = "low_latency"
+ENCODER_VARIANT_SONIC_V1_1 = "sonic_v1_1"
 SMPL_LOW_LATENCY_FRAMES = 4  # official smpl_*_4frame_step1; refused on T800
+# Official sonic_v1_1/observation_config.yaml header (G1). Same integer as the
+# default G1 encoder; layout is heading ori, no root_z, SMPL/wrists 10frame_step1.
+G1_ENCODER_ONNX_DIM_V1_1 = 1751
 
 
 def encoder_motion_dim(
@@ -70,6 +74,8 @@ def t800_encoder_onnx_dim(
     4 + 2*(10*25) + 10 + 1 + 6 + 60 + 2*(10*12) + 9 + 12 = 842
 
     Official low_latency YAML omits root_z (include_root_z=False → 831).
+    Official sonic_v1_1 YAML also omits root_z and uses heading ori
+    (same 831 integer, different names — ADR-045).
     """
     n = int(n_dof)
     if n == G1_N_DOF:
@@ -99,6 +105,20 @@ def t800_encoder_onnx_dim_low_latency(*, n_dof: int = 25, n_frames: int = HISTOR
     Official G1 low-latency encoder is 1247-D (SMPL 4frame_step1 + wrists 4frame
     + g1/teleop 10frame_step1). SMPL/wrists refused. Official YAML omits
     motion_root_z_*. 4 + 2*(10*25) + 6 + 60 + 2*(10*12) + 9 + 12 = 831.
+    """
+    return t800_encoder_onnx_dim(n_dof=n_dof, n_frames=n_frames, include_root_z=False)
+
+
+def t800_encoder_onnx_dim_v1_1(*, n_dof: int = 25, n_frames: int = HISTORY_FRAMES) -> int:
+    """T800 analogue of nvidia/GEAR-SONIC sonic_v1_1/observation_config.yaml.
+
+    Official G1 v1.1 encoder is 1751-D (heading-normalized ori, no root_z,
+    SMPL/wrists 10frame_step1, g1/teleop 10frame_step5). SMPL/wrists refused.
+    T800: 4 + 2*(10*25) + 6 + 60 + 2*(10*12) + 9 + 12 = 831.
+
+    Same integer as low-latency 831, **different** observation names
+    (step5 + ``motion_anchor_orientation_heading_*``). Do not pair the
+    two layouts. Wrist-pose augmentation is training-time, not packed here.
     """
     return t800_encoder_onnx_dim(n_dof=n_dof, n_frames=n_frames, include_root_z=False)
 
@@ -195,15 +215,19 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         raise ValueError(f"encoder_motion_dim {cfg.get('encoder_motion_dim')} != {enc}")
     onnx = t800_encoder_onnx_dim(n_dof=int(cfg["n_revolute"]))
     onnx_ll = t800_encoder_onnx_dim_low_latency(n_dof=int(cfg["n_revolute"]))
+    onnx_v11 = t800_encoder_onnx_dim_v1_1(n_dof=int(cfg["n_revolute"]))
     g1_nums = (
         G1_ENCODER_ONNX_DIM,
         G1_ENCODER_ONNX_DIM_UNPATCHED,
         G1_ENCODER_ONNX_DIM_LOW_LATENCY,
+        G1_ENCODER_ONNX_DIM_V1_1,
         G1_ENCODER_MOTION_DIM,
         G1_ENCODER_MOTION_DIM_LOW_LATENCY,
     )
-    if onnx in g1_nums or onnx_ll in g1_nums:
+    if onnx in g1_nums or onnx_ll in g1_nums or onnx_v11 in g1_nums:
         raise ValueError("T800 encoder ONNX dim must not be a G1 number")
+    if onnx_v11 != onnx_ll:
+        raise ValueError("v1.1 T800 dim must stay the no-root_z 831 formula")
     if int(cfg.get("n_wrist_dof", 0)) != 0:
         raise ValueError("n_wrist_dof must be 0 on T800")
     if int(cfg.get("n_lower_body_dof", T800_N_LOWER_BODY_DOF)) != T800_N_LOWER_BODY_DOF:
@@ -214,6 +238,8 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg["g1_encoder_onnx_dim"] = G1_ENCODER_ONNX_DIM
     cfg["encoder_onnx_dim_low_latency"] = onnx_ll
     cfg["g1_encoder_onnx_dim_low_latency"] = G1_ENCODER_ONNX_DIM_LOW_LATENCY
+    cfg["encoder_onnx_dim_v1_1"] = onnx_v11
+    cfg["g1_encoder_onnx_dim_v1_1"] = G1_ENCODER_ONNX_DIM_V1_1
     cfg["encoder_motion_dim_low_latency"] = encoder_motion_dim(
         int(cfg["n_revolute"]), include_root_z=False
     )

@@ -16,8 +16,10 @@ n_wrist_dof: 0               # dummy LINK_WRIST_END_*; motion_*_wrists_* refused
 encoder_motion_dim: 570      # 10frame_step5 q+dq+ori6+z ; G1 650 forbidden
 encoder_onnx_dim: 842        # default HuggingFace superset minus SMPL/wrists
 encoder_onnx_dim_low_latency: 831  # low_latency YAML minus SMPL/wrists/root_z; G1 1247 forbidden
+encoder_onnx_dim_v1_1: 831   # sonic_v1_1 YAML minus SMPL/wrists/root_z, heading ori; G1 1751 forbidden
 g1_encoder_motion_dim: 650
 g1_encoder_onnx_dim_low_latency: 1247
+g1_encoder_onnx_dim_v1_1: 1751
 floating_base_link: LINK_BASE
 control_rate_hz: 50          # Hz, SONIC policy / tracker token (ADR-021 sonic_command_hz)
 command_stream_hz: 500       # Hz, SONIC §3.5 PD instruction ring (ADR-039)
