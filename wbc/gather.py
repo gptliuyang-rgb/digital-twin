@@ -14,8 +14,11 @@ T800 dims: 64+30+250+250+250+30 = 874. G1 994 is refused (ADR-011).
 Hands still bypass WBC. No invented sensor latency (delay ticks stay 0
 until SPEC_INTAKE measures one). Encoder ``motion_*_10frame_step5`` is a
 future look-ahead assembled from a caller-supplied 50 Hz reference
-(ADR-042); G1 encoder ONNX / 650-D / wrist channels are refused.
-Not Table S4. Not pad–cardboard. Not a PICO SDK. Not an invented clip.
+(ADR-042). ADR-043 adds official ``encoder_mode_4`` plus the teleop
+lower-body + VR 3-point list; unused superset slots are zero-filled.
+G1 encoder ONNX / 650-D / 1751-D / wrist / SMPL channels are refused.
+VR 3-point is packed from ``command_schema_v1``, not a PICO SDK.
+Not Table S4. Not pad–cardboard. Not an invented clip.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ from typing import Any
 import numpy as np
 import yaml
 
+from interface.schema import CommandVector
 from vla.adapters.frame_transform import yaw_from_quat_wxyz
 from vla.adapters.rotation import quaternion_wxyz_to_matrix
 from wbc.checkpoint import refuse_g1_checkpoint
@@ -37,6 +41,8 @@ from wbc.dims import (
     ANCHOR_ORI_DIM,
     G1_DECODER_INPUT_DIM,
     G1_ENCODER_MOTION_DIM,
+    G1_ENCODER_ONNX_DIM,
+    G1_ENCODER_ONNX_DIM_UNPATCHED,
     G1_N_DOF,
     HISTORY_FRAMES,
     ROOT_Z_DIM,
@@ -45,6 +51,7 @@ from wbc.dims import (
     decoder_history_dim,
     encoder_motion_dim,
     load_t800_sonic,
+    t800_encoder_onnx_dim,
 )
 from wbc.motion_ref import (
     MotionHold,
@@ -56,6 +63,7 @@ from wbc.motion_ref import (
 )
 from wbc.observation import heading_angular_velocity, heading_gravity
 from wbc.stream import OPERATOR_INPUT_HZ, PLANNER_HZ, POLICY_HZ, STREAM_HZ
+from wbc.teleop import FivePointCommand, command_to_vr_3point
 
 GATHER_YAML = Path(__file__).with_name("obs_gather.yaml")
 _HISTORY_NAME = re.compile(r"^(?P<base>.+)_(?P<n>\d+)frame_step(?P<s>\d+)$")
@@ -118,6 +126,8 @@ def load_gather_cfg(path: Path | None = None) -> dict[str, Any]:
         raise ValueError("obs_gather.yaml must keep not_invented_clip: true")
     if raw.get("not_g1_encoder_onnx") is not True:
         raise ValueError("obs_gather.yaml must keep not_g1_encoder_onnx: true")
+    if raw.get("not_smpl_encoder") is not True:
+        raise ValueError("obs_gather.yaml must keep not_smpl_encoder: true")
     if int(raw["policy_hz"]) != POLICY_HZ:
         raise ValueError("policy_hz must stay 50 (SONIC §3.5 / S7 control loop)")
     if int(raw["command_stream_hz"]) != STREAM_HZ:
@@ -157,18 +167,49 @@ def load_gather_cfg(path: Path | None = None) -> dict[str, Any]:
         raise ObsGatherError("encoder: section is required (ADR-042)")
     if int(encoder.get("dimension", -1)) != TOKEN_DIM:
         raise ObsGatherError(f"encoder.dimension must stay {TOKEN_DIM}")
+    enabled_names = [
+        str(entry["name"])
+        for entry in encoder.get("encoder_observations", [])
+        if entry.get("enabled", True)
+    ]
     for mode in encoder.get("encoder_modes", []):
         name = str(mode.get("name", "")).lower()
         if name == "g1":
             raise ObsGatherError("encoder_modes must not use the G1 mode name on T800")
+        if name == "smpl":
+            raise ObsGatherError(
+                "encoder_modes must not use the SMPL mode on T800 "
+                "(needs smpl_joint.csv and G1 wrist DoF)"
+            )
+        if name not in ("t800", "teleop"):
+            raise ObsGatherError(
+                f"encoder mode {name!r} is not wired. Allowed: t800, teleop. "
+                "Do not invent a PICO/SMPL mode."
+            )
+        required = [str(n) for n in mode.get("required_observations", [])]
+        missing = [n for n in required if n not in enabled_names]
+        if missing:
+            raise ObsGatherError(f"encoder mode {name!r} required unknown observations {missing}")
+    default_mode = str(raw.get("default_encoder_mode", "t800")).lower()
+    mode_names = {str(m.get("name", "")).lower() for m in encoder.get("encoder_modes", [])}
+    if default_mode not in mode_names:
+        raise ObsGatherError(f"default_encoder_mode {default_mode!r} is not in encoder_modes")
     expected_enc = int(raw["expected_encoder_dim"])
     g1_enc = int(raw["g1_encoder_dim_forbidden"])
     if g1_enc != G1_ENCODER_MOTION_DIM:
         raise ObsGatherError(f"g1_encoder_dim_forbidden drifted from {G1_ENCODER_MOTION_DIM}")
-    t800_enc = encoder_motion_dim(int(raw["n_dof"]))
+    g1_onnx = int(raw["g1_encoder_onnx_dim_forbidden"])
+    if g1_onnx != G1_ENCODER_ONNX_DIM:
+        raise ObsGatherError(f"g1_encoder_onnx_dim_forbidden drifted from {G1_ENCODER_ONNX_DIM}")
+    window = encoder_motion_dim(int(raw["n_dof"]))
+    if int(raw.get("encoder_motion_window_dim", window)) != window:
+        raise ObsGatherError(
+            f"encoder_motion_window_dim {raw.get('encoder_motion_window_dim')} != {window}"
+        )
+    t800_enc = t800_encoder_onnx_dim(n_dof=int(raw["n_dof"]))
     if expected_enc != t800_enc:
         raise ObsGatherError(f"expected_encoder_dim {expected_enc} != T800 {t800_enc}")
-    if expected_enc == G1_ENCODER_MOTION_DIM:
+    if expected_enc in (G1_ENCODER_MOTION_DIM, G1_ENCODER_ONNX_DIM, G1_ENCODER_ONNX_DIM_UNPATCHED):
         refuse_g1_checkpoint(n_dof=G1_N_DOF)
     return raw
 
@@ -243,6 +284,35 @@ def single_frame_dim(name: str, n_dof: int, token_dim: int) -> int:
     if name == "vr_3point_local_orn_target":
         return 12
     raise ObsGatherError(f"unknown observation {name!r}")
+
+
+class Vr3PointHold:
+    """Latest VR 3-point pose from command_schema_v1. Not a PICO SDK.
+
+    Official teleop encoder required_observations include
+    ``vr_3point_local_target`` (9) and ``vr_3point_local_orn_target`` (12).
+    Empty hold raises in teleop mode — do not invent a headset pose.
+    """
+
+    def __init__(self) -> None:
+        self._pos: np.ndarray | None = None
+        self._orn: np.ndarray | None = None
+
+    def push(self, pos9: np.ndarray, orn12: np.ndarray) -> None:
+        pos = np.asarray(pos9, dtype=np.float64).reshape(9)
+        orn = np.asarray(orn12, dtype=np.float64).reshape(12)
+        if not np.isfinite(pos).all() or not np.isfinite(orn).all():
+            raise ObsGatherError("vr_3point contains NaN/Inf")
+        self._pos = pos.copy()
+        self._orn = orn.copy()
+
+    def read(self) -> tuple[np.ndarray, np.ndarray]:
+        if self._pos is None or self._orn is None:
+            raise MotionRefError(
+                "vr_3point hold is empty. Push command_schema_v1 via "
+                "push_vr_3point. Do not invent a PICO / CloudXR pose."
+            )
+        return self._pos, self._orn
 
 
 class HardwareHold:
@@ -396,12 +466,14 @@ class ObsGather:
 
     cfg: dict[str, Any] = field(default_factory=load_gather_cfg)
     hw: HardwareHold = field(default_factory=HardwareHold)
+    vr: Vr3PointHold = field(default_factory=Vr3PointHold)
     motion: MotionHold = field(init=False)
     logger: StateLogger = field(init=False)
     slots: list[ObsSlot] = field(init=False)
     encoder_slots: list[ObsSlot] = field(init=False)
     total_dim: int = field(init=False)
     encoder_dim: int = field(init=False)
+    encoder_mode_name: str = field(init=False)
     token: np.ndarray | None = None
 
     def __post_init__(self) -> None:
@@ -415,9 +487,10 @@ class ObsGather:
         )
         self.slots, self.total_dim = compile_observations(self.cfg)
         self.encoder_slots, self.encoder_dim = compile_encoder_observations(self.cfg)
+        self.encoder_mode_name = str(self.cfg.get("default_encoder_mode", "t800")).lower()
         if self.total_dim == G1_DECODER_INPUT_DIM:
             refuse_g1_checkpoint(decoder_input_dim=G1_DECODER_INPUT_DIM)
-        if self.encoder_dim == G1_ENCODER_MOTION_DIM:
+        if self.encoder_dim in (G1_ENCODER_MOTION_DIM, G1_ENCODER_ONNX_DIM, G1_ENCODER_ONNX_DIM_UNPATCHED):
             refuse_g1_checkpoint(n_dof=G1_N_DOF)
         expected = int(self.cfg["expected_total_dim"])
         if self.total_dim != expected:
@@ -435,6 +508,40 @@ class ObsGather:
 
     def push_motion(self, frames, *, cursor: int = 0) -> None:
         self.motion.push_sequence(frames, cursor=cursor)
+
+    def push_vr_3point(self, cmd: CommandVector | FivePointCommand) -> None:
+        """Pack VR 3-point from command_schema. Five-point is refused here."""
+        if isinstance(cmd, FivePointCommand):
+            raise ObsGatherError(
+                "encoder teleop mode is official 3-point "
+                "(vr_3point_local_target + vr_3point_local_orn_target). "
+                "5-point elbows do not enter this encoder list."
+            )
+        pos, orn = command_to_vr_3point(cmd)
+        self.vr.push(pos, orn)
+
+    def set_encoder_mode(self, name: str) -> None:
+        key = str(name).lower().replace("-", "_")
+        if key in ("3point", "vr_3point"):
+            key = "teleop"
+        if key in ("g1", "smpl"):
+            raise ObsGatherError(f"encoder mode {name!r} is refused on T800")
+        names = {str(m.get("name", "")).lower() for m in self.cfg.get("encoder", {}).get("encoder_modes", [])}
+        if key not in names:
+            raise ObsGatherError(f"encoder mode {name!r} is not in encoder_modes")
+        self.encoder_mode_name = key
+
+    def encoder_mode_id(self) -> int:
+        for mode in self.cfg.get("encoder", {}).get("encoder_modes", []):
+            if str(mode.get("name", "")).lower() == self.encoder_mode_name:
+                return int(mode.get("mode_id", 0))
+        raise ObsGatherError(f"encoder mode {self.encoder_mode_name!r} has no mode_id")
+
+    def required_encoder_observations(self) -> list[str]:
+        for mode in self.cfg.get("encoder", {}).get("encoder_modes", []):
+            if str(mode.get("name", "")).lower() == self.encoder_mode_name:
+                return [str(n) for n in mode.get("required_observations", [])]
+        raise ObsGatherError(f"encoder mode {self.encoder_mode_name!r} is missing required_observations")
 
     def control_tick(self, token: np.ndarray, *, t_s: float | None = None) -> np.ndarray:
         """Copy latest hardware into the 50 Hz ring and assemble the decoder vector."""
@@ -455,12 +562,20 @@ class ObsGather:
             slot.gather(self, out, slot.offset)
         return out
 
-    def assemble_encoder(self) -> np.ndarray:
-        """Encoder INPUT (570-D on T800). Does not run G1 model_encoder.onnx."""
+    def assemble_encoder(self, mode: str | None = None) -> np.ndarray:
+        """Encoder INPUT (842-D on T800). Does not run G1 model_encoder.onnx.
+
+        Official multi-mode layout: concatenate the YAML superset, zero-fill
+        observations that are not in the active mode's required_observations.
+        """
+        if mode is not None:
+            self.set_encoder_mode(mode)
+        required = set(self.required_encoder_observations())
         out = np.zeros(self.encoder_dim, dtype=np.float64)
         try:
             for slot in self.encoder_slots:
-                slot.gather(self, out, slot.offset)
+                if slot.name in required:
+                    slot.gather(self, out, slot.offset)
         except MotionRefError:
             raise
         return out
@@ -543,7 +658,7 @@ def _anchor_mode(base: str) -> str:
     return "full"
 
 
-def _robot_quat_wxyz(gather: "ObsGather") -> np.ndarray:
+def _robot_quat_wxyz(gather: ObsGather) -> np.ndarray:
     try:
         hw = gather.hw.read()
     except ObsGatherError as exc:
@@ -554,7 +669,7 @@ def _robot_quat_wxyz(gather: "ObsGather") -> np.ndarray:
 
 
 def _fill_motion(
-    gather: "ObsGather",
+    gather: ObsGather,
     buf: np.ndarray,
     offset: int,
     *,
@@ -613,13 +728,21 @@ def _make_motion_current_fn(name: str) -> GatherFn:
 
 def _make_encoder_mode_fn(dim: int) -> GatherFn:
     def _fn(gather: ObsGather, buf: np.ndarray, offset: int) -> None:
-        mode_id = 0
-        for mode in gather.cfg.get("encoder", {}).get("encoder_modes", []):
-            if str(mode.get("name", "")).lower() == "t800":
-                mode_id = int(mode.get("mode_id", 0))
-                break
-        buf[offset] = float(mode_id)
+        buf[offset] = float(gather.encoder_mode_id())
         buf[offset + 1 : offset + dim] = 0.0
+
+    return _fn
+
+
+def _make_vr_fn(name: str) -> GatherFn:
+    def _fn(gather: ObsGather, buf: np.ndarray, offset: int) -> None:
+        pos, orn = gather.vr.read()
+        if name == "vr_3point_local_target":
+            buf[offset : offset + 9] = pos
+        elif name == "vr_3point_local_orn_target":
+            buf[offset : offset + 12] = orn
+        else:
+            raise ObsGatherError(f"vr observation {name!r} is not wired")
 
     return _fn
 
@@ -633,6 +756,11 @@ def _slot_for_name(name: str, cfg: dict[str, Any], offset: int) -> ObsSlot:
         refuse_smpl_observation(name)
     except MotionRefError as exc:
         raise ObsGatherError(str(exc)) from exc
+    if "vr_5point" in name.lower() or name.lower().startswith("vr_5"):
+        raise ObsGatherError(
+            f"observation {name!r} is 5-point. Official teleop encoder is 3-point "
+            "(vr_3point_local_target + vr_3point_local_orn_target)."
+        )
     parsed = parse_history_name(name)
     if name == "token_state":
         dim = single_frame_dim(name, n_dof, token_dim)
@@ -640,6 +768,9 @@ def _slot_for_name(name: str, cfg: dict[str, Any], offset: int) -> ObsSlot:
     elif name in ("encoder_mode", "encoder_mode_4"):
         dim = single_frame_dim(name, n_dof, token_dim)
         fn = _make_encoder_mode_fn(dim)
+    elif name in ("vr_3point_local_target", "vr_3point_local_orn_target"):
+        dim = single_frame_dim(name, n_dof, token_dim)
+        fn = _make_vr_fn(name)
     elif parsed is not None:
         base, n_frames, step = parsed
         dim = history_block_dim(base, n_frames, n_dof)
@@ -673,7 +804,7 @@ def compile_observations(cfg: dict[str, Any] | None = None) -> tuple[list[ObsSlo
 
 
 def compile_encoder_observations(cfg: dict[str, Any] | None = None) -> tuple[list[ObsSlot], int]:
-    """Official encoder_observations list. T800 570-D; G1 650-D is refused."""
+    """Official encoder_observations SUPERSET. T800 842-D; G1 1751/650 refused."""
     cfg = cfg if cfg is not None else load_gather_cfg()
     encoder = cfg["encoder"]
     slots: list[ObsSlot] = []
@@ -684,7 +815,7 @@ def compile_encoder_observations(cfg: dict[str, Any] | None = None) -> tuple[lis
         slot = _slot_for_name(str(entry["name"]), cfg, offset)
         slots.append(slot)
         offset += slot.dim
-    if offset == G1_ENCODER_MOTION_DIM:
+    if offset in (G1_ENCODER_MOTION_DIM, G1_ENCODER_ONNX_DIM, G1_ENCODER_ONNX_DIM_UNPATCHED):
         refuse_g1_checkpoint(n_dof=G1_N_DOF)
     expected = int(cfg["expected_encoder_dim"])
     if offset != expected:

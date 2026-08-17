@@ -56,7 +56,7 @@ make eval-l1a-spring      # SONIC Eq. 8 reverse-6 diagnostic; grasp_success_rate
 make eval-l1a-stream      # SONIC §3.5 500 Hz PD ring; grasp_success_rate stays null
 make eval-l1a-operator    # SONIC §3.5 100 Hz operator loop; grasp_success_rate stays null
 make eval-l1a-gather      # SONIC §S7 YAML obs gather (T800 874-D); grasp_success_rate stays null
-make eval-l1a-encoder     # SONIC encoder motion_* 10frame_step5 (T800 570-D); no invented clip
+make eval-l1a-encoder     # SONIC encoder 842-D (t800 + teleop modes); no PICO, no invented clip
 ```
 
 ## Facts already taken from official sources

@@ -1,4 +1,4 @@
-"""Dump SONIC encoder motion_* 10frame_step5 layout. grasp_success_rate stays JSON null."""
+"""Dump SONIC encoder 842-D layout (t800 + teleop modes). grasp_success_rate stays JSON null."""
 
 from __future__ import annotations
 
@@ -7,8 +7,14 @@ from pathlib import Path
 
 import numpy as np
 
-from interface.schema import REPO_ROOT
-from wbc.dims import G1_ENCODER_MOTION_DIM, TOKEN_DIM, encoder_motion_dim
+from interface.schema import REPO_ROOT, CommandVector
+from wbc.dims import (
+    G1_ENCODER_MOTION_DIM,
+    G1_ENCODER_ONNX_DIM,
+    TOKEN_DIM,
+    encoder_motion_dim,
+    t800_encoder_onnx_dim,
+)
 from wbc.gather import HardwareSnapshot, ObsGather, compile_encoder_observations, load_gather_cfg
 from wbc.motion_ref import MotionFrame, identity_rot6d, look_ahead_indices
 
@@ -46,30 +52,50 @@ def main() -> None:
     )
     gather.push_hw(snap)
     gather.push_motion(_window(50), cursor=0)
-    enc = gather.assemble_encoder()
+    cmd = CommandVector.zeros()
+    cmd.left_wrist_pos = np.array([0.1, 0.0, 0.0])
+    gather.push_vr_3point(cmd)
+    enc_t800 = gather.assemble_encoder("t800")
+    enc_teleop = gather.assemble_encoder("teleop")
     token = np.zeros(TOKEN_DIM)
     dec = gather.control_tick(token, t_s=0.0)
-    q = enc[:250].reshape(10, 25)[:, 0].tolist()
+    modes = {m["name"]: m for m in cfg["encoder"]["encoder_modes"]}
     payload = {
-        "source": "GEAR-SONIC observation_config.yaml encoder_observations (T800 dims)",
-        "adr": "ADR-042",
+        "source": "nvidia/GEAR-SONIC observation_config.yaml encoder_observations (T800 dims, no SMPL/wrists)",
+        "adr": "ADR-043",
         "n_dof": n,
         "encoder_dim": total,
         "expected_encoder_dim": cfg["expected_encoder_dim"],
+        "encoder_motion_window_dim": cfg["encoder_motion_window_dim"],
         "g1_encoder_dim_forbidden": G1_ENCODER_MOTION_DIM,
-        "formula_dim": encoder_motion_dim(n),
+        "g1_encoder_onnx_dim_forbidden": G1_ENCODER_ONNX_DIM,
+        "formula_motion_window_dim": encoder_motion_dim(n),
+        "formula_onnx_dim": t800_encoder_onnx_dim(n_dof=n),
         "decoder_dim": int(dec.shape[0]),
         "look_ahead_indices": look_ahead_indices(0, 10, 5, 50),
         "identity_rot6d": identity_rot6d().tolist(),
         "slots": [{"name": s.name, "offset": s.offset, "dim": s.dim} for s in slots],
-        "q0_window": q,
+        "t800_mode": {
+            "mode_id": modes["t800"]["mode_id"],
+            "required_observations": modes["t800"]["required_observations"],
+            "encoder_mode_4": enc_t800[:4].tolist(),
+            "q0_window": enc_t800[4:254].reshape(10, 25)[:, 0].tolist(),
+        },
+        "teleop_mode": {
+            "mode_id": modes["teleop"]["mode_id"],
+            "required_observations": modes["teleop"]["required_observations"],
+            "encoder_mode_4": enc_teleop[:4].tolist(),
+            "lowerbody_q0_window": enc_teleop[581:701].reshape(10, 12)[:, 0].tolist(),
+            "vr_3point_pos": enc_teleop[821:830].tolist(),
+        },
         "not_invented_clip": True,
         "not_g1_encoder_onnx": True,
+        "not_smpl_encoder": True,
+        "not_pico_sdk": True,
         "not_dexhand2_contact": True,
         "not_table_s4": True,
         "not_hand_mit_ring": True,
         "not_invented_latency": True,
-        "not_pico_sdk": True,
         "grasp_success_rate": None,
         "combined_robot": "PolicyEvalBlocked",
         "repo": str(REPO_ROOT),

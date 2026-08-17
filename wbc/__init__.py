@@ -1,7 +1,7 @@
 """SONIC / T800 whole-body-control contracts. Simulator-free."""
 
 from wbc.checkpoint import G1CheckpointIncompatible, refuse_g1_checkpoint
-from wbc.dims import decoder_history_dim, hybrid_encoder_cmd_dim, load_t800_sonic
+from wbc.dims import decoder_history_dim, hybrid_encoder_cmd_dim, load_t800_sonic, t800_encoder_onnx_dim
 from wbc.gather import (
     HardwareHold,
     HardwareSnapshot,
@@ -67,6 +67,7 @@ __all__ = [
     "ObsGather",
     "ObsGatherError",
     "StateLogger",
+    "t800_encoder_onnx_dim",
     "compile_encoder_observations",
     "compile_observations",
     "grouped_history_to_interleaved",

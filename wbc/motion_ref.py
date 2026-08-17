@@ -19,7 +19,6 @@ Hands still bypass WBC.
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 from pathlib import Path
 
 import numpy as np
@@ -208,8 +207,8 @@ def refuse_g1_encoder_onnx(path: str | Path | None = None) -> None:
     """Official model_encoder.onnx is Unitree G1. Do not load it on T800."""
     label = str(path) if path is not None else "model_encoder.onnx"
     raise G1CheckpointIncompatible(
-        f"{label} is a G1 encoder (29-DoF motion window 650-D). "
-        "T800 encoder input is 570-D. Retrain; do not load G1 ONNX."
+        f"{label} is a G1 encoder (ONNX input 1751-D, motion window 650-D). "
+        "T800 encoder input is 842-D (motion window 570-D). Retrain; do not load G1 ONNX."
     )
 
 

@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import yaml
 
+from interface.schema import CommandVector
 from wbc.checkpoint import G1CheckpointIncompatible
-from wbc.dims import G1_ENCODER_MOTION_DIM, TOKEN_DIM, encoder_motion_dim
+from wbc.dims import (
+    G1_ENCODER_MOTION_DIM,
+    G1_ENCODER_ONNX_DIM,
+    TOKEN_DIM,
+    encoder_motion_dim,
+    t800_encoder_onnx_dim,
+    teleop_encoder_required_dim,
+)
 from wbc.gather import (
     GATHER_YAML,
     HardwareSnapshot,
@@ -28,6 +38,7 @@ from wbc.motion_ref import (
     look_ahead_indices,
     refuse_g1_encoder_onnx,
 )
+from wbc.teleop import FivePointCommand
 
 
 def _identity_quat() -> np.ndarray:
@@ -63,25 +74,45 @@ def _window(n: int = 50) -> list[MotionFrame]:
     return [_frame(q0=float(i), z_m=1.03 + 0.001 * i, dq0=0.1 * i) for i in range(n)]
 
 
-def test_yaml_encoder_locks_t800_570_not_g1_650() -> None:
+def test_yaml_encoder_locks_t800_842_not_g1_1751() -> None:
     cfg = load_gather_cfg()
     assert cfg["not_invented_clip"] is True
     assert cfg["not_g1_encoder_onnx"] is True
+    assert cfg["not_smpl_encoder"] is True
+    assert cfg["not_pico_sdk"] is True
     assert cfg["n_wrist_dof"] == 0
     assert cfg["n_lower_body_dof"] == 12
-    assert cfg["expected_encoder_dim"] == 570
+    assert cfg["encoder_motion_window_dim"] == 570
+    assert cfg["expected_encoder_dim"] == 842
     assert cfg["g1_encoder_dim_forbidden"] == G1_ENCODER_MOTION_DIM
+    assert cfg["g1_encoder_onnx_dim_forbidden"] == G1_ENCODER_ONNX_DIM
+    assert cfg["default_encoder_mode"] == "t800"
     assert encoder_motion_dim(25) == 570
     assert encoder_motion_dim(29) == 650
+    assert t800_encoder_onnx_dim() == 842
+    assert teleop_encoder_required_dim() == 271
     slots, total = compile_encoder_observations(cfg)
-    assert total == 570
+    assert total == 842
     assert [s.name for s in slots] == [
+        "encoder_mode_4",
         "motion_joint_positions_10frame_step5",
         "motion_joint_velocities_10frame_step5",
-        "motion_anchor_orientation_10frame_step5",
         "motion_root_z_position_10frame_step5",
+        "motion_root_z_position",
+        "motion_anchor_orientation",
+        "motion_anchor_orientation_10frame_step5",
+        "motion_joint_positions_lowerbody_10frame_step5",
+        "motion_joint_velocities_lowerbody_10frame_step5",
+        "vr_3point_local_target",
+        "vr_3point_local_orn_target",
     ]
-    assert [s.dim for s in slots] == [250, 250, 60, 10]
+    assert [s.dim for s in slots] == [4, 250, 250, 10, 1, 6, 60, 120, 120, 9, 12]
+    assert [s.offset for s in slots] == [0, 4, 254, 504, 514, 515, 521, 581, 701, 821, 830]
+    modes = {m["name"]: m for m in cfg["encoder"]["encoder_modes"]}
+    assert modes["t800"]["mode_id"] == 0
+    assert modes["teleop"]["mode_id"] == 1
+    assert "encoder_mode_4" in modes["teleop"]["required_observations"]
+    assert "motion_joint_positions_lowerbody_10frame_step5" in modes["teleop"]["required_observations"]
     decoder_slots, decoder_dim = compile_observations(cfg)
     assert decoder_dim == 874
     assert decoder_slots[0].name == "token_state"
@@ -116,20 +147,29 @@ def test_look_ahead_step5_and_last_frame_repeat() -> None:
     assert [float(f.q_ref_rad[0]) for f in window] == [0.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]
 
 
-def test_assemble_encoder_grouped_layout() -> None:
+def test_assemble_encoder_t800_mode_zero_fills_unused() -> None:
     gather = ObsGather()
     gather.push_hw(_hw())
     gather.push_motion(_window(50), cursor=0)
-    enc = gather.assemble_encoder()
-    assert enc.shape == (570,)
-    q = enc[:250].reshape(10, 25)
-    dq = enc[250:500].reshape(10, 25)
-    ori = enc[500:560].reshape(10, 6)
-    z = enc[560:570]
+    enc = gather.assemble_encoder("t800")
+    assert enc.shape == (842,)
+    np.testing.assert_allclose(enc[:4], [0.0, 0.0, 0.0, 0.0])
+    q = enc[4:254].reshape(10, 25)
+    dq = enc[254:504].reshape(10, 25)
+    z_hist = enc[504:514]
+    z_now = enc[514:515]
+    ori_now = enc[515:521]
+    ori = enc[521:581].reshape(10, 6)
+    lower = enc[581:821]
+    vr = enc[821:842]
     np.testing.assert_allclose(q[:, 0], [0, 5, 10, 15, 20, 25, 30, 35, 40, 45])
     np.testing.assert_allclose(dq[:, 0], 0.1 * q[:, 0])
+    np.testing.assert_allclose(z_hist, 0.0)
+    np.testing.assert_allclose(z_now, 0.0)
+    np.testing.assert_allclose(ori_now, 0.0)
     np.testing.assert_allclose(ori, np.tile(identity_rot6d(), (10, 1)))
-    np.testing.assert_allclose(z, 1.03 + 0.001 * q[:, 0])
+    np.testing.assert_allclose(lower, 0.0)
+    np.testing.assert_allclose(vr, 0.0)
     token = np.zeros(TOKEN_DIM)
     dec = gather.control_tick(token, t_s=0.0)
     assert dec.shape == (874,)
@@ -145,8 +185,8 @@ def test_anchor_heading_correction_is_relative_rot6d() -> None:
     gather.push_hw(_hw(yaw_rad=np.pi / 2))
     frames = [_frame(q0=0.0, yaw_rad=0.0) for _ in range(50)]
     gather.push_motion(frames, cursor=0)
-    enc = gather.assemble_encoder()
-    ori = enc[500:560].reshape(10, 6)
+    enc = gather.assemble_encoder("t800")
+    ori = enc[521:581].reshape(10, 6)
     np.testing.assert_allclose(ori[0], [0.0, -1.0, 0.0, 1.0, 0.0, 0.0], atol=1e-9)
 
 
@@ -210,7 +250,7 @@ def test_fps_30_clip_is_not_resampled() -> None:
 
 
 def test_g1_encoder_onnx_refused() -> None:
-    with pytest.raises(G1CheckpointIncompatible, match="570"):
+    with pytest.raises(G1CheckpointIncompatible, match="842"):
         refuse_g1_encoder_onnx("model_encoder.onnx")
 
 
@@ -227,6 +267,15 @@ def test_lowerbody_is_first_twelve_joints() -> None:
     gather = ObsGather()
     gather.encoder_slots = slots
     gather.encoder_dim = dim
+    gather.cfg = dict(gather.cfg)
+    gather.cfg["encoder"] = dict(gather.cfg["encoder"])
+    gather.cfg["encoder"]["encoder_modes"] = [
+        {
+            "name": "t800",
+            "mode_id": 0,
+            "required_observations": ["motion_joint_positions_lowerbody_10frame_step5"],
+        }
+    ]
     frames = []
     for i in range(50):
         q = np.arange(25, dtype=np.float64) + i
@@ -239,7 +288,81 @@ def test_lowerbody_is_first_twelve_joints() -> None:
             )
         )
     gather.push_motion(frames, cursor=0)
-    enc = gather.assemble_encoder()
+    enc = gather.assemble_encoder("t800")
     block = enc.reshape(10, 12)
     np.testing.assert_allclose(block[0], np.arange(12.0))
     np.testing.assert_allclose(block[1], np.arange(12.0) + 5.0)
+
+
+def test_smpl_mode_name_refused(tmp_path: Path) -> None:
+    raw = yaml.safe_load(GATHER_YAML.read_text(encoding="utf-8"))
+    raw["encoder"]["encoder_modes"] = [{"name": "smpl", "mode_id": 2, "required_observations": []}]
+    path = tmp_path / "smplmode.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(ObsGatherError, match="SMPL"):
+        load_gather_cfg(path)
+
+
+def test_vr_5point_name_refused_in_encoder() -> None:
+    cfg = load_gather_cfg()
+    cfg["encoder"] = dict(cfg["encoder"])
+    cfg["encoder"]["encoder_observations"] = [
+        {"name": "vr_5point_local_target", "enabled": True}
+    ]
+    with pytest.raises(ObsGatherError, match="3-point"):
+        compile_encoder_observations(cfg)
+
+
+def test_teleop_mode_fills_lowerbody_and_vr() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw())
+    gather.push_motion(_window(50), cursor=0)
+    cmd = CommandVector.zeros()
+    cmd.left_wrist_pos = np.array([0.1, 0.2, 0.3])
+    cmd.right_wrist_pos = np.array([0.4, 0.5, 0.6])
+    cmd.head_pos = np.array([0.7, 0.8, 0.9])
+    gather.push_vr_3point(cmd)
+    enc = gather.assemble_encoder("teleop")
+    assert enc.shape == (842,)
+    np.testing.assert_allclose(enc[:4], [1.0, 0.0, 0.0, 0.0])
+    np.testing.assert_allclose(enc[4:504], 0.0)  # full-body q/dq zero-filled
+    np.testing.assert_allclose(enc[504:514], 0.0)  # root z hist
+    np.testing.assert_allclose(enc[514:515], 0.0)
+    ori_now = enc[515:521]
+    np.testing.assert_allclose(ori_now, identity_rot6d())
+    np.testing.assert_allclose(enc[521:581], 0.0)  # 10-frame ori zero-filled
+    lower_q = enc[581:701].reshape(10, 12)
+    np.testing.assert_allclose(lower_q[:, 0], [0, 5, 10, 15, 20, 25, 30, 35, 40, 45])
+    np.testing.assert_allclose(enc[821:830], [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    # identity rot6d → quat wxyz [1,0,0,0] × 3
+    np.testing.assert_allclose(enc[830:842], np.array([1.0, 0.0, 0.0, 0.0] * 3))
+
+
+def test_teleop_without_vr_does_not_invent_pico_pose() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw())
+    gather.push_motion(_window(50), cursor=0)
+    with pytest.raises(MotionRefError, match="PICO"):
+        gather.assemble_encoder("teleop")
+
+
+def test_t800_mode_does_not_need_vr() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw())
+    gather.push_motion(_window(50), cursor=0)
+    enc = gather.assemble_encoder("t800")
+    np.testing.assert_allclose(enc[821:842], 0.0)
+
+
+def test_five_point_command_refused_in_encoder_vr() -> None:
+    gather = ObsGather()
+    cmd = CommandVector.zeros()
+    fp = FivePointCommand(cmd=cmd, left_elbow_pos=np.zeros(3), right_elbow_pos=np.zeros(3))
+    with pytest.raises(ObsGatherError, match="3-point"):
+        gather.push_vr_3point(fp)
+
+
+def test_g1_mode_set_at_runtime_refused() -> None:
+    gather = ObsGather()
+    with pytest.raises(ObsGatherError, match="refused"):
+        gather.set_encoder_mode("g1")
