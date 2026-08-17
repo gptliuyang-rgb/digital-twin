@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from interface.schema import REPO_ROOT
 from wbc.ppo.recipe import load_ppo_recipe
 from wbc.ppo.table_s4 import (
     ANGVEL_AXES,
@@ -14,9 +15,13 @@ from wbc.ppo.table_s4 import (
     duration_extrema_s,
     force_n_from_impulse,
     load_table_s4,
+    physical_dynamic_friction_range,
+    physical_restitution_range,
+    physical_static_friction_range,
     root_push_angvel_ranges_rad_s,
     root_push_duration_s,
     root_push_ranges_mps,
+    static_friction_extrema,
     sustained_force_cases,
     sustained_torque_cases,
     torque_nm_from_impulse,
@@ -184,3 +189,39 @@ def test_sustained_torque_cases_are_angvel_times_duration() -> None:
     assert by_name["+yaw_T1.0s"]["duration_s"] == 1.0
     assert by_name["-roll_T3.0s"]["ang_vel_rad_s"] == [-0.52, 0.0, 0.0]
     assert by_name["-roll_T3.0s"]["duration_s"] == 3.0
+
+
+def test_static_friction_extrema_match_domain_rand_and_are_not_pad_cardboard() -> None:
+    assert physical_static_friction_range() == (0.3, 1.6)
+    assert physical_dynamic_friction_range() == (0.3, 1.2)
+    assert physical_restitution_range() == (0.0, 0.5)
+    cases = static_friction_extrema()
+    assert [c["name"] for c in cases] == ["mu_s_0.3", "mu_s_1.6"]
+    by_name = {c["name"]: c for c in cases}
+    assert by_name["mu_s_0.3"]["mu_slide"] == 0.3
+    assert by_name["mu_s_1.6"]["mu_slide"] == 1.6
+    assert all(c["kind"] == "wbc_floor_slide_friction" for c in cases)
+    assert all(c["not_dexhand2_contact"] is True for c in cases)
+    assert all(c["not_pad_cardboard"] is True for c in cases)
+    assert all(c["dynamic_friction_not_mapped"] is True for c in cases)
+    assert all(c["restitution_not_mapped"] is True for c in cases)
+    recipe = load_ppo_recipe()
+    static = recipe["domain_rand"]["physical"]["static_friction"]
+    assert by_name["mu_s_0.3"]["mu_slide"] == float(static[0])
+    assert by_name["mu_s_1.6"]["mu_slide"] == float(static[1])
+    spec = (REPO_ROOT / "assets" / "dexhand2" / "meta" / "dexhand2_spec.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "friction_vs_cardboard_static: REQUIRED_INPUT" in spec
+    assert "friction_vs_cardboard_dynamic: REQUIRED_INPUT" in spec
+    # Table S4 WBC floor numbers must not leak into the Hand 2 spec.
+    assert "static_friction: [0.3, 1.6]" not in spec
+
+
+def test_static_friction_is_not_a_root_push_axis() -> None:
+    push_names = [c["name"] for c in axis_aligned_linvel_extrema_mps()]
+    assert "mu_s_0.3" not in push_names
+    assert "mu_s_1.6" not in push_names
+    force_names = [c["name"] for c in sustained_force_cases()]
+    assert "mu_s_0.3" not in force_names
+    assert "mu_s_1.6" not in force_names

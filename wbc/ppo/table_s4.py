@@ -1,8 +1,9 @@
-"""SONIC Table S4 root-push extrema (arXiv:2511.07820v3).
+"""SONIC Table S4 domain-rand extrema (arXiv:2511.07820v3).
 
-These numbers randomize the *humanoid* during motion-tracking PPO. They are
-not DexHand2 pad–cardboard coefficients and must not enter dexhand2_spec.yaml
-(ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 / ADR-030).
+These numbers randomize the *humanoid* / floor during motion-tracking PPO. They
+are not DexHand2 pad–cardboard coefficients and must not enter
+dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 /
+ADR-030 / ADR-031).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -318,3 +319,67 @@ def vertical_force_cases(
 ) -> list[dict[str, Any]]:
     """±Z 0.2 m/s × duration extrema as F = m v / T. Not planar 0.5 m/s."""
     return sustained_force_cases(axes=VERTICAL_AXES, durations_s=durations_s)
+
+
+def _range2(raw: Any, *, field: str) -> tuple[float, float]:
+    lo, hi = float(raw[0]), float(raw[1])
+    if lo < 0.0 or hi < lo:
+        raise ValueError(f"Table S4 {field} must be lo>=0 and lo<=hi, got {[lo, hi]}")
+    return (lo, hi)
+
+
+def physical_static_friction_range() -> tuple[float, float]:
+    """Return Table S4 physical.static_friction, dimensionless.
+
+    Isaac Lab / PhysX has a separate dynamic coefficient. MuJoCo does not.
+    This range is the paper number, not a pad–cardboard measurement, and must
+    not be copied into ``dexhand2_spec.yaml``.
+    """
+    return _range2(load_table_s4()["physical"]["static_friction"], field="physical.static_friction")
+
+
+def physical_dynamic_friction_range() -> tuple[float, float]:
+    """Recorded Table S4 physical.dynamic_friction. Not mapped onto MuJoCo."""
+    return _range2(load_table_s4()["physical"]["dynamic_friction"], field="physical.dynamic_friction")
+
+
+def physical_restitution_range() -> tuple[float, float]:
+    """Recorded Table S4 physical.restitution. Not mapped onto MuJoCo solref."""
+    return _range2(load_table_s4()["physical"]["restitution"], field="physical.restitution")
+
+
+def _mu_case_name(mu_slide: float) -> str:
+    return f"mu_s_{mu_slide:g}"
+
+
+def static_friction_extrema() -> list[dict[str, Any]]:
+    """Inclusive extrema of Table S4 physical.static_friction (0.3 and 1.6).
+
+    Applied in the free-base diagnostic as MuJoCo ``geom_friction[0]`` (sliding)
+    on the eval floor *and* foot collision geoms (ADR-031). MuJoCo contacts use
+    the element-wise max of the two geoms, so both sides must be set. Spin and
+    roll channels stay the official collision default. Dynamic friction and
+    restitution stay recorded-only — mapping them would invent a PhysX→MuJoCo
+    conversion. Do not mix these cases into ``push_sweep``.
+    """
+    lo, hi = physical_static_friction_range()
+    if lo <= 0.0:
+        raise ValueError(f"Table S4 static_friction lo must be > 0, got {lo}")
+    out: list[dict[str, Any]] = []
+    for mu_slide in (lo, hi):
+        value = float(mu_slide)
+        out.append(
+            {
+                "name": _mu_case_name(value),
+                "mu_slide": value,
+                "table_s4_field": "physical.static_friction",
+                "kind": "wbc_floor_slide_friction",
+                "mujoco_channel": "geom_friction[0]",
+                "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.static_friction",
+                "dynamic_friction_not_mapped": True,
+                "restitution_not_mapped": True,
+                "not_dexhand2_contact": True,
+                "not_pad_cardboard": True,
+            }
+        )
+    return out
