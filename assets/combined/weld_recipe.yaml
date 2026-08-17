@@ -1,0 +1,70 @@
+schema_version: '1.0'
+eval_allowed: false
+bringup_identity_forbidden_for_eval: true
+missing:
+- pos_m
+- quat_wxyz
+- cad_source_robot
+humanoid:
+  robot: t800
+  left_wrist_link: LINK_WRIST_END_L
+  right_wrist_link: LINK_WRIST_END_R
+  t800pro_left_wrist_link: LINK_WRIST_ROLL_L
+  t800pro_right_wrist_link: LINK_WRIST_ROLL_R
+hand_mount_to_wrist:
+  source: third_party/wuji-description/hand2/hand2_beta1/body/mjcf/right_with_mount.xml
+  pos_m:
+  - 0.003
+  - 0.00025016
+  - -0.0285
+  quat_wxyz:
+  - 1.0
+  - 0.0
+  - 0.0
+  - 8.1995e-06
+  mount_link: '{side}_mount'
+  wrist_link: '{side}_wrist'
+  mount_mass_kg: 0.069
+t800_wrist_to_hand_mount:
+  pos_m: REQUIRED_INPUT
+  quat_wxyz: REQUIRED_INPUT
+  cad_source_hand: hand2/hand2_beta1/attachment/wuji-hand2-description-right-mount_beta1_step.STEP
+  cad_source_robot: REQUIRED_INPUT
+t800_dummy_wrist_from_elbow:
+  source: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+  left:
+    joint: J_FIXED_WAIST_L
+    parent: LINK_ELBOW_YAW_L
+    child: LINK_WRIST_END_L
+    pos_m:
+    - 0.029436
+    - 0.0124855
+    - -0.13222151
+    rpy_rad:
+    - 0.0
+    - 0.0
+    - 0.0
+  right:
+    joint: J_FIXED_WAIST_R
+    parent: LINK_ELBOW_YAW_R
+    child: LINK_WRIST_END_R
+    pos_m:
+    - 0.029436
+    - -0.0124855
+    - -0.13222151
+    rpy_rad:
+    - 0.0
+    - 0.0
+    - 0.0
+  note: Dummy 1 g sphere. Do not treat this as Wuji mount SE(3).
+sonic_wrist_links:
+  t800:
+    left: LINK_WRIST_END_L
+    right: LINK_WRIST_END_R
+  t800pro:
+    left: LINK_WRIST_ROLL_L
+    right: LINK_WRIST_ROLL_R
+paths:
+  t800_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+  t800pro_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800pro/urdf/serial_t800pro.urdf
+  hand_right_mjcf: third_party/wuji-description/hand2/hand2_beta1/body/mjcf/right_with_mount.xml
