@@ -6,8 +6,9 @@ Two XML sources:
   CI path when the SDK is not cloned)
 
 Neither source writes DexHand2 contact parameters. Floor friction on the
-free-base path is the official collision default, labelled as WBC floor, not
-pad–cardboard.
+free-base path defaults to the official collision default, labelled as WBC
+floor, not pad–cardboard. Table S4 physical.static_friction extrema (ADR-031)
+overwrite only ``geom_friction[0]`` on that floor and on foot collision geoms.
 """
 
 from __future__ import annotations
@@ -255,6 +256,79 @@ class T800MujocoEnv(BaseEnv):
         missing = [role for role, bid in self._body_id.items() if bid < 0]
         if missing:
             raise KeyError(f"tracked bodies missing from MJCF: {missing}")
+        self._floor_geom_ids = [
+            i
+            for i in range(int(self.model.ngeom))
+            if int(self.model.geom_type[i]) == int(self._mujoco.mjtGeom.mjGEOM_PLANE)
+        ]
+
+    def _geom_name(self, gid: int) -> str:
+        name = self._mujoco.mj_id2name(self.model, self._mujoco.mjtObj.mjOBJ_GEOM, int(gid))
+        return str(name) if name else f"geom_{int(gid)}"
+
+    def _body_name(self, bid: int) -> str:
+        name = self._mujoco.mj_id2name(self.model, self._mujoco.mjtObj.mjOBJ_BODY, int(bid))
+        return str(name) if name else f"body_{int(bid)}"
+
+    def wbc_slide_friction_geom_ids(self) -> list[int]:
+        """Eval-floor plane plus colliding geoms on ``LINK_FOOT_*``.
+
+        MuJoCo contact friction is the element-wise max of the two geoms, so a
+        Table S4 μ sweep must set both sides. These are WBC floor contacts, not
+        DexHand2 pad–cardboard. Non-colliding visual spheres are skipped.
+        """
+        ids = list(self._floor_geom_ids)
+        for i in range(int(self.model.ngeom)):
+            if i in ids:
+                continue
+            if int(self.model.geom_contype[i]) == 0 and int(self.model.geom_conaffinity[i]) == 0:
+                continue
+            bid = int(self.model.geom_bodyid[i])
+            bname = self._body_name(bid).upper()
+            gname = self._geom_name(i).upper()
+            if "FOOT" in bname or "FOOT" in gname:
+                ids.append(i)
+        return ids
+
+    def set_wbc_slide_friction(self, mu_slide: float) -> dict[str, Any]:
+        """Set sliding friction on floor + foot geoms. Spin/roll stay official.
+
+        ``mu_slide`` must come from Table S4 ``physical.static_friction``, not
+        from a guessed pad–cardboard coefficient. Pinned-base without a plane
+        raises: there is no WBC floor to retune.
+        """
+        mu = float(mu_slide)
+        if mu <= 0.0:
+            raise ValueError(f"mu_slide must be > 0, got {mu}")
+        if self.n_plane < 1:
+            raise ValueError("set_wbc_slide_friction requires a floor plane")
+        ids = self.wbc_slide_friction_geom_ids()
+        if not ids:
+            raise ValueError("no floor or foot collision geoms to retune")
+        names: list[str] = []
+        bodies: list[str] = []
+        for gid in ids:
+            self.model.geom_friction[gid, 0] = mu
+            names.append(self._geom_name(gid))
+            bodies.append(self._body_name(int(self.model.geom_bodyid[gid])))
+        return {
+            "mu_slide": mu,
+            "n_geoms": len(ids),
+            "geom_ids": ids,
+            "geom_names": names,
+            "body_names": bodies,
+            "spin_roll_unchanged": True,
+            "official_spin_roll": list(OFFICIAL_FLOOR_FRICTION[1:]),
+            "mujoco_contact": "elementwise_max_of_two_geoms",
+            "not_dexhand2_contact": True,
+            "not_pad_cardboard": True,
+        }
+
+    def geom_friction_copy(self) -> Any:
+        return self.model.geom_friction.copy()
+
+    def restore_geom_friction(self, friction: Any) -> None:
+        self.model.geom_friction[:] = friction
 
     def get_q(self) -> np.ndarray:
         return np.array([self.data.qpos[i] for i in self._qadr], dtype=np.float64)

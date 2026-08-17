@@ -40,7 +40,7 @@ make eval-l2            # refuses success rates while uncalibrated; records 9-ce
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null
 make eval-l2-physics-sim2sim  # MuJoCo PD tracking; official XML or kinematics fixture
 make eval-l2-freebase-stand   # free-base PD stand on a floor; fall is not a SONIC gate
-make eval-l2-freebase-push    # lean vs fall + Table S4 ±X/±Y + ±Z one-shot + F=mv/T + angvel + τ=Iω/T + air-drop
+make eval-l2-freebase-push    # lean vs fall + Table S4 ±X/±Y + ±Z one-shot + F=mv/T + angvel + τ=Iω/T + μ_slide + air-drop
 make eval-l3-isaac-bind       # IsaacLabSceneRuntime.reset/step if bound; else unavailable
 make ppo-status         # frozen Table S1–S4 recipe; action_dim 25
 make ppo-train          # exits non-zero until SPEC_INTAKE P0 + Isaac Lab

@@ -8,7 +8,10 @@ as a constant world force F = m v / T for Table S4 duration extrema 1 s and
 3 s. ADR-029 adds Table S4 angular-velocity extrema (roll/pitch ±0.52 rad/s,
 yaw ±0.78 rad/s) as one-shot ``qvel[3:6]`` and as τ = I ω / T. ADR-030 sweeps
 Table S4 linear-z (±0.2 m/s) as its own one-shot and F = m v / T — not mixed
-into the planar 0.5 m/s cases. Air-drop (no floor) proves the freejoint.
+into the planar 0.5 m/s cases. ADR-031 sweeps Table S4 physical.static_friction
+extrema (0.3 and 1.6) as MuJoCo sliding friction on the WBC floor and foot
+geoms — not mixed into ``push_sweep``, not pad–cardboard. Air-drop (no floor)
+proves the freejoint.
 ``grasp_success_rate`` stays JSON null. Combined T800+Hand stays PolicyEvalBlocked.
 """
 
@@ -34,6 +37,7 @@ from wbc.ppo.table_s4 import (
     axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
     force_n_from_impulse,
+    static_friction_extrema,
     sustained_force_cases,
     sustained_torque_cases,
     torque_nm_from_impulse,
@@ -167,6 +171,62 @@ def evaluate_airdrop(env: T800MujocoEnv, *, hold_s: float, min_drop_m: float) ->
         "grasp_success_rate": None,
         "note": "no floor: gravity must move the freejoint; not a stand rating",
     }
+
+
+def evaluate_friction_hold(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    hold_s: float,
+    mu_slide: float,
+    case_name: str,
+) -> dict[str, Any]:
+    """3 s PD hold at one Table S4 static-friction extremum. Not a SONIC gate."""
+    if env.pinned_base:
+        raise ValueError("friction hold requires pinned_base=False")
+    if env.n_plane < 1:
+        raise ValueError("friction hold requires a floor plane")
+    applied = env.set_wbc_slide_friction(mu_slide)
+    metrics = evaluate_freebase_stand(env, hold_s=hold_s, cfg=cfg)
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "wbc_floor_slide_friction",
+        "mu_slide": float(mu_slide),
+        "friction_applied": applied,
+        "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.static_friction",
+        "not_dexhand2_contact": True,
+        "not_pad_cardboard": True,
+        "dynamic_friction_not_mapped": True,
+        "restitution_not_mapped": True,
+    }
+
+
+def evaluate_friction_sweep(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    hold_s: float,
+) -> list[dict[str, Any]]:
+    """PD hold at each Table S4 static_friction extremum. Restores geom friction."""
+    backup = env.geom_friction_copy()
+    cases = static_friction_extrema()
+    out: list[dict[str, Any]] = []
+    try:
+        for case in cases:
+            env.restore_geom_friction(backup)
+            out.append(
+                evaluate_friction_hold(
+                    env,
+                    cfg=cfg,
+                    hold_s=hold_s,
+                    mu_slide=float(case["mu_slide"]),
+                    case_name=str(case["name"]),
+                )
+            )
+    finally:
+        env.restore_geom_friction(backup)
+    return out
 
 
 def evaluate_push_sweep(
@@ -626,15 +686,19 @@ def evaluate_torque_sweep(
 def _sweep_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
     by_name: dict[str, Any] = {}
     for c in cases:
-        entry: dict[str, Any] = {
-            "kind": c["kind"],
-            "pre_push_posture": c["pre_push_posture"],
-            "posture": c["posture"],
-            "fallen": c["fallen"],
-            "time_to_fall_s": c["time_to_fall_s"],
-            "end_pelvis_z_m": c["end_pelvis_z_m"],
-            "end_tilt_rad": c["end_tilt_rad"],
-        }
+        entry: dict[str, Any] = {"kind": c["kind"]}
+        if "pre_push_posture" in c:
+            entry["pre_push_posture"] = c["pre_push_posture"]
+        if "posture" in c:
+            entry["posture"] = c["posture"]
+        if "fallen" in c:
+            entry["fallen"] = c["fallen"]
+        if "time_to_fall_s" in c:
+            entry["time_to_fall_s"] = c["time_to_fall_s"]
+        if "end_pelvis_z_m" in c:
+            entry["end_pelvis_z_m"] = c["end_pelvis_z_m"]
+        if "end_tilt_rad" in c:
+            entry["end_tilt_rad"] = c["end_tilt_rad"]
         if "lin_vel_mps" in c:
             entry["lin_vel_mps"] = c["lin_vel_mps"]
         if "duration_s" in c:
@@ -646,6 +710,8 @@ def _sweep_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
             entry["ang_vel_rad_s"] = c["ang_vel_rad_s"]
         if "torque_nm" in c:
             entry["torque_nm"] = c["torque_nm"]
+        if "mu_slide" in c:
+            entry["mu_slide"] = c["mu_slide"]
         by_name[c["name"]] = entry
     return {
         "n_cases": len(cases),
@@ -724,6 +790,15 @@ def run(*, source: str = "auto") -> dict[str, Any]:
     plus_z_t1 = next((c for c in vertical_force_sweep if c["name"] == "+z_T1.0s"), None)
     if plus_z_t1 is None:
         raise ValueError("Table S4 vertical force sweep must include +z_T1.0s (ADR-030 compatibility)")
+    friction_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=True)
+    friction_sweep = evaluate_friction_sweep(
+        friction_env,
+        cfg=cfg,
+        hold_s=float(cfg["hold_s"]),
+    )
+    mu_lo = next((c for c in friction_sweep if c["name"] == "mu_s_0.3"), None)
+    if mu_lo is None:
+        raise ValueError("Table S4 friction sweep must include mu_s_0.3 (ADR-031 compatibility)")
     air_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=False)
     airdrop = evaluate_airdrop(
         air_env,
@@ -760,13 +835,16 @@ def run(*, source: str = "auto") -> dict[str, Any]:
         "sustained_vertical": plus_z_t1,
         "vertical_force_sweep": vertical_force_sweep,
         "vertical_force_sweep_summary": _sweep_summary(vertical_force_sweep),
+        "friction_hold": mu_lo,
+        "friction_sweep": friction_sweep,
+        "friction_sweep_summary": _sweep_summary(friction_sweep),
         "airdrop": airdrop,
         "local_tracking_success": False,
         "not_a_sonic_gate": True,
         "bringup_pd_is_not_a_balance_controller": True,
         "grasp_success_rate": None,
         "combined_robot": "PolicyEvalBlocked",
-        "success_rate_note": "lean vs fall vs planar/vertical/angvel sweep vs air-drop are diagnostics; not SONIC gates",
+        "success_rate_note": "lean vs fall vs planar/vertical/angvel/friction sweep vs air-drop are diagnostics; not SONIC gates",
     }
     refuse_grasp_success_key(report)
     return report
@@ -812,6 +890,9 @@ def main() -> None:
         "vertical_force_sweep_n_fallen": report["vertical_force_sweep_summary"]["n_fallen"],
         "sustained_vertical_kind": report["sustained_vertical"]["kind"],
         "sustained_vertical_duration_s": report["sustained_vertical"]["duration_s"],
+        "friction_sweep_names": report["friction_sweep_summary"]["names"],
+        "friction_sweep_n_fallen": report["friction_sweep_summary"]["n_fallen"],
+        "friction_hold_mu_slide": report["friction_hold"]["mu_slide"],
         "airdrop_freejoint_moved": report["airdrop"]["freejoint_moved"],
         "airdrop_drop_m": report["airdrop"]["drop_m"],
         "not_a_sonic_gate": report["not_a_sonic_gate"],

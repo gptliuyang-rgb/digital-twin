@@ -236,5 +236,13 @@
 - **Decision:** (B). `VERTICAL_AXES = ("z",)`. `vertical_linvel_extrema_mps()` / `vertical_force_cases()` are the sources. Mass is still compiled MJCF `body_subtreemass[LINK_BASE]`. Floor friction stays the official WBC collision default, not pad–cardboard. Planar `push_sweep` stays 4 cases; `force_sweep` stays 8. `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`.
 - **Consequences:** `make eval-l2-freebase-push` adds 2 one-shot z cases and 4 sustained vertical-force cases. +Z is a lift; −Z drives into the floor. Either outcome under bring-up PD is **not** a SONIC fail. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
 
+## ADR-031 — Table S4 static friction is WBC floor+foot sliding, not pad–cardboard
+
+- **Status:** accepted
+- **Context:** Table S4 `physical.static_friction` is [0.3, 1.6] and `dynamic_friction` is [0.3, 1.2] (arXiv:2511.07820v3). ADR-027–030 swept root-push velocity/force/torque while leaving the eval floor at the official collision default `(1.0, 0.005, 0.0001)`. The 41° PD lean may be friction-sensitive. MuJoCo has a single sliding coefficient (`geom_friction[0]`) and contact friction is the **element-wise max** of the two geoms — retuning only the plane would be a no-op against 1.0 feet. PhysX static vs dynamic is not a MuJoCo feature. These numbers must not enter `dexhand2_spec.yaml` (ADR-004).
+- **Options:** (A) keep floor friction recorded-only; (B) sweep static-friction extrema as MuJoCo sliding on the eval floor *and* `LINK_FOOT_*` collision geoms during the 3 s PD hold, leave spin/roll official, leave dynamic friction and restitution recorded-only, keep `mu_s_0.3` as the `friction_hold` compatibility key, do not mix into `push_sweep`; (C) copy 0.3/1.6 into DexHand2 pad–cardboard or invent a solref mapping for restitution.
+- **Decision:** (B). `static_friction_extrema()` is the source. `T800MujocoEnv.set_wbc_slide_friction` refuses a missing plane and `mu_slide <= 0`. Default `hold` stays the official collision default. `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`.
+- **Consequences:** `make eval-l2-freebase-push` adds 2 friction-hold cases. A change in lean vs fall across μ is a diagnostic, **not** a SONIC fail and **not** an E1 pad–cardboard result. Dynamic friction, restitution, default joint offset, and base CoM offset stay unswept. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
+
 
 

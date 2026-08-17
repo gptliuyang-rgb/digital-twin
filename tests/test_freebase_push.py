@@ -37,6 +37,35 @@ def test_pinned_base_refuses_root_linvel() -> None:
         env.root_ang_inertia_kgm2()
 
 
+def test_fixture_wbc_slide_friction_sets_floor_and_feet() -> None:
+    pytest.importorskip("mujoco")
+    env = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=True)
+    ids = env.wbc_slide_friction_geom_ids()
+    names = [env._geom_name(i).lower() for i in ids]
+    bodies = [env._body_name(int(env.model.geom_bodyid[i])).upper() for i in ids]
+    assert env.n_plane >= 1
+    assert any("floor" in n for n in names)
+    assert any("FOOT" in b for b in bodies)
+    backup = env.geom_friction_copy()
+    applied = env.set_wbc_slide_friction(0.3)
+    assert applied["not_pad_cardboard"] is True
+    assert applied["not_dexhand2_contact"] is True
+    assert applied["mujoco_contact"] == "elementwise_max_of_two_geoms"
+    assert any("FOOT" in b.upper() for b in applied["body_names"])
+    for gid in ids:
+        assert env.model.geom_friction[gid, 0] == pytest.approx(0.3)
+    floor_gid = next(i for i, n in zip(ids, names, strict=True) if "floor" in n)
+    assert env.model.geom_friction[floor_gid, 1] == pytest.approx(0.005)
+    assert env.model.geom_friction[floor_gid, 2] == pytest.approx(0.0001)
+    env.restore_geom_friction(backup)
+    assert env.model.geom_friction[floor_gid, 0] == pytest.approx(1.0)
+    air = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=False)
+    with pytest.raises(ValueError, match="floor plane"):
+        air.set_wbc_slide_friction(0.3)
+    with pytest.raises(ValueError, match="mu_slide"):
+        env.set_wbc_slide_friction(0.0)
+
+
 def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     pytest.importorskip("mujoco")
     from eval.l2_freebase_push import run
@@ -170,6 +199,23 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     assert z_t3["force_n"] == pytest.approx(
         [0.0, 0.0, report["sustained_vertical"]["mass_kg"] * 0.2 / 3.0]
     )
+    friction_names = [c["name"] for c in report["friction_sweep"]]
+    assert friction_names == ["mu_s_0.3", "mu_s_1.6"]
+    assert report["friction_sweep_summary"]["n_cases"] == 2
+    assert report["friction_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["friction_hold"]["name"] == "mu_s_0.3"
+    assert report["friction_hold"]["kind"] == "wbc_floor_slide_friction"
+    assert report["friction_hold"]["mu_slide"] == 0.3
+    assert report["friction_hold"]["not_pad_cardboard"] is True
+    assert report["friction_hold"]["dynamic_friction_not_mapped"] is True
+    assert report["friction_hold"]["restitution_not_mapped"] is True
+    assert all(c["kind"] == "wbc_floor_slide_friction" for c in report["friction_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["friction_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["friction_sweep"])
+    by_mu = {c["name"]: c["mu_slide"] for c in report["friction_sweep"]}
+    assert by_mu["mu_s_0.3"] == 0.3
+    assert by_mu["mu_s_1.6"] == 1.6
+    assert "mu_slide" not in report["hold"]
     assert report["airdrop"]["n_plane"] == 0
     assert report["airdrop"]["nq"] == 32
     assert report["airdrop"]["freejoint_moved"] is True
@@ -235,5 +281,9 @@ def test_official_push_and_airdrop_report_honestly() -> None:
     assert report["vertical_sweep_summary"]["not_a_sonic_gate"] is True
     assert report["vertical_force_sweep_summary"]["n_cases"] == 4
     assert report["vertical_force_sweep_summary"]["not_a_sonic_gate"] is True
-    # Fall on any axis or duration is a diagnostic, not a SONIC fail.
+    assert report["friction_sweep_summary"]["n_cases"] == 2
+    assert report["friction_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["friction_hold"]["kind"] == "wbc_floor_slide_friction"
+    assert report["friction_hold"]["not_pad_cardboard"] is True
+    # Fall on any axis, duration, or friction extremum is a diagnostic, not a SONIC fail.
     assert report["not_a_sonic_gate"] is True
