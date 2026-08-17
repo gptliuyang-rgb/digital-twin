@@ -27,6 +27,8 @@ def test_pinned_base_refuses_root_linvel() -> None:
     env = T800MujocoEnv(source="fixture", pinned_base=True)
     with pytest.raises(ValueError, match="pinned_base"):
         env.apply_root_linvel(np.array([0.0, 0.5, 0.0]))
+    with pytest.raises(ValueError, match="pinned_base"):
+        env.apply_root_force_n(np.array([0.0, 10.0, 0.0]))
 
 
 def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
@@ -60,6 +62,35 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     assert by_name["+y"] == [0.0, 0.5, 0.0]
     assert all(c["kind"] == "one_shot_qvel" for c in report["push_sweep"])
     assert all(c["not_a_sonic_gate"] for c in report["push_sweep"])
+    force_names = [c["name"] for c in report["force_sweep"]]
+    assert force_names == [
+        "-x_T1.0s",
+        "-x_T3.0s",
+        "+x_T1.0s",
+        "+x_T3.0s",
+        "-y_T1.0s",
+        "-y_T3.0s",
+        "+y_T1.0s",
+        "+y_T3.0s",
+    ]
+    assert report["force_sweep_summary"]["n_cases"] == 8
+    assert report["force_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["sustained_force"]["name"] == "+y_T1.0s"
+    assert report["sustained_force"]["kind"] == "sustained_force"
+    assert report["sustained_force"]["duration_s"] == 1.0
+    assert report["sustained_force"]["lin_vel_mps"] == [0.0, 0.5, 0.0]
+    assert report["sustained_force"]["force_formula"] == "F = m * v / T"
+    assert report["sustained_force"]["mass_kg"] > 0.0
+    expected_fy = report["sustained_force"]["mass_kg"] * 0.5 / 1.0
+    assert report["sustained_force"]["force_n"] == pytest.approx([0.0, expected_fy, 0.0])
+    assert all(c["kind"] == "sustained_force" for c in report["force_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["force_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["force_sweep"])
+    t3 = next(c for c in report["force_sweep"] if c["name"] == "+y_T3.0s")
+    assert t3["duration_s"] == 3.0
+    assert t3["force_n"] == pytest.approx(
+        [0.0, report["sustained_force"]["mass_kg"] * 0.5 / 3.0, 0.0]
+    )
     assert report["airdrop"]["n_plane"] == 0
     assert report["airdrop"]["nq"] == 32
     assert report["airdrop"]["freejoint_moved"] is True
@@ -101,5 +132,11 @@ def test_official_push_and_airdrop_report_honestly() -> None:
         assert all(c["pre_push_posture"] == "leaned" for c in report["push_sweep"])
     assert report["push_sweep_summary"]["n_cases"] == 4
     assert report["push_sweep_summary"]["not_a_sonic_gate"] is True
-    # Fall on any axis is a diagnostic, not a SONIC fail.
+    assert report["force_sweep_summary"]["n_cases"] == 8
+    assert report["force_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["sustained_force"]["kind"] == "sustained_force"
+    if report["hold"]["posture"] == "leaned":
+        assert report["sustained_force"]["pre_push_posture"] == "leaned"
+        assert all(c["pre_push_posture"] == "leaned" for c in report["force_sweep"])
+    # Fall on any axis or duration is a diagnostic, not a SONIC fail.
     assert report["not_a_sonic_gate"] is True

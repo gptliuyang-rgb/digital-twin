@@ -1,6 +1,7 @@
-# Free-base T800 Table S4 planar root-push sweep + air-drop.
-# Not a SONIC gate (ADR-026 / ADR-027). Velocities are Table S4 root_push
-# extrema, one-shot qvel (not a sustained force, not DexHand2 pad–cardboard).
+# Free-base T800 Table S4 planar root-push sweep + sustained force + air-drop.
+# Not a SONIC gate (ADR-026 / ADR-027 / ADR-028). Velocities are Table S4
+# root_push extrema. One-shot qvel is ADR-027. Sustained force is F = m v / T
+# for duration extrema 1 s and 3 s (same linear impulse, not pad–cardboard).
 # Grasp-success stays JSON null. Z (±0.2 m/s) is recorded in domain_rand.yaml
 # but is not swept here — a vertical impulse is a different diagnostic.
 
@@ -23,6 +24,14 @@ push:
   lin_vel_mps: [0.0, 0.5, 0.0]   # +Y kept as the ADR-026 compatibility case
   not_sustained_force: true
   not_dexhand2_contact: true
+sustained:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push duration_s"
+  kind: sustained_force
+  force_formula: "F = m * v / T"
+  name: "+y_T1.0s"
+  durations_s: [1.0, 3.0]        # Table S4 extrema; do not invent a third T
+  not_one_shot_qvel: true
+  not_dexhand2_contact: true
 sweep:
   axes: [x, y]                   # Table S4 |x|=|y|=0.5 m/s; z excluded (ADR-027)
   use_table_s4_extrema: true
@@ -40,3 +49,4 @@ note: >
   Official serial_t800.xml has a freejoint and no floor plane. The hold/push
   cases add the official collision-default floor (WBC floor, not pad–cardboard).
   Air-drop leaves the plane off so gravity must move the freejoint.
+  Sustained force uses the loaded MJCF subtree mass; it is not a datasheet guess.

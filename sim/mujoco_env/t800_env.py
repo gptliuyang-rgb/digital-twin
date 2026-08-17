@@ -291,6 +291,32 @@ class T800MujocoEnv(BaseEnv):
             raise ValueError("apply_root_linvel requires pinned_base=False")
         self.data.qvel[0:3] = np.asarray(lin_vel_mps, dtype=np.float64).reshape(3)
 
+    def root_body_id(self) -> int:
+        """SONIC pelvis / floating-base body (LINK_BASE)."""
+        return int(self._body_id["pelvis"])
+
+    def root_subtree_mass_kg(self) -> float:
+        """MJCF subtree mass of LINK_BASE (kg). Measured from the loaded model."""
+        return float(self.model.body_subtreemass[self.root_body_id()])
+
+    def apply_root_force_n(self, force_xyz_n: np.ndarray) -> None:
+        """World-frame force (N) on LINK_BASE via ``xfrc_applied``. Not pad–cardboard.
+
+        Pinned-base models refuse: a welded base cannot show a root push.
+        Callers must ``clear_root_force`` when the Table S4 duration ends.
+        """
+        if self.pinned_base:
+            raise ValueError("apply_root_force_n requires pinned_base=False")
+        force = np.asarray(force_xyz_n, dtype=np.float64).reshape(3)
+        bid = self.root_body_id()
+        self.data.xfrc_applied[bid, 0:3] = force
+        self.data.xfrc_applied[bid, 3:6] = 0.0
+
+    def clear_root_force(self) -> None:
+        """Zero ``xfrc_applied`` on LINK_BASE. Safe on pinned-base models."""
+        bid = self.root_body_id()
+        self.data.xfrc_applied[bid] = 0.0
+
     def expected_nq(self) -> int:
         return 25 if self.pinned_base else 32
 
@@ -325,6 +351,7 @@ class T800MujocoEnv(BaseEnv):
 
     def reset(self) -> dict[str, Any]:
         self._mujoco.mj_resetData(self.model, self.data)
+        self.clear_root_force()
         if not self.pinned_base:
             self.set_root(np.array([0.0, 0.0, ROOT_Z_M]), np.array([1.0, 0.0, 0.0, 0.0]))
         self._mujoco.mj_forward(self.model, self.data)

@@ -212,4 +212,12 @@
 - **Decision:** (B). `wbc/ppo/table_s4.py` is the single source of extrema. Default sweep is `+x -x +y -y`. Z is recorded and excluded (vertical impulse is a different diagnostic). `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Floor friction remains the official WBC collision default, not pad–cardboard.
 - **Consequences:** `make eval-l2-freebase-push` wall time is ~4× the single-axis case. Fall on any axis is **not** a SONIC fail. PPO launch, GMR-on-BONES-SEED, and the combined weld remain blocked on flange SE(3) and wrist CoM.
 
+## ADR-028 — Table S4 duration is a sustained force, same impulse as one-shot qvel
+
+- **Status:** accepted
+- **Context:** Table S4 (arXiv:2511.07820v3) publishes root linear velocity *and* push duration Δt ∼ [1, 3] s. ADR-027 applied the planar velocity extrema as one-shot freejoint `qvel`. That is an instantaneous Δv, not the paper's duration. The agent prompt's domain-rand table is "根部线速度扰动 ±0.5 m/s，持续 1–3 s". Table S4 does not publish Newtons.
+- **Options:** (A) re-clamp root `qvel` every physics step for T (a velocity hold, harsher than one-shot); (B) apply a constant world force F = m v / T on `LINK_BASE` for T, using the loaded MJCF subtree mass, so the linear impulse equals the one-shot Δp = m v; (C) invent a Newton range or treat duration as the interval *between* one-shot pushes.
+- **Decision:** (B). `wbc/ppo/table_s4.py` `sustained_force_cases()` is planar extrema × duration extrema (8 cases). Mass is `body_subtreemass[LINK_BASE]` from the compiled model (fixture placeholder or official XML) — not a T800 datasheet guess. Floor friction stays the official WBC collision default, not pad–cardboard. `+y_T1.0s` is the `sustained_force` compatibility key. One-shot sweep is unchanged. `local_tracking_success` stays false. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`. Z remains unswept.
+- **Consequences:** A 1 s force is 3× stronger than the 3 s force for the same Table S4 |v|. Bring-up PD falling under either duration is **not** a SONIC fail. Gravity, contact, and joint PD still act, so realized Δv will not equal the free-space identity. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
+
 

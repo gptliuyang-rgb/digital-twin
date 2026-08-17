@@ -39,4 +39,4 @@ Same P0 list as `docs/SPEC_INTAKE.md`. BONES-SEED GMR, live actor T-pose, and re
 
 ## Follow-on
 
-`make eval-l2-freebase-push` labels the 41° hold as **leaned** (ADR-026) and adds a Table S4 planar (±X/±Y) one-shot root-push sweep plus a no-floor air-drop. Neither is a SONIC gate.
+`make eval-l2-freebase-push` labels the 41° hold as **leaned** (ADR-026), sweeps Table S4 planar (±X/±Y) one-shot `qvel` (ADR-027), and spreads the same impulse as F = m v / T for 1 s and 3 s (ADR-028). None of these is a SONIC gate.

@@ -49,4 +49,4 @@ Isaac Lab PPO launch still refused.
 - Grasp-success numbers
 - Live actor T-pose (q=0 overlay remains)
 - Running `IsaacLabSceneRuntime` inside Isaac Sim python
-- Sustained-force (1–3 s) Table S4 push; this increment stays one-shot `qvel`
+- Sustained-force (1–3 s) Table S4 push — see ADR-028 / `docs/reports/PHASE_FORCE.md`
