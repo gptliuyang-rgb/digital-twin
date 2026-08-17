@@ -1,0 +1,133 @@
+# SONIC paper S7 observation gathering. T800 analogue of GEAR-SONIC
+# policy/release/observation_config.yaml. Shared sim/real. Hands bypass WBC.
+# arXiv:2511.07820v3 §S7 "State logging and observation gathering".
+# Not Table S4. Not pad–cardboard. Not DexHand2's 1 kHz MIT ring.
+# Not a PICO / CloudXR / Isaac Teleop SDK. Not invented IMU/camera latency.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 §S7 State logging and observation gathering"
+adr: ADR-041
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_encoder_onnx: true
+
+# Paper loops (Hz). Assembly runs on the 50 Hz control loop. HardwareHold
+# may be pushed at 500 Hz; latest-data-wins into the 50 Hz ring (paper S7).
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+command_stream_hz: 500
+
+n_dof: 25                    # T800 revolute. 29 is G1 and is refused.
+token_dim: 64
+history_frames: 10
+history_step: 1              # control ticks at 50 Hz
+ring_capacity: 32            # policy ticks; enough for 10-frame lookback
+joint_remap: identity        # hardware order → t800_sonic.joint_order
+sensor_delay_ticks: 0        # latest-data-wins. Non-zero needs a measured delay.
+csv_enabled: false
+
+# Official G1 YAML concatenates grouped history blocks, not per-frame
+# interleaved (ω,q,dq,a,g). T800 dims replace 29 with 25:
+#   64 + 30 + 250 + 250 + 250 + 30 = 874
+# G1  64 + 30 + 290 + 290 + 290 + 30 = 994  (forbidden on T800)
+expected_total_dim: 874
+g1_total_dim_forbidden: 994
+
+encoder_variant: default
+# Encoder motion-reference window (official observation_config.yaml names).
+# Look-ahead, not robot-state history. step5 = 0.1 s at 50 Hz, 10 frames = 0.9 s.
+# Full-body motion window: T800 570 / G1 650 (forbidden).
+# Multi-mode encoder ONNX input is the HuggingFace SUPERSET minus SMPL/wrists:
+# T800 842 / G1 1751 (forbidden). Unused mode slots are zero-filled.
+# Official G1 model_encoder.onnx is not loaded (ADR-011). Token_state stays
+# an external 64-D (planner / ZMQ / later T800 ONNX). VR 3-point is packed
+# from command_schema_v1 — not a PICO / CloudXR / Isaac Teleop SDK.
+# Low-latency 10frame_step1 lives in obs_gather_low_latency.yaml (ADR-044).
+not_smpl_encoder: true
+n_lower_body_dof: 12         # J00–J11. Same count as G1 legs; not a G1 copy.
+n_wrist_dof: 0               # T800 dummy wrists; motion_*_wrists_* is refused
+encoder_motion_window_dim: 570
+expected_encoder_dim: 842
+g1_encoder_dim_forbidden: 650
+g1_encoder_onnx_dim_forbidden: 1751
+default_encoder_mode: t800
+
+encoder:
+  dimension: 64              # token output size; ONNX is not run here
+  use_fp16: false
+  # Official nvidia/GEAR-SONIC observation_config.yaml order, T800 dims,
+  # SMPL + wrist channels omitted (refused). Observations not in the active
+  # mode's required_observations are zero-filled into this layout.
+  encoder_observations:
+    - name: encoder_mode_4
+      enabled: true
+    - name: motion_joint_positions_10frame_step5
+      enabled: true
+    - name: motion_joint_velocities_10frame_step5
+      enabled: true
+    - name: motion_root_z_position_10frame_step5
+      enabled: true
+    - name: motion_root_z_position
+      enabled: true
+    - name: motion_anchor_orientation
+      enabled: true
+    - name: motion_anchor_orientation_10frame_step5
+      enabled: true
+    - name: motion_joint_positions_lowerbody_10frame_step5
+      enabled: true
+    - name: motion_joint_velocities_lowerbody_10frame_step5
+      enabled: true
+    - name: vr_3point_local_target
+      enabled: true
+    - name: vr_3point_local_orn_target
+      enabled: true
+  encoder_modes:
+    # Analogue of official mode name "g1" (that name is refused on T800).
+    - name: t800
+      mode_id: 0
+      required_observations:
+        - encoder_mode_4
+        - motion_joint_positions_10frame_step5
+        - motion_joint_velocities_10frame_step5
+        - motion_anchor_orientation_10frame_step5
+    # Official teleop mode. Lower-body joints + VR 3-point. No PICO SDK.
+    - name: teleop
+      mode_id: 1
+      required_observations:
+        - encoder_mode_4
+        - motion_joint_positions_lowerbody_10frame_step5
+        - motion_joint_velocities_lowerbody_10frame_step5
+        - vr_3point_local_target
+        - vr_3point_local_orn_target
+        - motion_anchor_orientation
+    # Official mode name "smpl" (wrists + SMPL) is refused on T800.
+
+# Deployment decoder / policy obs_dict. Names match GEAR-SONIC registry.
+# Offsets are compiled at startup from this list (paper S7).
+observations:
+  - name: token_state
+    enabled: true
+  - name: his_base_angular_velocity_10frame_step1
+    enabled: true
+  - name: his_body_joint_positions_10frame_step1
+    enabled: true
+  - name: his_body_joint_velocities_10frame_step1
+    enabled: true
+  - name: his_last_actions_10frame_step1
+    enabled: true
+  - name: his_gravity_dir_10frame_step1
+    enabled: true
+
+note: >
+  Same binary in sim and on the robot. The 50 Hz control loop reads IMU
+  orientation / angular velocity and joint q/dq, remaps to policy joint
+  order, and pushes a snapshot into StateLogger (ring + optional CSV).
+  History is strided lookback with zero-padding at startup. DexHand2
+  joints never enter this vector. Combined T800+Hand stays
+  PolicyEvalBlocked. This is not SONIC's trained encoder ONNX and not
+  a measured IMU noise / latency model.
