@@ -3,7 +3,7 @@
 These numbers randomize the *humanoid* / floor during motion-tracking PPO. They
 are not DexHand2 pad–cardboard coefficients and must not enter
 dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 /
-ADR-030 / ADR-031 / ADR-032 / ADR-033).
+ADR-030 / ADR-031 / ADR-032 / ADR-033 / ADR-034).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -31,6 +31,11 @@ ANGVEL_AXIS_INDEX = {"roll": 0, "pitch": 1, "yaw": 2}
 DURATION_EXTREMA_S = (1.0, 3.0)
 # Table S4 physical.base_com_offset_m: x ±0.075 m, y/z ±0.1 m. Not wrist CoM.
 COM_AXES = ("x", "y", "z")
+# Table S4 target_motion pos/ori jitter. Not root_push (robot state) and not
+# physical.default_joint_pos_offset (reset qpos). Pinned-base Sim2Sim sweeps
+# joint_jitter only (ADR-034); pos/ori helpers exist so they are not re-guessed.
+POS_JITTER_AXES = ("x", "y", "z")
+ORI_JITTER_AXES = ("roll", "pitch", "yaw")
 
 
 def load_table_s4() -> dict[str, Any]:
@@ -497,4 +502,162 @@ def default_joint_pos_offset_extrema() -> list[dict[str, Any]]:
                 "restitution_not_mapped": True,
             }
         )
+    return out
+
+
+def target_motion_joint_jitter_range_rad() -> tuple[float, float]:
+    """Return Table S4 target_motion.joint_jitter_rad, radians.
+
+    This is jitter on the *reference clip* the tracker is asked to follow,
+    not ``physical.default_joint_pos_offset_rad`` (±0.01 rad on robot reset)
+    and not Hand 2 command latency. Isaac Lab samples independently per
+    joint; the pinned-base diagnostic sweeps the published scalar extrema
+    as a *uniform* additive offset on all 25 clip hinges (ADR-034).
+    """
+    raw = load_table_s4()["target_motion"]["joint_jitter_rad"]
+    lo, hi = float(raw[0]), float(raw[1])
+    if lo >= 0.0 or hi <= 0.0:
+        raise ValueError(
+            f"Table S4 target_motion.joint_jitter_rad must straddle zero, got {[lo, hi]}"
+        )
+    return (lo, hi)
+
+
+def _q_jit_case_name(offset_rad: float) -> str:
+    return f"q_jit_{offset_rad:+g}"
+
+
+def target_motion_joint_jitter_extrema() -> list[dict[str, Any]]:
+    """Inclusive extrema of Table S4 target_motion.joint_jitter_rad.
+
+    Two cases: −0.1 rad and +0.1 rad, applied uniformly to every actuated
+    hinge of every clip frame (ADR-034). This is not a per-joint 2^25
+    corner grid, not mixed into ``push_sweep``, not ADR-033 reset-qpos, and
+    not a SONIC gate. Restitution stays recorded-only.
+    """
+    lo, hi = target_motion_joint_jitter_range_rad()
+    out: list[dict[str, Any]] = []
+    for offset_rad in (lo, hi):
+        value = float(offset_rad)
+        out.append(
+            {
+                "name": _q_jit_case_name(value),
+                "offset_rad": value,
+                "table_s4_field": "target_motion.joint_jitter_rad",
+                "kind": "target_motion_joint_jitter",
+                "mujoco_channel": "clip_dof_pos",
+                "additive_to_clip_dof_pos": True,
+                "not_default_joint_pos_offset": True,
+                "not_per_joint_corner_grid": True,
+                "not_root_push": True,
+                "source": (
+                    "He et al., SONIC, arXiv:2511.07820v3 "
+                    "Table S4 target_motion.joint_jitter_rad"
+                ),
+                "not_dexhand2_contact": True,
+                "not_pad_cardboard": True,
+                "restitution_not_mapped": True,
+            }
+        )
+    return out
+
+
+def target_motion_pos_jitter_ranges_m() -> dict[str, tuple[float, float]]:
+    """Return Table S4 target_motion.pos_jitter_m per axis, metres.
+
+    Reference-root position jitter, not a robot root_push and not a weld.
+    Pinned-base Sim2Sim cannot follow a jittered root (ADR-034); these
+    ranges are recorded so they are not re-invented.
+    """
+    raw = load_table_s4()["target_motion"]["pos_jitter_m"]
+    out: dict[str, tuple[float, float]] = {}
+    for axis in POS_JITTER_AXES:
+        lo, hi = (float(v) for v in raw[axis])
+        if lo >= 0.0 or hi <= 0.0:
+            raise ValueError(
+                f"Table S4 target_motion.pos_jitter_m {axis} must straddle zero, got {[lo, hi]}"
+            )
+        out[axis] = (lo, hi)
+    return out
+
+
+def target_motion_pos_jitter_extrema() -> list[dict[str, Any]]:
+    """Axis-aligned signed extrema of Table S4 target_motion.pos_jitter_m.
+
+    Six cases: ±X/±Y 0.05 m and ±Z 0.01 m. Names are ``pos_±axis`` so they
+    do not collide with root_push ``±x``. Not mixed into ``push_sweep``.
+    """
+    ranges = target_motion_pos_jitter_ranges_m()
+    out: list[dict[str, Any]] = []
+    for axis in POS_JITTER_AXES:
+        lo, hi = ranges[axis]
+        idx = AXIS_INDEX[axis]
+        for sign, value in (("-", lo), ("+", hi)):
+            vec = [0.0, 0.0, 0.0]
+            vec[idx] = float(value)
+            out.append(
+                {
+                    "name": f"pos_{sign}{axis}",
+                    "axis": axis,
+                    "sign": sign,
+                    "offset_m": vec,
+                    "table_s4_field": "target_motion.pos_jitter_m",
+                    "kind": "target_motion_pos_jitter",
+                    "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.pos_jitter_m",
+                    "not_root_push": True,
+                    "not_dexhand2_contact": True,
+                    "not_pad_cardboard": True,
+                    "restitution_not_mapped": True,
+                }
+            )
+    return out
+
+
+def target_motion_ori_jitter_ranges_rad() -> dict[str, tuple[float, float]]:
+    """Return Table S4 target_motion.ori_jitter_rad per axis, radians.
+
+    Reference-root orientation jitter. Same caveat as pos jitter: a pinned
+    pelvis cannot track it. Not mixed into root_push ang_vel.
+    """
+    raw = load_table_s4()["target_motion"]["ori_jitter_rad"]
+    out: dict[str, tuple[float, float]] = {}
+    for axis in ORI_JITTER_AXES:
+        lo, hi = (float(v) for v in raw[axis])
+        if lo >= 0.0 or hi <= 0.0:
+            raise ValueError(
+                f"Table S4 target_motion.ori_jitter_rad {axis} must straddle zero, got {[lo, hi]}"
+            )
+        out[axis] = (lo, hi)
+    return out
+
+
+def target_motion_ori_jitter_extrema() -> list[dict[str, Any]]:
+    """Axis-aligned signed extrema of Table S4 target_motion.ori_jitter_rad.
+
+    Six cases: ±roll/±pitch 0.1 rad and ±yaw 0.2 rad. Names are
+    ``ori_±axis`` so they do not collide with root_push angvel ``±yaw``.
+    """
+    ranges = target_motion_ori_jitter_ranges_rad()
+    out: list[dict[str, Any]] = []
+    for axis in ORI_JITTER_AXES:
+        lo, hi = ranges[axis]
+        idx = ANGVEL_AXIS_INDEX[axis]
+        for sign, value in (("-", lo), ("+", hi)):
+            vec = [0.0, 0.0, 0.0]
+            vec[idx] = float(value)
+            out.append(
+                {
+                    "name": f"ori_{sign}{axis}",
+                    "axis": axis,
+                    "sign": sign,
+                    "offset_rad": vec,
+                    "table_s4_field": "target_motion.ori_jitter_rad",
+                    "kind": "target_motion_ori_jitter",
+                    "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.ori_jitter_rad",
+                    "not_root_push": True,
+                    "not_dexhand2_contact": True,
+                    "not_pad_cardboard": True,
+                    "restitution_not_mapped": True,
+                }
+            )
     return out

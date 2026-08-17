@@ -9,6 +9,8 @@ from wbc.ppo.recipe import load_ppo_recipe
 from wbc.ppo.table_s4 import (
     ANGVEL_AXES,
     COM_AXES,
+    ORI_JITTER_AXES,
+    POS_JITTER_AXES,
     SWEEP_AXES,
     VERTICAL_AXES,
     axis_aligned_angvel_extrema_rad_s,
@@ -29,6 +31,12 @@ from wbc.ppo.table_s4 import (
     static_friction_extrema,
     sustained_force_cases,
     sustained_torque_cases,
+    target_motion_joint_jitter_extrema,
+    target_motion_joint_jitter_range_rad,
+    target_motion_ori_jitter_extrema,
+    target_motion_ori_jitter_ranges_rad,
+    target_motion_pos_jitter_extrema,
+    target_motion_pos_jitter_ranges_m,
     torque_nm_from_impulse,
     vertical_force_cases,
     vertical_linvel_extrema_mps,
@@ -315,3 +323,93 @@ def test_default_joint_pos_offset_is_not_a_root_push_axis() -> None:
     assert set(qpos_names).isdisjoint(friction_names)
     com_names = [c["name"] for c in base_com_offset_extrema()]
     assert set(qpos_names).isdisjoint(com_names)
+
+
+def test_target_motion_joint_jitter_extrema_match_domain_rand() -> None:
+    assert target_motion_joint_jitter_range_rad() == (-0.1, 0.1)
+    cases = target_motion_joint_jitter_extrema()
+    assert [c["name"] for c in cases] == ["q_jit_-0.1", "q_jit_+0.1"]
+    by_name = {c["name"]: c for c in cases}
+    assert by_name["q_jit_-0.1"]["offset_rad"] == -0.1
+    assert by_name["q_jit_+0.1"]["offset_rad"] == 0.1
+    assert all(c["kind"] == "target_motion_joint_jitter" for c in cases)
+    assert all(c["additive_to_clip_dof_pos"] is True for c in cases)
+    assert all(c["not_default_joint_pos_offset"] is True for c in cases)
+    assert all(c["not_per_joint_corner_grid"] is True for c in cases)
+    assert all(c["not_root_push"] is True for c in cases)
+    assert all(c["not_dexhand2_contact"] is True for c in cases)
+    assert all(c["not_pad_cardboard"] is True for c in cases)
+    assert all(c["restitution_not_mapped"] is True for c in cases)
+    recipe = load_ppo_recipe()
+    raw = recipe["domain_rand"]["target_motion"]["joint_jitter_rad"]
+    assert by_name["q_jit_-0.1"]["offset_rad"] == float(raw[0])
+    assert by_name["q_jit_+0.1"]["offset_rad"] == float(raw[1])
+    spec = (REPO_ROOT / "assets" / "dexhand2" / "meta" / "dexhand2_spec.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "joint_jitter_rad" not in spec
+    assert "command_latency_ms: REQUIRED_INPUT" in spec
+    qpos_names = [c["name"] for c in default_joint_pos_offset_extrema()]
+    assert set(by_name).isdisjoint(qpos_names)
+
+
+def test_target_motion_pos_and_ori_jitter_extrema_match_domain_rand() -> None:
+    assert POS_JITTER_AXES == ("x", "y", "z")
+    assert ORI_JITTER_AXES == ("roll", "pitch", "yaw")
+    pos_ranges = target_motion_pos_jitter_ranges_m()
+    assert pos_ranges["x"] == (-0.05, 0.05)
+    assert pos_ranges["y"] == (-0.05, 0.05)
+    assert pos_ranges["z"] == (-0.01, 0.01)
+    pos = target_motion_pos_jitter_extrema()
+    assert [c["name"] for c in pos] == [
+        "pos_-x",
+        "pos_+x",
+        "pos_-y",
+        "pos_+y",
+        "pos_-z",
+        "pos_+z",
+    ]
+    by_pos = {c["name"]: c["offset_m"] for c in pos}
+    assert by_pos["pos_+x"] == [0.05, 0.0, 0.0]
+    assert by_pos["pos_-z"] == [0.0, 0.0, -0.01]
+    assert all(c["kind"] == "target_motion_pos_jitter" for c in pos)
+    assert all(c["not_root_push"] is True for c in pos)
+    ori_ranges = target_motion_ori_jitter_ranges_rad()
+    assert ori_ranges["roll"] == (-0.1, 0.1)
+    assert ori_ranges["pitch"] == (-0.1, 0.1)
+    assert ori_ranges["yaw"] == (-0.2, 0.2)
+    ori = target_motion_ori_jitter_extrema()
+    assert [c["name"] for c in ori] == [
+        "ori_-roll",
+        "ori_+roll",
+        "ori_-pitch",
+        "ori_+pitch",
+        "ori_-yaw",
+        "ori_+yaw",
+    ]
+    by_ori = {c["name"]: c["offset_rad"] for c in ori}
+    assert by_ori["ori_+roll"] == [0.1, 0.0, 0.0]
+    assert by_ori["ori_-yaw"] == [0.0, 0.0, -0.2]
+    assert all(c["kind"] == "target_motion_ori_jitter" for c in ori)
+    recipe = load_ppo_recipe()
+    tm = recipe["domain_rand"]["target_motion"]
+    assert by_pos["pos_+y"][1] == float(tm["pos_jitter_m"]["y"][1])
+    assert by_ori["ori_+pitch"][1] == float(tm["ori_jitter_rad"]["pitch"][1])
+
+
+def test_target_motion_jitter_is_not_a_root_push_or_physical_hold() -> None:
+    push_names = [c["name"] for c in axis_aligned_linvel_extrema_mps()]
+    ang_names = [c["name"] for c in axis_aligned_angvel_extrema_rad_s()]
+    qpos_names = [c["name"] for c in default_joint_pos_offset_extrema()]
+    com_names = [c["name"] for c in base_com_offset_extrema()]
+    friction_names = [c["name"] for c in static_friction_extrema()]
+    jit_names = [c["name"] for c in target_motion_joint_jitter_extrema()]
+    pos_names = [c["name"] for c in target_motion_pos_jitter_extrema()]
+    ori_names = [c["name"] for c in target_motion_ori_jitter_extrema()]
+    assert set(jit_names).isdisjoint(push_names)
+    assert set(jit_names).isdisjoint(qpos_names)
+    assert set(jit_names).isdisjoint(com_names)
+    assert set(jit_names).isdisjoint(friction_names)
+    assert set(pos_names).isdisjoint(push_names)
+    assert set(ori_names).isdisjoint(ang_names)
+    assert set(pos_names).isdisjoint(com_names)
