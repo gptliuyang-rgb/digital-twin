@@ -4,7 +4,7 @@
 
 | Side | Asset | Status |
 |---|---|---|
-| Hand mount STEP | `wuji-description/hand2/hand2_beta1/attachment/*-mount_beta1_step.STEP` | present (upstream caught up vs older notes) |
+| Hand mount STEP + PDF | `wuji-description/hand2/hand2_beta1/attachment/*-mount_beta1_step.STEP` and `*-mount_beta1.pdf` | present (clone @ 06e5f14) |
 | Hand with-mount MJCF offset | `r_wrist` under `r_mount` at `[0.003, 0.00025016, -0.0285]` m | filled |
 | T800 wrist flange CAD | Native SDK URDF dummy sphere on `LINK_WRIST_END_*` | **missing as a real flange** |
 | T800 ↔ Hand SE(3) | `assets/dexhand2/meta/mount_transform.yaml` | REQUIRED_INPUT |
@@ -30,7 +30,8 @@ T800:
 
 - Real backend: `hand/backends/real_backend.py` (Wuji SDK `joint_command` / `joint_states` / `mit_params`)
 - Control law: MIT `τ = kp(qd−q)+kd(dqd−dq)+τ_ff` in `hand/controller.py`
-- Do not use joint current as contact force (official usage constraints)
+- Do not use joint current as external contact force (usage constraints: forward path exists, calibration not converged).
+- Wrist flange drawings ship with the product (`腕部官方标配法兰，并随产品提供腕部安装图纸`); description-repo current-revision adapter STEP was previously missing and is now under `hand2/hand2_beta1/attachment/`. T800 mating CAD is still REQUIRED_INPUT.
 
 ## Mass that WBC must see
 
@@ -42,4 +43,6 @@ T800:
 | Two hands, product | ~1.49 |
 | Soft-body delta not in sim | 0.1243 each |
 
-Until `com_in_wrist_frame_m` is measured, do not train a load-aware SONIC tracker and claim it matches the robot.
+Until `com_in_wrist_frame_m` is measured, do not train a load-aware SONIC tracker and claim it matches the robot. `sim/hand_mass.py:require_sonic_mass()` enforces that.
+
+Combined-robot policy eval is refused (`PolicyEvalBlocked`) until `t800_wrist_to_hand_mount` is CAD-measured. `make weld-recipe` writes the recipe anyway.
