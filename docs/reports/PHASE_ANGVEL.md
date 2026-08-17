@@ -71,4 +71,4 @@ Isaac Lab PPO launch still refused.
 - Grasp-success numbers
 - Live actor T-pose (q=0 overlay remains)
 - Running `IsaacLabSceneRuntime` inside Isaac Sim python
-- Table S4 linear-z (±0.2 m/s) root push
+- GMR on a tiny BONES-SEED clip (blocked on flange/CoM)

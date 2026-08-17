@@ -7,8 +7,8 @@ grasp-success number and no combined T800+Hand weld.
 
 - **ADR-027.** Sweep Table S4 planar extrema (`±0.5` m/s on X and Y) as
   one-shot freejoint `qvel` after the same 3 s leaned hold. Z (`±0.2` m/s)
-  is recorded in `wbc/ppo/domain_rand.yaml` and excluded: a vertical impulse
-  is a different diagnostic.
+  is recorded in `wbc/ppo/domain_rand.yaml` and excluded from this planar
+  list: a vertical impulse is a different diagnostic (now ADR-030).
 - `wbc/ppo/table_s4.py` — single source of extrema. No MuJoCo import.
 - `eval/l2_freebase_push.py` — `push_sweep` (4 cases) plus `lateral_push`
   kept as the `+y` compatibility key.

@@ -2,7 +2,7 @@
 
 These numbers randomize the *humanoid* during motion-tracking PPO. They are
 not DexHand2 pad–cardboard coefficients and must not enter dexhand2_spec.yaml
-(ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029).
+(ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 / ADR-030).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -16,9 +16,11 @@ import yaml
 
 from wbc.ppo.recipe import PPO_DIR
 
-# Planar extrema used by the free-base diagnostic sweep. Table S4 z is ±0.2 m/s
-# (vertical) and is a different impulse; it is recorded but not swept.
+# Planar extrema used by the free-base diagnostic sweep (ADR-027). Table S4 z
+# is ±0.2 m/s — a different impulse from planar ±0.5 m/s — and is swept on
+# its own axis list (ADR-030), never mixed into SWEEP_AXES.
 SWEEP_AXES = ("x", "y")
+VERTICAL_AXES = ("z",)
 AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
 # Table S4 root_push ang_vel: roll/pitch ±0.52 rad/s, yaw ±0.78 rad/s.
 # Indices match MuJoCo freejoint qvel[3:6] (LINK_BASE body frame).
@@ -53,11 +55,11 @@ def axis_aligned_linvel_extrema_mps(
     *,
     axes: tuple[str, ...] = SWEEP_AXES,
 ) -> list[dict[str, Any]]:
-    """One-shot world linvel at each signed planar extremum.
+    """One-shot world linvel at each signed extremum.
 
-    Default is ±X and ±Y at 0.5 m/s. Z (±0.2 m/s in Table S4) is excluded
-    unless requested: a vertical impulse is not the same diagnostic as a
-    planar root push.
+    Default is ±X and ±Y at 0.5 m/s (ADR-027). Z (±0.2 m/s) is a different
+    impulse and lives on ``VERTICAL_AXES`` (ADR-030) — pass ``axes=("z",)``
+    or call ``vertical_linvel_extrema_mps()``. Do not mix z into SWEEP_AXES.
     """
     ranges = root_push_ranges_mps()
     cases: list[dict[str, Any]] = []
@@ -82,6 +84,11 @@ def axis_aligned_linvel_extrema_mps(
                 }
             )
     return cases
+
+
+def vertical_linvel_extrema_mps() -> list[dict[str, Any]]:
+    """One-shot world linvel at Table S4 ±Z 0.2 m/s. Not the planar 0.5 m/s."""
+    return axis_aligned_linvel_extrema_mps(axes=VERTICAL_AXES)
 
 
 def root_push_duration_s() -> tuple[float, float]:
@@ -273,7 +280,12 @@ def sustained_force_cases(
     axes: tuple[str, ...] = SWEEP_AXES,
     durations_s: tuple[float, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    """Planar linvel extrema × duration extrema. Force Newtons need mass at apply time."""
+    """Linvel extrema × duration extrema. Default axes are planar (ADR-028).
+
+    Pass ``axes=VERTICAL_AXES`` (or call ``vertical_force_cases``) for the
+    Table S4 ±Z 0.2 m/s duration sweep (ADR-030). Force Newtons need mass
+    at apply time.
+    """
     if durations_s is None:
         durations_s = duration_extrema_s()
     vel_cases = axis_aligned_linvel_extrema_mps(axes=axes)
@@ -298,3 +310,11 @@ def sustained_force_cases(
                 }
             )
     return out
+
+
+def vertical_force_cases(
+    *,
+    durations_s: tuple[float, ...] | None = None,
+) -> list[dict[str, Any]]:
+    """±Z 0.2 m/s × duration extrema as F = m v / T. Not planar 0.5 m/s."""
+    return sustained_force_cases(axes=VERTICAL_AXES, durations_s=durations_s)

@@ -8,6 +8,7 @@ from wbc.ppo.recipe import load_ppo_recipe
 from wbc.ppo.table_s4 import (
     ANGVEL_AXES,
     SWEEP_AXES,
+    VERTICAL_AXES,
     axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
     duration_extrema_s,
@@ -19,6 +20,8 @@ from wbc.ppo.table_s4 import (
     sustained_force_cases,
     sustained_torque_cases,
     torque_nm_from_impulse,
+    vertical_force_cases,
+    vertical_linvel_extrema_mps,
 )
 
 
@@ -56,11 +59,26 @@ def test_planar_extrema_match_domain_rand_and_exclude_z() -> None:
     assert all(c["lin_vel_mps"][2] == 0.0 for c in cases)
 
 
-def test_z_extrema_are_opt_in() -> None:
-    cases = axis_aligned_linvel_extrema_mps(axes=("z",))
+def test_z_extrema_are_a_separate_vertical_axis() -> None:
+    assert VERTICAL_AXES == ("z",)
+    cases = vertical_linvel_extrema_mps()
     assert [c["name"] for c in cases] == ["-z", "+z"]
     assert cases[0]["lin_vel_mps"] == [0.0, 0.0, -0.2]
     assert cases[1]["lin_vel_mps"] == [0.0, 0.0, 0.2]
+    assert all(c["not_dexhand2_contact"] is True for c in cases)
+    via_axes = axis_aligned_linvel_extrema_mps(axes=("z",))
+    assert [c["lin_vel_mps"] for c in via_axes] == [c["lin_vel_mps"] for c in cases]
+    force = vertical_force_cases()
+    assert [c["name"] for c in force] == ["-z_T1.0s", "-z_T3.0s", "+z_T1.0s", "+z_T3.0s"]
+    by_name = {c["name"]: c for c in force}
+    assert by_name["+z_T1.0s"]["lin_vel_mps"] == [0.0, 0.0, 0.2]
+    assert by_name["+z_T1.0s"]["duration_s"] == 1.0
+    assert by_name["-z_T3.0s"]["lin_vel_mps"] == [0.0, 0.0, -0.2]
+    assert by_name["-z_T3.0s"]["duration_s"] == 3.0
+    fz = force_n_from_impulse(84.917, [0.0, 0.0, 0.2], 1.0)
+    assert fz == pytest.approx([0.0, 0.0, 16.9834])
+    fz_t3 = force_n_from_impulse(84.917, [0.0, 0.0, 0.2], 3.0)
+    assert fz_t3 == pytest.approx([0.0, 0.0, 16.9834 / 3.0])
 
 
 def test_unknown_axis_raises() -> None:

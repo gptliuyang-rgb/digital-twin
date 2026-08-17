@@ -141,6 +141,35 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     inertia_t3 = np.asarray(yaw_t3["inertia_kgm2"], dtype=np.float64)
     expected_tau_t3 = inertia_t3 @ np.array([0.0, 0.0, 0.78]) / 3.0
     assert yaw_t3["torque_nm"] == pytest.approx(expected_tau_t3.tolist())
+    vert_names = [c["name"] for c in report["vertical_sweep"]]
+    assert vert_names == ["-z", "+z"]
+    assert report["vertical_sweep_summary"]["n_cases"] == 2
+    assert report["vertical_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["vertical_push"]["name"] == "+z"
+    assert report["vertical_push"]["kind"] == "one_shot_qvel"
+    assert report["vertical_push"]["lin_vel_mps"] == [0.0, 0.0, 0.2]
+    assert all(c["kind"] == "one_shot_qvel" for c in report["vertical_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["vertical_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["vertical_sweep"])
+    vforce_names = [c["name"] for c in report["vertical_force_sweep"]]
+    assert vforce_names == ["-z_T1.0s", "-z_T3.0s", "+z_T1.0s", "+z_T3.0s"]
+    assert report["vertical_force_sweep_summary"]["n_cases"] == 4
+    assert report["vertical_force_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["sustained_vertical"]["name"] == "+z_T1.0s"
+    assert report["sustained_vertical"]["kind"] == "sustained_force"
+    assert report["sustained_vertical"]["duration_s"] == 1.0
+    assert report["sustained_vertical"]["lin_vel_mps"] == [0.0, 0.0, 0.2]
+    assert report["sustained_vertical"]["force_formula"] == "F = m * v / T"
+    expected_fz = report["sustained_vertical"]["mass_kg"] * 0.2 / 1.0
+    assert report["sustained_vertical"]["force_n"] == pytest.approx([0.0, 0.0, expected_fz])
+    assert all(c["kind"] == "sustained_force" for c in report["vertical_force_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["vertical_force_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["vertical_force_sweep"])
+    z_t3 = next(c for c in report["vertical_force_sweep"] if c["name"] == "+z_T3.0s")
+    assert z_t3["duration_s"] == 3.0
+    assert z_t3["force_n"] == pytest.approx(
+        [0.0, 0.0, report["sustained_vertical"]["mass_kg"] * 0.2 / 3.0]
+    )
     assert report["airdrop"]["n_plane"] == 0
     assert report["airdrop"]["nq"] == 32
     assert report["airdrop"]["freejoint_moved"] is True
@@ -198,5 +227,13 @@ def test_official_push_and_airdrop_report_honestly() -> None:
         assert report["sustained_torque"]["pre_push_posture"] == "leaned"
         assert all(c["pre_push_posture"] == "leaned" for c in report["angvel_sweep"])
         assert all(c["pre_push_posture"] == "leaned" for c in report["torque_sweep"])
+        assert report["vertical_push"]["pre_push_posture"] == "leaned"
+        assert report["sustained_vertical"]["pre_push_posture"] == "leaned"
+        assert all(c["pre_push_posture"] == "leaned" for c in report["vertical_sweep"])
+        assert all(c["pre_push_posture"] == "leaned" for c in report["vertical_force_sweep"])
+    assert report["vertical_sweep_summary"]["n_cases"] == 2
+    assert report["vertical_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["vertical_force_sweep_summary"]["n_cases"] == 4
+    assert report["vertical_force_sweep_summary"]["not_a_sonic_gate"] is True
     # Fall on any axis or duration is a diagnostic, not a SONIC fail.
     assert report["not_a_sonic_gate"] is True

@@ -6,8 +6,9 @@ success (ADR-026). ADR-027 sweeps Table S4 planar extrema (±X / ±Y at 0.5 m/s)
 as one-shot root velocities after that hold. ADR-028 spreads the same impulse
 as a constant world force F = m v / T for Table S4 duration extrema 1 s and
 3 s. ADR-029 adds Table S4 angular-velocity extrema (roll/pitch ±0.52 rad/s,
-yaw ±0.78 rad/s) as one-shot ``qvel[3:6]`` and as τ = I ω / T. Air-drop (no
-floor) proves the freejoint.
+yaw ±0.78 rad/s) as one-shot ``qvel[3:6]`` and as τ = I ω / T. ADR-030 sweeps
+Table S4 linear-z (±0.2 m/s) as its own one-shot and F = m v / T — not mixed
+into the planar 0.5 m/s cases. Air-drop (no floor) proves the freejoint.
 ``grasp_success_rate`` stays JSON null. Combined T800+Hand stays PolicyEvalBlocked.
 """
 
@@ -36,6 +37,8 @@ from wbc.ppo.table_s4 import (
     sustained_force_cases,
     sustained_torque_cases,
     torque_nm_from_impulse,
+    vertical_force_cases,
+    vertical_linvel_extrema_mps,
 )
 
 
@@ -51,6 +54,7 @@ def evaluate_lateral_push(
     post_push_s: float,
     lin_vel_mps: list[float] | np.ndarray | None = None,
     case_name: str | None = None,
+    meta_key: str = "push",
 ) -> dict[str, Any]:
     if env.pinned_base:
         raise ValueError("lateral push requires pinned_base=False")
@@ -58,8 +62,8 @@ def evaluate_lateral_push(
         raise ValueError("lateral push requires a floor plane")
     q_des = _q_des(env)
     if lin_vel_mps is None:
-        lin_vel = np.asarray(cfg["push"]["lin_vel_mps"], dtype=np.float64).reshape(3)
-        name = str(cfg["push"].get("name", "+y"))
+        lin_vel = np.asarray(cfg[meta_key]["lin_vel_mps"], dtype=np.float64).reshape(3)
+        name = str(cfg[meta_key].get("name", "+y"))
     else:
         lin_vel = np.asarray(lin_vel_mps, dtype=np.float64).reshape(3)
         name = case_name or "custom"
@@ -113,8 +117,8 @@ def evaluate_lateral_push(
         "pre_push_posture": pre_posture,
         "name": name,
         "lin_vel_mps": [float(x) for x in lin_vel],
-        "kind": cfg["push"]["kind"],
-        "source": cfg["push"]["source"],
+        "kind": cfg[meta_key]["kind"],
+        "source": cfg[meta_key]["source"],
         "injected": injected,
         "end_pelvis_z_m": float(pelvis[2]),
         "min_pelvis_z_m": float(np.min(z_hist)),
@@ -190,6 +194,36 @@ def evaluate_push_sweep(
     return out
 
 
+def evaluate_vertical_sweep(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    settle_s: float,
+    post_push_s: float,
+) -> list[dict[str, Any]]:
+    """Run one-shot qvel at Table S4 ±Z 0.2 m/s. Not a SONIC gate. Not planar."""
+    axes = tuple(cfg.get("vertical_sweep", {}).get("axes", ["z"]))
+    cases = (
+        vertical_linvel_extrema_mps()
+        if axes == ("z",)
+        else axis_aligned_linvel_extrema_mps(axes=axes)
+    )
+    out: list[dict[str, Any]] = []
+    for case in cases:
+        out.append(
+            evaluate_lateral_push(
+                env,
+                cfg=cfg,
+                settle_s=settle_s,
+                post_push_s=post_push_s,
+                lin_vel_mps=case["lin_vel_mps"],
+                case_name=str(case["name"]),
+                meta_key="vertical",
+            )
+        )
+    return out
+
+
 def evaluate_sustained_force(
     env: T800MujocoEnv,
     *,
@@ -199,6 +233,7 @@ def evaluate_sustained_force(
     lin_vel_mps: list[float] | np.ndarray,
     duration_s: float,
     case_name: str,
+    meta_key: str = "sustained",
 ) -> dict[str, Any]:
     """Apply F = m v / T on LINK_BASE for Table S4 duration. Not a SONIC gate."""
     if env.pinned_base:
@@ -278,7 +313,7 @@ def evaluate_sustained_force(
         "impulse_n_s": impulse_n_s,
         "force_formula": "F = m * v / T",
         "kind": "sustained_force",
-        "source": cfg["sustained"]["source"],
+        "source": cfg[meta_key]["source"],
         "injected": True,
         "end_pelvis_z_m": float(pelvis[2]),
         "min_pelvis_z_m": float(np.min(z_hist)),
@@ -317,6 +352,32 @@ def evaluate_force_sweep(
                 lin_vel_mps=case["lin_vel_mps"],
                 duration_s=float(case["duration_s"]),
                 case_name=str(case["name"]),
+            )
+        )
+    return out
+
+
+def evaluate_vertical_force_sweep(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    settle_s: float,
+    post_push_s: float,
+) -> list[dict[str, Any]]:
+    """±Z 0.2 m/s × duration extrema as F = m v / T. Not a SONIC gate."""
+    cases = vertical_force_cases()
+    out: list[dict[str, Any]] = []
+    for case in cases:
+        out.append(
+            evaluate_sustained_force(
+                env,
+                cfg=cfg,
+                settle_s=settle_s,
+                post_push_s=post_push_s,
+                lin_vel_mps=case["lin_vel_mps"],
+                duration_s=float(case["duration_s"]),
+                case_name=str(case["name"]),
+                meta_key="vertical_force",
             )
         )
     return out
@@ -643,6 +704,26 @@ def run(*, source: str = "auto") -> dict[str, Any]:
     plus_yaw_t1 = next((c for c in torque_sweep if c["name"] == "+yaw_T1.0s"), None)
     if plus_yaw_t1 is None:
         raise ValueError("Table S4 torque sweep must include +yaw_T1.0s (ADR-029 compatibility)")
+    vert_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=True)
+    vertical_sweep = evaluate_vertical_sweep(
+        vert_env,
+        cfg=cfg,
+        settle_s=float(cfg["settle_s"]),
+        post_push_s=float(cfg["post_push_s"]),
+    )
+    plus_z = next((c for c in vertical_sweep if c["name"] == "+z"), None)
+    if plus_z is None:
+        raise ValueError("Table S4 vertical sweep must include +z (ADR-030 compatibility)")
+    vert_force_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=True)
+    vertical_force_sweep = evaluate_vertical_force_sweep(
+        vert_force_env,
+        cfg=cfg,
+        settle_s=float(cfg["settle_s"]),
+        post_push_s=float(cfg["post_push_s"]),
+    )
+    plus_z_t1 = next((c for c in vertical_force_sweep if c["name"] == "+z_T1.0s"), None)
+    if plus_z_t1 is None:
+        raise ValueError("Table S4 vertical force sweep must include +z_T1.0s (ADR-030 compatibility)")
     air_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=False)
     airdrop = evaluate_airdrop(
         air_env,
@@ -673,13 +754,19 @@ def run(*, source: str = "auto") -> dict[str, Any]:
         "sustained_torque": plus_yaw_t1,
         "torque_sweep": torque_sweep,
         "torque_sweep_summary": _sweep_summary(torque_sweep),
+        "vertical_push": plus_z,
+        "vertical_sweep": vertical_sweep,
+        "vertical_sweep_summary": _sweep_summary(vertical_sweep),
+        "sustained_vertical": plus_z_t1,
+        "vertical_force_sweep": vertical_force_sweep,
+        "vertical_force_sweep_summary": _sweep_summary(vertical_force_sweep),
         "airdrop": airdrop,
         "local_tracking_success": False,
         "not_a_sonic_gate": True,
         "bringup_pd_is_not_a_balance_controller": True,
         "grasp_success_rate": None,
         "combined_robot": "PolicyEvalBlocked",
-        "success_rate_note": "lean vs fall vs planar/angvel sweep vs air-drop are diagnostics; not SONIC gates",
+        "success_rate_note": "lean vs fall vs planar/vertical/angvel sweep vs air-drop are diagnostics; not SONIC gates",
     }
     refuse_grasp_success_key(report)
     return report
@@ -719,6 +806,12 @@ def main() -> None:
         "torque_sweep_n_fallen": report["torque_sweep_summary"]["n_fallen"],
         "sustained_torque_kind": report["sustained_torque"]["kind"],
         "sustained_torque_duration_s": report["sustained_torque"]["duration_s"],
+        "vertical_sweep_names": report["vertical_sweep_summary"]["names"],
+        "vertical_sweep_n_fallen": report["vertical_sweep_summary"]["n_fallen"],
+        "vertical_force_sweep_names": report["vertical_force_sweep_summary"]["names"],
+        "vertical_force_sweep_n_fallen": report["vertical_force_sweep_summary"]["n_fallen"],
+        "sustained_vertical_kind": report["sustained_vertical"]["kind"],
+        "sustained_vertical_duration_s": report["sustained_vertical"]["duration_s"],
         "airdrop_freejoint_moved": report["airdrop"]["freejoint_moved"],
         "airdrop_drop_m": report["airdrop"]["drop_m"],
         "not_a_sonic_gate": report["not_a_sonic_gate"],
