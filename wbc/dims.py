@@ -42,6 +42,38 @@ SMPL_LOW_LATENCY_FRAMES = 4  # official smpl_*_4frame_step1; refused on T800
 # Official sonic_v1_1/observation_config.yaml header (G1). Same integer as the
 # default G1 encoder; layout is heading ori, no root_z, SMPL/wrists 10frame_step1.
 G1_ENCODER_ONNX_DIM_V1_1 = 1751
+# Official planner_sonic.onnx (nvlabs planner_onnx.html). G1 MuJoCo qpos is
+# 3 pos + 4 quat wxyz + 29 hinges = 36. T800 is 3+4+25 = 32. Context is 4 frames.
+# Output is 30 Hz, resampled to 50 Hz. This is not the ADR-018 interpolator.
+PLANNER_CONTEXT_FRAMES = 4
+PLANNER_ROOT_POS_DIM = 3
+PLANNER_ROOT_QUAT_DIM = 4
+PLANNER_QPOS_ROOT_DIM = PLANNER_ROOT_POS_DIM + PLANNER_ROOT_QUAT_DIM  # 7
+G1_PLANNER_QPOS_DIM = PLANNER_QPOS_ROOT_DIM + G1_N_DOF  # 36
+PLANNER_TOKEN_FRAMES = 4
+PLANNER_MIN_TOKENS = 6
+PLANNER_MAX_TOKENS = 16
+PLANNER_ALLOWED_K = PLANNER_MAX_TOKENS - PLANNER_MIN_TOKENS + 1  # 11
+PLANNER_NATIVE_HZ = 30
+PLANNER_CONTROL_HZ = 50
+PLANNER_LOOKAHEAD_STEPS_50HZ = 2
+PLANNER_N_INPUTS_V2 = 11
+PLANNER_N_OUTPUTS = 2
+PLANNER_N_MODES_V2 = 27
+PLANNER_MAX_OUT_FRAMES = PLANNER_MAX_TOKENS * PLANNER_TOKEN_FRAMES  # 64
+
+
+def planner_qpos_dim(n_dof: int) -> int:
+    """MuJoCo freejoint qpos width: 7 + n_dof. G1 36 is refused on T800."""
+    n = int(n_dof)
+    if n == G1_N_DOF:
+        raise ValueError("planner_qpos_dim must not be called with G1 29 DoF")
+    return PLANNER_QPOS_ROOT_DIM + n
+
+
+def t800_planner_qpos_dim(*, n_dof: int = 25) -> int:
+    """T800 analogue of official context_mujoco_qpos last dim (G1 36)."""
+    return planner_qpos_dim(n_dof)
 
 
 def encoder_motion_dim(
@@ -232,6 +264,13 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         raise ValueError("n_wrist_dof must be 0 on T800")
     if int(cfg.get("n_lower_body_dof", T800_N_LOWER_BODY_DOF)) != T800_N_LOWER_BODY_DOF:
         raise ValueError("n_lower_body_dof must be 12 (J00–J11)")
+    pq = planner_qpos_dim(int(cfg["n_revolute"]))
+    if pq == G1_PLANNER_QPOS_DIM:
+        raise ValueError("T800 planner qpos dim must not be G1 36")
+    if int(cfg.get("planner_qpos_dim", pq)) != pq:
+        raise ValueError(f"planner_qpos_dim {cfg.get('planner_qpos_dim')} != {pq}")
+    cfg["planner_qpos_dim"] = pq
+    cfg["g1_planner_qpos_dim"] = G1_PLANNER_QPOS_DIM
     cfg["encoder_motion_dim"] = enc
     cfg["g1_encoder_motion_dim"] = G1_ENCODER_MOTION_DIM
     cfg["encoder_onnx_dim"] = onnx

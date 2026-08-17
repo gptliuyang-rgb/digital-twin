@@ -10,7 +10,14 @@ from pathlib import Path
 from typing import Any
 
 from wbc.checkpoint import G1CheckpointIncompatible, refuse_g1_checkpoint
-from wbc.dims import G1_DECODER_INPUT_DIM, G1_ENCODER_MOTION_DIM, decoder_history_dim, load_t800_sonic
+from wbc.dims import (
+    G1_DECODER_INPUT_DIM,
+    G1_ENCODER_MOTION_DIM,
+    G1_PLANNER_QPOS_DIM,
+    decoder_history_dim,
+    load_t800_sonic,
+    t800_planner_qpos_dim,
+)
 from wbc.retarget import retarget_blockers
 
 
@@ -38,6 +45,18 @@ def expected_io() -> dict[str, Any]:
                 "input_dim": decoder_history_dim(n),
                 "g1_input_dim_forbidden": G1_DECODER_INPUT_DIM,
                 "output_dim": n,
+            }
+        },
+        "planner": {
+            "planner_sonic.onnx": {
+                "note": "G1 ONNX refused. Official context is [1,4,36]; T800 is [1,4,32].",
+                "context_shape": [1, 4, t800_planner_qpos_dim(n_dof=n)],
+                "qpos_dim": t800_planner_qpos_dim(n_dof=n),
+                "g1_qpos_dim_forbidden": G1_PLANNER_QPOS_DIM,
+                "native_hz": 30,
+                "control_hz": 50,
+                "n_inputs_v2": 11,
+                "n_outputs": 2,
             }
         },
         "observation_config.yaml": "must list T800 joint_order (25), not G1 (29)",

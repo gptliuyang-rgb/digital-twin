@@ -50,10 +50,12 @@ fields:
     spring: wbc/spring.yaml   # SONIC §3.3 Eq. 8; planar speed ≤ 6.0 m/s (ADR-038)
     pd_stream: wbc/stream.yaml  # SONIC §3.5 500 Hz PD ring (ADR-039)
     operator_input: wbc/operator.yaml  # SONIC §3.5 100 Hz operator ring (ADR-040)
+    planner_onnx: wbc/planner_onnx.yaml  # V2 I/O; wz is not facing_direction (ADR-046)
   loco_mode:
     dim: 1
     enum: [0, 1, 2]
     meaning: {0: stand, 1: slow_walk, 2: fast_walk}
+    planner_onnx_mode: {0: idle, 1: slowWalk, 2: walk}  # fast_walk is NOT official run (3)
 
   # ---- bypass WBC; go straight to DexHand2 controller ----
   left_hand_q:

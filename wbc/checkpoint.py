@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from wbc.dims import G1_DECODER_INPUT_DIM, G1_N_DOF, decoder_history_dim, load_t800_sonic
+from wbc.dims import (
+    G1_DECODER_INPUT_DIM,
+    G1_N_DOF,
+    G1_PLANNER_QPOS_DIM,
+    decoder_history_dim,
+    load_t800_sonic,
+)
 
 
 class G1CheckpointIncompatible(RuntimeError):
@@ -16,6 +22,7 @@ def refuse_g1_checkpoint(
     robot: str | None = None,
     n_dof: int | None = None,
     decoder_input_dim: int | None = None,
+    planner_qpos_dim: int | None = None,
     checkpoint_meta: dict[str, Any] | None = None,
 ) -> None:
     cfg = load_t800_sonic()
@@ -26,10 +33,12 @@ def refuse_g1_checkpoint(
     ckpt_robot = str(meta.get("robot", "")).lower()
     ckpt_dof = meta.get("n_dof", n_dof)
     ckpt_dim = meta.get("decoder_input_dim", decoder_input_dim)
+    ckpt_planner = meta.get("planner_qpos_dim", planner_qpos_dim)
     g1_like = (
         ckpt_robot.startswith("g1")
         or ckpt_dof == G1_N_DOF
         or ckpt_dim == G1_DECODER_INPUT_DIM
+        or ckpt_planner == G1_PLANNER_QPOS_DIM
     )
     if not g1_like:
         if ckpt_dof is not None and int(ckpt_dof) != int(cfg["n_revolute"]):
