@@ -1,0 +1,15 @@
+# Wrist payload randomization for SONIC load-aware PPO (agent prompt §4.2).
+# Sampling is refused until com_in_wrist_frame_m is measured (ADR-010).
+# Ranges are the training schedule, not a measured box mass.
+
+schema_version: "1.0"
+mass_kg: [0.0, 20.0]          # U[0, 20] kg on each wrist
+com_offset_m: [-0.15, 0.15]   # U[-0.15, 0.15]^3 m in the wrist frame
+attach_sides: [left, right]
+drop_attach_random: true      # randomly hang / unhang mid-episode
+refuse_until:
+  - com_in_wrist_frame_m
+  - t800_wrist_to_hand_mount
+note: >
+  Official Hand 2 skeleton does not include the 0.1243 kg soft-body delta at a
+  known CoM. Attaching 0–20 kg on a wrong CoM trains the wrong dynamics.

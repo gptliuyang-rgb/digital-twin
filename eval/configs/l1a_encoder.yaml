@@ -1,0 +1,11 @@
+# Encoder motion-reference dump (ADR-042). Not a BONES-SEED clip.
+# grasp_success_rate must stay null. Combined T800+Hand stays PolicyEvalBlocked.
+schema_version: "1.0"
+adr: ADR-042
+source: wbc/obs_gather.yaml encoder_observations
+n_dof: 25
+encoder_dim: 570
+g1_encoder_dim_forbidden: 650
+not_invented_clip: true
+not_g1_encoder_onnx: true
+grasp_success_rate: null
