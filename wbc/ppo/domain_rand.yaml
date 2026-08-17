@@ -8,10 +8,14 @@ source: "He et al., SONIC, arXiv:2511.07820v3 Table S4"
 applies_to: t800_wbc_ppo
 not_dexhand2_contact: true
 
+# PhysX has μs / μd / restitution. MuJoCo does not. ADR-037 keeps the last two
+# recorded-only: no geom_friction[1:] write, no solref/solimp map.
+recorded_only_physical: [dynamic_friction, restitution]
+
 physical:
   static_friction: [0.3, 1.6]
-  dynamic_friction: [0.3, 1.2]
-  restitution: [0.0, 0.5]
+  dynamic_friction: [0.3, 1.2]   # recorded-only (ADR-037); not a second μ channel
+  restitution: [0.0, 0.5]        # recorded-only (ADR-037); not solref
   default_joint_pos_offset_rad: [-0.01, 0.01]
   base_com_offset_m:
     x: [-0.075, 0.075]

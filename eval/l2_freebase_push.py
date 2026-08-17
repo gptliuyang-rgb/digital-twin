@@ -15,8 +15,9 @@ S4 physical.base_com_offset_m (±X 0.075 m, ±Y/±Z 0.1 m) as an additive
 ``body_ipos[LINK_BASE]`` offset — not wrist CoM, not mixed into ``push_sweep``.
 ADR-033 sweeps Table S4 physical.default_joint_pos_offset_rad (±0.01 rad) as a
 uniform additive reset-qpos / PD-target offset on the 25 actuated hinges —
-not a 2^25 corner grid, not mixed into ``push_sweep``. Restitution stays
-recorded-only (no non-invented ``solref`` map).
+not a 2^25 corner grid, not mixed into ``push_sweep``. ADR-037 keeps Table S4
+``physical.dynamic_friction`` and ``physical.restitution`` recorded-only (no
+non-invented ``solref`` / μd map).
 Air-drop (no floor) proves the freejoint.
 ``grasp_success_rate`` stays JSON null. Combined T800+Hand stays PolicyEvalBlocked.
 """
@@ -44,6 +45,7 @@ from wbc.ppo.table_s4 import (
     base_com_offset_extrema,
     default_joint_pos_offset_extrema,
     force_n_from_impulse,
+    recorded_only_physical,
     static_friction_extrema,
     sustained_force_cases,
     sustained_torque_cases,
@@ -988,6 +990,7 @@ def run(*, source: str = "auto") -> dict[str, Any]:
         "joint_offset": qpos_plus,
         "joint_sweep": joint_sweep,
         "joint_sweep_summary": _sweep_summary(joint_sweep),
+        "recorded_only_physical": recorded_only_physical(),
         "airdrop": airdrop,
         "local_tracking_success": False,
         "not_a_sonic_gate": True,
@@ -1049,6 +1052,7 @@ def main() -> None:
         "joint_sweep_names": report["joint_sweep_summary"]["names"],
         "joint_sweep_n_fallen": report["joint_sweep_summary"]["n_fallen"],
         "joint_offset_rad": report["joint_offset"]["offset_rad"],
+        "recorded_only_physical_fields": list(report["recorded_only_physical"]),
         "airdrop_freejoint_moved": report["airdrop"]["freejoint_moved"],
         "airdrop_drop_m": report["airdrop"]["drop_m"],
         "not_a_sonic_gate": report["not_a_sonic_gate"],

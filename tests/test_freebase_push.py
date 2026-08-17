@@ -10,6 +10,7 @@ from eval.lean_classify import classify_posture
 from sim.mujoco_env.privileged_l2 import refuse_grasp_success_key
 from sim.mujoco_env.t800_env import OFFICIAL_MJCF, T800MujocoEnv, refuse_combined_robot
 from wbc.foot_frame import FOOT_FRAME_DECISION
+from wbc.ppo.table_s4 import RecordedOnlyPhysicalMapError
 
 
 def test_classify_posture_labels_the_official_hold() -> None:
@@ -47,9 +48,16 @@ def test_fixture_wbc_slide_friction_sets_floor_and_feet() -> None:
     assert any("floor" in n for n in names)
     assert any("FOOT" in b for b in bodies)
     backup = env.geom_friction_copy()
+    solref0 = env.geom_solref_copy()
+    solimp0 = env.geom_solimp_copy()
     applied = env.set_wbc_slide_friction(0.3)
     assert applied["not_pad_cardboard"] is True
     assert applied["not_dexhand2_contact"] is True
+    assert applied["dynamic_friction_not_mapped"] is True
+    assert applied["restitution_not_mapped"] is True
+    assert applied["solref_unchanged"] is True
+    assert applied["solimp_unchanged"] is True
+    assert applied["spin_roll_unchanged"] is True
     assert applied["mujoco_contact"] == "elementwise_max_of_two_geoms"
     assert any("FOOT" in b.upper() for b in applied["body_names"])
     for gid in ids:
@@ -57,6 +65,8 @@ def test_fixture_wbc_slide_friction_sets_floor_and_feet() -> None:
     floor_gid = next(i for i, n in zip(ids, names, strict=True) if "floor" in n)
     assert env.model.geom_friction[floor_gid, 1] == pytest.approx(0.005)
     assert env.model.geom_friction[floor_gid, 2] == pytest.approx(0.0001)
+    assert env.model.geom_solref == pytest.approx(solref0)
+    assert env.model.geom_solimp == pytest.approx(solimp0)
     env.restore_geom_friction(backup)
     assert env.model.geom_friction[floor_gid, 0] == pytest.approx(1.0)
     air = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=False)
@@ -64,6 +74,10 @@ def test_fixture_wbc_slide_friction_sets_floor_and_feet() -> None:
         air.set_wbc_slide_friction(0.3)
     with pytest.raises(ValueError, match="mu_slide"):
         env.set_wbc_slide_friction(0.0)
+    with pytest.raises(RecordedOnlyPhysicalMapError, match="dynamic_friction"):
+        env.set_wbc_dynamic_friction(1.2)
+    with pytest.raises(RecordedOnlyPhysicalMapError, match="restitution"):
+        env.set_wbc_restitution(0.5)
 
 
 def test_fixture_base_com_offset_adds_to_compiled_ipos() -> None:
@@ -262,8 +276,11 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     assert all(c["grasp_success_rate"] is None for c in report["friction_sweep"])
     by_mu = {c["name"]: c["mu_slide"] for c in report["friction_sweep"]}
     assert by_mu["mu_s_0.3"] == 0.3
-    assert     by_mu["mu_s_1.6"] == 1.6
+    assert by_mu["mu_s_1.6"] == 1.6
     assert "mu_slide" not in report["hold"]
+    assert set(report["recorded_only_physical"]) == {"dynamic_friction", "restitution"}
+    assert report["recorded_only_physical"]["restitution"]["range"] == [0.0, 0.5]
+    assert report["recorded_only_physical"]["dynamic_friction"]["range"] == [0.3, 1.2]
     com_names = [c["name"] for c in report["com_sweep"]]
     assert com_names == ["com_-x", "com_+x", "com_-y", "com_+y", "com_-z", "com_+z"]
     assert report["com_sweep_summary"]["n_cases"] == 6
@@ -373,6 +390,11 @@ def test_official_push_and_airdrop_report_honestly() -> None:
     assert report["friction_sweep_summary"]["not_a_sonic_gate"] is True
     assert report["friction_hold"]["kind"] == "wbc_floor_slide_friction"
     assert report["friction_hold"]["not_pad_cardboard"] is True
+    assert report["friction_hold"]["dynamic_friction_not_mapped"] is True
+    assert report["friction_hold"]["restitution_not_mapped"] is True
+    assert set(report["recorded_only_physical"]) == {"dynamic_friction", "restitution"}
+    assert report["recorded_only_physical"]["dynamic_friction"]["mujoco_channel"] is None
+    assert report["recorded_only_physical"]["restitution"]["mujoco_channel"] is None
     assert report["com_sweep_summary"]["n_cases"] == 6
     assert report["com_sweep_summary"]["not_a_sonic_gate"] is True
     assert report["com_offset"]["kind"] == "wbc_base_com_ipos_offset"

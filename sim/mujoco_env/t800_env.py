@@ -21,6 +21,9 @@ a negative control, not a 0.25 m / 1.0 rad height/ori gate.
 Table S4 target_motion lin_vel/ang_vel jitter extrema (ADR-036) add to
 clip ``root_linvel`` / ``root_angvel`` on a walk clip. A stand clip is
 refused (zero velocity is degenerate). Not a root_push.
+Table S4 physical.dynamic_friction and physical.restitution stay
+recorded-only (ADR-037). ``set_wbc_slide_friction`` must not write
+``geom_solref`` / ``geom_solimp`` or ``geom_friction[:, 1:]``.
 """
 
 from __future__ import annotations
@@ -37,6 +40,7 @@ from sim.urdf_fk import load_t800_kinematics, rpy_to_matrix
 from wbc.dims import load_t800_sonic
 from wbc.foot_frame import urdf_sole_world_m
 from wbc.pd_stand import pd_stand_kp_kd, pd_stand_q_des_rad
+from wbc.ppo.table_s4 import refuse_recorded_only_physical_map
 
 OFFICIAL_MJCF = (
     REPO_ROOT
@@ -321,12 +325,21 @@ class T800MujocoEnv(BaseEnv):
         ids = self.wbc_slide_friction_geom_ids()
         if not ids:
             raise ValueError("no floor or foot collision geoms to retune")
+        solref0 = self.model.geom_solref.copy()
+        solimp0 = self.model.geom_solimp.copy()
+        spin_roll0 = self.model.geom_friction[:, 1:].copy()
         names: list[str] = []
         bodies: list[str] = []
         for gid in ids:
             self.model.geom_friction[gid, 0] = mu
             names.append(self._geom_name(gid))
             bodies.append(self._body_name(int(self.model.geom_bodyid[gid])))
+        if not np.allclose(self.model.geom_solref, solref0):
+            raise RuntimeError("set_wbc_slide_friction must not write geom_solref")
+        if not np.allclose(self.model.geom_solimp, solimp0):
+            raise RuntimeError("set_wbc_slide_friction must not write geom_solimp")
+        if not np.allclose(self.model.geom_friction[:, 1:], spin_roll0):
+            raise RuntimeError("set_wbc_slide_friction must not write geom_friction[:, 1:]")
         return {
             "mu_slide": mu,
             "n_geoms": len(ids),
@@ -334,14 +347,34 @@ class T800MujocoEnv(BaseEnv):
             "geom_names": names,
             "body_names": bodies,
             "spin_roll_unchanged": True,
+            "solref_unchanged": True,
+            "solimp_unchanged": True,
             "official_spin_roll": list(OFFICIAL_FLOOR_FRICTION[1:]),
             "mujoco_contact": "elementwise_max_of_two_geoms",
             "not_dexhand2_contact": True,
             "not_pad_cardboard": True,
+            "dynamic_friction_not_mapped": True,
+            "restitution_not_mapped": True,
         }
+
+    def set_wbc_dynamic_friction(self, mu_dynamic: float) -> None:
+        """No MuJoCo μd channel. Always raises (ADR-037). ``mu_dynamic`` is unused."""
+        _ = mu_dynamic
+        refuse_recorded_only_physical_map("dynamic_friction")
+
+    def set_wbc_restitution(self, restitution: float) -> None:
+        """No solref map for PhysX restitution. Always raises (ADR-037)."""
+        _ = restitution
+        refuse_recorded_only_physical_map("restitution")
 
     def geom_friction_copy(self) -> Any:
         return self.model.geom_friction.copy()
+
+    def geom_solref_copy(self) -> Any:
+        return self.model.geom_solref.copy()
+
+    def geom_solimp_copy(self) -> Any:
+        return self.model.geom_solimp.copy()
 
     def restore_geom_friction(self, friction: Any) -> None:
         self.model.geom_friction[:] = friction

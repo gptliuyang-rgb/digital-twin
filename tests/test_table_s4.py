@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
+
 import pytest
+import yaml
 
 from interface.schema import REPO_ROOT
 from wbc.ppo.recipe import load_ppo_recipe
@@ -13,8 +16,10 @@ from wbc.ppo.table_s4 import (
     LIN_VEL_JITTER_AXES,
     ORI_JITTER_AXES,
     POS_JITTER_AXES,
+    RECORDED_ONLY_PHYSICAL_FIELDS,
     SWEEP_AXES,
     VERTICAL_AXES,
+    RecordedOnlyPhysicalMapError,
     axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
     base_com_offset_extrema,
@@ -27,6 +32,10 @@ from wbc.ppo.table_s4 import (
     physical_dynamic_friction_range,
     physical_restitution_range,
     physical_static_friction_range,
+    recorded_only_physical,
+    refuse_dynamic_friction_map,
+    refuse_recorded_only_physical_map,
+    refuse_restitution_solref_map,
     root_push_angvel_ranges_rad_s,
     root_push_duration_s,
     root_push_ranges_mps,
@@ -47,6 +56,63 @@ from wbc.ppo.table_s4 import (
     vertical_force_cases,
     vertical_linvel_extrema_mps,
 )
+
+_FORBIDDEN_SOLREF_ATTRS = frozenset({"geom_solref", "geom_solimp"})
+_SCAN_ROOTS = (REPO_ROOT / "sim", REPO_ROOT / "eval", REPO_ROOT / "wbc")
+
+
+def _is_full_array_slice(slice_node: ast.AST) -> bool:
+    return (
+        isinstance(slice_node, ast.Slice)
+        and slice_node.lower is None
+        and slice_node.upper is None
+        and slice_node.step is None
+    )
+
+
+def _last_index_is_slide_zero(slice_node: ast.AST) -> bool:
+    if isinstance(slice_node, ast.Tuple) and slice_node.elts:
+        last = slice_node.elts[-1]
+        return isinstance(last, ast.Constant) and last.value == 0
+    return False
+
+
+def geom_contact_write_hits(source: str, *, filename: str = "<mem>") -> list[str]:
+    """Assignment targets that would map restitution or μd onto a MuJoCo geom."""
+    tree = ast.parse(source, filename=filename)
+    hits: list[str] = []
+    for node in ast.walk(tree):
+        targets: list[ast.AST] = []
+        if isinstance(node, ast.Assign):
+            targets.extend(node.targets)
+        elif isinstance(node, ast.AugAssign):
+            targets.append(node.target)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets.append(node.target)
+        for target in targets:
+            hits.extend(_contact_target_hits(target, filename, node.lineno))
+    return hits
+
+
+def _contact_target_hits(target: ast.AST, filename: str, lineno: int) -> list[str]:
+    hits: list[str] = []
+    if isinstance(target, ast.Tuple):
+        for elt in target.elts:
+            hits.extend(_contact_target_hits(elt, filename, lineno))
+        return hits
+    if isinstance(target, ast.Attribute) and target.attr in _FORBIDDEN_SOLREF_ATTRS:
+        hits.append(f"{filename}:{lineno}:{target.attr}")
+        return hits
+    if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Attribute):
+        attr = target.value.attr
+        if attr in _FORBIDDEN_SOLREF_ATTRS:
+            hits.append(f"{filename}:{lineno}:{attr}")
+            return hits
+        if attr == "geom_friction":
+            if _is_full_array_slice(target.slice) or _last_index_is_slide_zero(target.slice):
+                return hits
+            hits.append(f"{filename}:{lineno}:geom_friction_non_slide")
+    return hits
 
 
 def test_table_s4_is_not_dexhand2_contact() -> None:
@@ -508,3 +574,73 @@ def test_target_motion_jitter_is_not_a_root_push_or_physical_hold() -> None:
     assert set(lin_names).isdisjoint(pos_names)
     assert set(angvel_jit_names).isdisjoint(ang_names)
     assert set(angvel_jit_names).isdisjoint(ori_names)
+
+
+def test_recorded_only_physical_loads_from_domain_rand_and_is_not_a_mujoco_channel() -> None:
+    raw = load_table_s4()
+    assert tuple(raw["recorded_only_physical"]) == RECORDED_ONLY_PHYSICAL_FIELDS
+    assert physical_dynamic_friction_range() == (0.3, 1.2)
+    assert physical_restitution_range() == (0.0, 0.5)
+    info = recorded_only_physical()
+    assert set(info) == {"dynamic_friction", "restitution"}
+    assert info["dynamic_friction"]["range"] == [0.3, 1.2]
+    assert info["restitution"]["range"] == [0.0, 0.5]
+    assert info["dynamic_friction"]["mujoco_channel"] is None
+    assert info["restitution"]["mujoco_channel"] is None
+    assert info["dynamic_friction"]["not_pad_cardboard"] is True
+    assert info["restitution"]["not_dexhand2_contact"] is True
+    recipe = load_ppo_recipe()
+    physical = recipe["domain_rand"]["physical"]
+    assert physical["dynamic_friction"] == [0.3, 1.2]
+    assert physical["restitution"] == [0.0, 0.5]
+    cfg = yaml.safe_load(
+        (REPO_ROOT / "eval" / "configs" / "l2_freebase_push.yaml").read_text(encoding="utf-8")
+    )
+    recorded = cfg["recorded_only_physical"]
+    assert recorded["fields"] == list(RECORDED_ONLY_PHYSICAL_FIELDS)
+    assert recorded["dynamic_friction"] == [0.3, 1.2]
+    assert recorded["restitution"] == [0.0, 0.5]
+    assert recorded["mujoco_channel"] is None
+    spec = (REPO_ROOT / "assets" / "dexhand2" / "meta" / "dexhand2_spec.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "friction_vs_cardboard_dynamic: REQUIRED_INPUT" in spec
+    assert "dynamic_friction: [0.3, 1.2]" not in spec
+    assert "restitution: [0.0, 0.5]" not in spec
+
+
+def test_refuse_recorded_only_physical_map_always_raises() -> None:
+    with pytest.raises(RecordedOnlyPhysicalMapError, match="dynamic_friction"):
+        refuse_dynamic_friction_map()
+    with pytest.raises(RecordedOnlyPhysicalMapError, match="restitution"):
+        refuse_restitution_solref_map()
+    with pytest.raises(RecordedOnlyPhysicalMapError, match="solref"):
+        refuse_recorded_only_physical_map("restitution")
+    with pytest.raises(ValueError, match="not a recorded-only"):
+        refuse_recorded_only_physical_map("static_friction")
+
+
+def test_geom_contact_scanner_allows_slide_and_restore_forbids_solref() -> None:
+    allowed = """
+model.geom_friction[gid, 0] = mu
+model.geom_friction[:] = backup
+"""
+    assert geom_contact_write_hits(allowed) == []
+    solref = "model.geom_solref[gid] = [0.02, 1.0]\n"
+    assert any("geom_solref" in hit for hit in geom_contact_write_hits(solref))
+    solimp = "self.model.geom_solimp = other\n"
+    assert any("geom_solimp" in hit for hit in geom_contact_write_hits(solimp))
+    spin = "model.geom_friction[gid, 1] = 0.3\n"
+    assert any("geom_friction_non_slide" in hit for hit in geom_contact_write_hits(spin))
+    mud = "model.geom_friction[:, 1:] = 1.2\n"
+    assert any("geom_friction_non_slide" in hit for hit in geom_contact_write_hits(mud))
+
+
+def test_sim_eval_wbc_do_not_write_solref_or_dynamic_friction() -> None:
+    hits: list[str] = []
+    for root in _SCAN_ROOTS:
+        for path in root.rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            rel = str(path.relative_to(REPO_ROOT))
+            hits.extend(geom_contact_write_hits(text, filename=rel))
+    assert hits == []

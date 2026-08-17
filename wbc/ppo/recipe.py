@@ -62,6 +62,10 @@ def load_ppo_recipe(*, teleop_mode: str | None = None) -> dict[str, Any]:
         raise ValueError("5-point hybrid encoder dim drifted")
     if dr.get("not_dexhand2_contact") is not True:
         raise ValueError("domain_rand.yaml must keep not_dexhand2_contact: true")
+    if tuple(dr.get("recorded_only_physical") or ()) != ("dynamic_friction", "restitution"):
+        raise ValueError(
+            "domain_rand.yaml recorded_only_physical must stay [dynamic_friction, restitution]"
+        )
     if hyp.get("g1_last_pt_finetune") != "forbidden":
         raise ValueError("G1 last.pt fine-tune must stay forbidden")
     return {

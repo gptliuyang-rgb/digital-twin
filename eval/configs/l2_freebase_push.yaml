@@ -130,6 +130,15 @@ joint_sweep:
   use_table_s4_extrema: true
   default_joint_pos_offset_rad: [-0.01, 0.01]  # Table S4; uniform on 25 hinges
   not_mixed_into_push_sweep: true
+recorded_only_physical:
+  fields: [dynamic_friction, restitution]
+  dynamic_friction: [0.3, 1.2]
+  restitution: [0.0, 0.5]
+  mujoco_channel: null
+  not_mapped_to_solref: true
+  not_mapped_to_geom_friction_spin_roll: true
+  not_dexhand2_contact: true
+  not_pad_cardboard: true
 angvel_sweep:
   axes: [roll, pitch, yaw]       # roll/pitch ±0.52 rad/s, yaw ±0.78 rad/s
   use_table_s4_extrema: true
@@ -149,7 +158,8 @@ note: >
   freejoint angular block of mj_fullM at the inject pose. Neither is a datasheet guess.
   Vertical ±Z 0.2 m/s uses the same mass and F = m v / T; it is not mixed into planar.
   Friction extrema retune geom_friction[0] on the eval floor and foot geoms only.
-  MuJoCo has no separate dynamic coefficient; restitution is not mapped to solref.
+  MuJoCo has no separate dynamic coefficient; restitution is not mapped to solref
+  (ADR-037). recorded_only_physical is [dynamic_friction, restitution].
   CoM extrema add Table S4 base_com_offset_m to compiled body_ipos[LINK_BASE].
   That is T800 pelvis inertial offset, not DexHand2 com_in_wrist_frame_m.
   Joint-pos extrema add Table S4 default_joint_pos_offset_rad to the 25

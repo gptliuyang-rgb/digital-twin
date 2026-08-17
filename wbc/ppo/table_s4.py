@@ -3,7 +3,8 @@
 These numbers randomize the *humanoid* / floor during motion-tracking PPO. They
 are not DexHand2 pad–cardboard coefficients and must not enter
 dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 /
-ADR-030 / ADR-031 / ADR-032 / ADR-033 / ADR-034 / ADR-035 / ADR-036).
+ADR-030 / ADR-031 / ADR-032 / ADR-033 / ADR-034 / ADR-035 / ADR-036 /
+ADR-037).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -42,6 +43,13 @@ ORI_JITTER_AXES = ("roll", "pitch", "yaw")
 # Stand-clip velocity is identically zero — extrema live on a walk clip.
 LIN_VEL_JITTER_AXES = ("x", "y", "z")
 ANG_VEL_JITTER_AXES = ("roll", "pitch", "yaw")
+# Table S4 physical fields that load from YAML but have no non-invented MuJoCo
+# channel. Do not write them onto a geom (ADR-037).
+RECORDED_ONLY_PHYSICAL_FIELDS = ("dynamic_friction", "restitution")
+
+
+class RecordedOnlyPhysicalMapError(RuntimeError):
+    """Raised if code tries to write Table S4 μd or restitution onto a MuJoCo geom."""
 
 
 def load_table_s4() -> dict[str, Any]:
@@ -50,6 +58,12 @@ def load_table_s4() -> dict[str, Any]:
         raise ValueError("domain_rand.yaml must be a mapping")
     if raw.get("not_dexhand2_contact") is not True:
         raise ValueError("domain_rand.yaml must keep not_dexhand2_contact: true")
+    recorded = tuple(raw.get("recorded_only_physical") or ())
+    if recorded != RECORDED_ONLY_PHYSICAL_FIELDS:
+        raise ValueError(
+            "domain_rand.yaml recorded_only_physical must stay "
+            f"{list(RECORDED_ONLY_PHYSICAL_FIELDS)}, got {list(recorded)}"
+        )
     return raw
 
 
@@ -359,6 +373,64 @@ def physical_dynamic_friction_range() -> tuple[float, float]:
 def physical_restitution_range() -> tuple[float, float]:
     """Recorded Table S4 physical.restitution. Not mapped onto MuJoCo solref."""
     return _range2(load_table_s4()["physical"]["restitution"], field="physical.restitution")
+
+
+def recorded_only_physical() -> dict[str, dict[str, Any]]:
+    """Load Table S4 μd / restitution ranges and document the missing MuJoCo map.
+
+    These numbers stay in ``domain_rand.yaml`` so PPO domain-rand is complete.
+    They must not be written onto ``geom_friction[1:]``, ``geom_solref``, or
+    ``geom_solimp``. Call ``refuse_recorded_only_physical_map`` instead of
+    inventing a PhysX→MuJoCo conversion.
+    """
+    load_table_s4()
+    return {
+        "dynamic_friction": {
+            "range": list(physical_dynamic_friction_range()),
+            "table_s4_field": "physical.dynamic_friction",
+            "mujoco_channel": None,
+            "forbidden_mujoco_attrs": ["geom_friction[:, 1]", "geom_friction[:, 2]"],
+            "reason": (
+                "MuJoCo has one sliding coefficient (geom_friction[0]); "
+                "PhysX μd has no non-invented map"
+            ),
+            "not_pad_cardboard": True,
+            "not_dexhand2_contact": True,
+        },
+        "restitution": {
+            "range": list(physical_restitution_range()),
+            "table_s4_field": "physical.restitution",
+            "mujoco_channel": None,
+            "forbidden_mujoco_attrs": ["geom_solref", "geom_solimp"],
+            "reason": "PhysX restitution has no non-invented MuJoCo solref/solimp map",
+            "not_pad_cardboard": True,
+            "not_dexhand2_contact": True,
+        },
+    }
+
+
+def refuse_recorded_only_physical_map(field: str) -> None:
+    """Always raise. Use this instead of writing μd or restitution onto a geom."""
+    info = recorded_only_physical()
+    if field not in info:
+        raise ValueError(
+            f"{field!r} is not a recorded-only Table S4 physical field; "
+            f"expected one of {list(info)}"
+        )
+    row = info[field]
+    raise RecordedOnlyPhysicalMapError(
+        f"Table S4 {row['table_s4_field']} {row['range']} is recorded-only. "
+        f"{row['reason']}. Do not write it onto a MuJoCo geom "
+        f"({row['forbidden_mujoco_attrs']}). Do not copy it into dexhand2_spec.yaml."
+    )
+
+
+def refuse_dynamic_friction_map() -> None:
+    refuse_recorded_only_physical_map("dynamic_friction")
+
+
+def refuse_restitution_solref_map() -> None:
+    refuse_recorded_only_physical_map("restitution")
 
 
 def _mu_case_name(mu_slide: float) -> str:
