@@ -88,6 +88,32 @@ def test_fixture_base_com_offset_adds_to_compiled_ipos() -> None:
         env.set_base_com_offset([float("nan"), 0.0, 0.0])
 
 
+def test_fixture_default_joint_pos_offset_adds_to_q_des() -> None:
+    pytest.importorskip("mujoco")
+    env = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=True)
+    q0 = env.default_q_des_rad()
+    assert len(q0) == 25
+    assert q0.tolist() == [0.0] * 25
+    applied = env.offset_default_joint_pos(0.01)
+    assert applied["not_pad_cardboard"] is True
+    assert applied["not_dexhand2_contact"] is True
+    assert applied["additive_to_default_q_des"] is True
+    assert applied["freejoint_unchanged"] is True
+    assert applied["not_per_joint_corner_grid"] is True
+    assert applied["restitution_not_mapped"] is True
+    assert applied["mujoco_channel"] == "actuated_hinge_qpos"
+    assert applied["offset_rad"] == 0.01
+    assert applied["n_joints"] == 25
+    assert applied["q_des_rad"] == pytest.approx([0.01] * 25)
+    env.reset()
+    root0 = env.data.qpos[0:7].copy()
+    env.set_q(np.asarray(applied["q_des_rad"]))
+    assert env.get_q() == pytest.approx([0.01] * 25)
+    assert env.data.qpos[0:7] == pytest.approx(root0)
+    with pytest.raises(ValueError, match="finite"):
+        env.offset_default_joint_pos(float("nan"))
+
+
 def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     pytest.importorskip("mujoco")
     from eval.l2_freebase_push import run
@@ -257,6 +283,27 @@ def test_fixture_push_suite_is_not_a_sonic_gate() -> None:
     assert "offset_m" not in report["hold"]
     push_names = [c["name"] for c in report["push_sweep"]]
     assert set(com_names).isdisjoint(push_names)
+    joint_names = [c["name"] for c in report["joint_sweep"]]
+    assert joint_names == ["qpos_-0.01", "qpos_+0.01"]
+    assert report["joint_sweep_summary"]["n_cases"] == 2
+    assert report["joint_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["joint_offset"]["name"] == "qpos_+0.01"
+    assert report["joint_offset"]["kind"] == "wbc_default_joint_pos_offset"
+    assert report["joint_offset"]["offset_rad"] == 0.01
+    assert report["joint_offset"]["n_joints"] == 25
+    assert report["joint_offset"]["not_pad_cardboard"] is True
+    assert report["joint_offset"]["additive_to_default_q_des"] is True
+    assert report["joint_offset"]["freejoint_unchanged"] is True
+    assert report["joint_offset"]["restitution_not_mapped"] is True
+    assert all(c["kind"] == "wbc_default_joint_pos_offset" for c in report["joint_sweep"])
+    assert all(c["not_a_sonic_gate"] for c in report["joint_sweep"])
+    assert all(c["grasp_success_rate"] is None for c in report["joint_sweep"])
+    by_qpos = {c["name"]: c["offset_rad"] for c in report["joint_sweep"]}
+    assert by_qpos["qpos_-0.01"] == -0.01
+    assert by_qpos["qpos_+0.01"] == 0.01
+    assert "offset_rad" not in report["hold"]
+    assert set(joint_names).isdisjoint(push_names)
+    assert set(joint_names).isdisjoint(com_names)
     assert report["airdrop"]["n_plane"] == 0
     assert report["airdrop"]["nq"] == 32
     assert report["airdrop"]["freejoint_moved"] is True
@@ -330,5 +377,9 @@ def test_official_push_and_airdrop_report_honestly() -> None:
     assert report["com_sweep_summary"]["not_a_sonic_gate"] is True
     assert report["com_offset"]["kind"] == "wbc_base_com_ipos_offset"
     assert report["com_offset"]["not_wrist_com"] is True
-    # Fall on any axis, duration, friction, or CoM extremum is a diagnostic, not a SONIC fail.
+    assert report["joint_sweep_summary"]["n_cases"] == 2
+    assert report["joint_sweep_summary"]["not_a_sonic_gate"] is True
+    assert report["joint_offset"]["kind"] == "wbc_default_joint_pos_offset"
+    assert report["joint_offset"]["not_pad_cardboard"] is True
+    # Fall on any axis, duration, friction, CoM, or qpos extremum is a diagnostic, not a SONIC fail.
     assert report["not_a_sonic_gate"] is True

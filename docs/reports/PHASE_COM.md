@@ -65,5 +65,6 @@ Isaac Lab PPO launch still refused. Pad–cardboard μ remains `REQUIRED_INPUT`.
 - Running `IsaacLabSceneRuntime` inside Isaac Sim python
 - GMR on a tiny BONES-SEED clip (blocked on flange/CoM)
 - Diagnose a real GR00T / π0.5 dump once provided
-- Table S4 `dynamic_friction`, `restitution`, `default_joint_pos_offset_rad`
+- Table S4 `dynamic_friction`, `restitution`
   (recorded; restitution has no non-invented MuJoCo map)
+- Table S4 `default_joint_pos_offset_rad` — see `docs/reports/PHASE_QPOS.md` (ADR-033)

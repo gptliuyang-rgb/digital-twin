@@ -13,6 +13,10 @@ extrema (0.3 and 1.6) as MuJoCo sliding friction on the WBC floor and foot
 geoms — not mixed into ``push_sweep``, not pad–cardboard. ADR-032 sweeps Table
 S4 physical.base_com_offset_m (±X 0.075 m, ±Y/±Z 0.1 m) as an additive
 ``body_ipos[LINK_BASE]`` offset — not wrist CoM, not mixed into ``push_sweep``.
+ADR-033 sweeps Table S4 physical.default_joint_pos_offset_rad (±0.01 rad) as a
+uniform additive reset-qpos / PD-target offset on the 25 actuated hinges —
+not a 2^25 corner grid, not mixed into ``push_sweep``. Restitution stays
+recorded-only (no non-invented ``solref`` map).
 Air-drop (no floor) proves the freejoint.
 ``grasp_success_rate`` stays JSON null. Combined T800+Hand stays PolicyEvalBlocked.
 """
@@ -34,11 +38,11 @@ from interface.schema import REPO_ROOT
 from sim.mujoco_env.privileged_l2 import refuse_grasp_success_key
 from sim.mujoco_env.t800_env import T800MujocoEnv, pelvis_tilt_rad, refuse_combined_robot
 from wbc.foot_frame import FOOT_FRAME_DECISION, assert_foot_frame
-from wbc.pd_stand import pd_stand_q_des_rad
 from wbc.ppo.table_s4 import (
     axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
     base_com_offset_extrema,
+    default_joint_pos_offset_extrema,
     force_n_from_impulse,
     static_friction_extrema,
     sustained_force_cases,
@@ -50,7 +54,7 @@ from wbc.ppo.table_s4 import (
 
 
 def _q_des(env: T800MujocoEnv) -> np.ndarray:
-    return pd_stand_q_des_rad() if env.source == "official" else np.zeros(len(env.joint_order))
+    return env.default_q_des_rad()
 
 
 def evaluate_lateral_push(
@@ -284,6 +288,64 @@ def evaluate_com_offset_sweep(
             )
     finally:
         env.restore_base_ipos()
+    return out
+
+
+def evaluate_joint_offset_hold(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    hold_s: float,
+    offset_rad: float,
+    case_name: str,
+) -> dict[str, Any]:
+    """3 s PD hold at one Table S4 default_joint_pos_offset extremum."""
+    if env.pinned_base:
+        raise ValueError("joint-offset hold requires pinned_base=False")
+    if env.n_plane < 1:
+        raise ValueError("joint-offset hold requires a floor plane")
+    applied = env.offset_default_joint_pos(offset_rad)
+    q_des = np.asarray(applied["q_des_rad"], dtype=np.float64)
+    metrics = evaluate_freebase_stand(env, hold_s=hold_s, cfg=cfg, q_des=q_des)
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "wbc_default_joint_pos_offset",
+        "offset_rad": float(offset_rad),
+        "n_joints": int(applied["n_joints"]),
+        "joint_offset_applied": applied,
+        "source": (
+            "He et al., SONIC, arXiv:2511.07820v3 "
+            "Table S4 physical.default_joint_pos_offset_rad"
+        ),
+        "additive_to_default_q_des": True,
+        "freejoint_unchanged": True,
+        "not_per_joint_corner_grid": True,
+        "not_dexhand2_contact": True,
+        "not_pad_cardboard": True,
+        "restitution_not_mapped": True,
+    }
+
+
+def evaluate_joint_offset_sweep(
+    env: T800MujocoEnv,
+    *,
+    cfg: dict[str, Any],
+    hold_s: float,
+) -> list[dict[str, Any]]:
+    """PD hold at each Table S4 default_joint_pos_offset_rad extremum."""
+    cases = default_joint_pos_offset_extrema()
+    out: list[dict[str, Any]] = []
+    for case in cases:
+        out.append(
+            evaluate_joint_offset_hold(
+                env,
+                cfg=cfg,
+                hold_s=hold_s,
+                offset_rad=float(case["offset_rad"]),
+                case_name=str(case["name"]),
+            )
+        )
     return out
 
 
@@ -772,6 +834,8 @@ def _sweep_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
             entry["mu_slide"] = c["mu_slide"]
         if "offset_m" in c:
             entry["offset_m"] = c["offset_m"]
+        if "offset_rad" in c:
+            entry["offset_rad"] = c["offset_rad"]
         by_name[c["name"]] = entry
     return {
         "n_cases": len(cases),
@@ -868,6 +932,17 @@ def run(*, source: str = "auto") -> dict[str, Any]:
     com_plus_x = next((c for c in com_sweep if c["name"] == "com_+x"), None)
     if com_plus_x is None:
         raise ValueError("Table S4 CoM sweep must include com_+x (ADR-032 compatibility)")
+    joint_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=True)
+    joint_sweep = evaluate_joint_offset_sweep(
+        joint_env,
+        cfg=cfg,
+        hold_s=float(cfg["hold_s"]),
+    )
+    qpos_plus = next((c for c in joint_sweep if c["name"] == "qpos_+0.01"), None)
+    if qpos_plus is None:
+        raise ValueError(
+            "Table S4 joint-offset sweep must include qpos_+0.01 (ADR-033 compatibility)"
+        )
     air_env = T800MujocoEnv(source=source, pinned_base=False, add_floor=False)
     airdrop = evaluate_airdrop(
         air_env,
@@ -910,13 +985,16 @@ def run(*, source: str = "auto") -> dict[str, Any]:
         "com_offset": com_plus_x,
         "com_sweep": com_sweep,
         "com_sweep_summary": _sweep_summary(com_sweep),
+        "joint_offset": qpos_plus,
+        "joint_sweep": joint_sweep,
+        "joint_sweep_summary": _sweep_summary(joint_sweep),
         "airdrop": airdrop,
         "local_tracking_success": False,
         "not_a_sonic_gate": True,
         "bringup_pd_is_not_a_balance_controller": True,
         "grasp_success_rate": None,
         "combined_robot": "PolicyEvalBlocked",
-        "success_rate_note": "lean vs fall vs planar/vertical/angvel/friction/com sweep vs air-drop are diagnostics; not SONIC gates",
+        "success_rate_note": "lean vs fall vs planar/vertical/angvel/friction/com/qpos sweep vs air-drop are diagnostics; not SONIC gates",
     }
     refuse_grasp_success_key(report)
     return report
@@ -968,6 +1046,9 @@ def main() -> None:
         "com_sweep_names": report["com_sweep_summary"]["names"],
         "com_sweep_n_fallen": report["com_sweep_summary"]["n_fallen"],
         "com_offset_m": report["com_offset"]["offset_m"],
+        "joint_sweep_names": report["joint_sweep_summary"]["names"],
+        "joint_sweep_n_fallen": report["joint_sweep_summary"]["n_fallen"],
+        "joint_offset_rad": report["joint_offset"]["offset_rad"],
         "airdrop_freejoint_moved": report["airdrop"]["freejoint_moved"],
         "airdrop_drop_m": report["airdrop"]["drop_m"],
         "not_a_sonic_gate": report["not_a_sonic_gate"],

@@ -22,7 +22,6 @@ from interface.schema import REPO_ROOT
 from sim.mujoco_env.privileged_l2 import refuse_grasp_success_key
 from sim.mujoco_env.t800_env import T800MujocoEnv, pelvis_tilt_rad, refuse_combined_robot
 from wbc.foot_frame import FOOT_FRAME_DECISION, assert_foot_frame
-from wbc.pd_stand import pd_stand_q_des_rad
 
 
 def evaluate_freebase_stand(
@@ -30,12 +29,22 @@ def evaluate_freebase_stand(
     *,
     hold_s: float,
     cfg: dict[str, Any],
+    q_des: np.ndarray | None = None,
 ) -> dict[str, Any]:
     if env.pinned_base:
         raise ValueError("free-base stand requires pinned_base=False")
     if env.n_plane < 1:
         raise ValueError("free-base stand requires a floor plane")
-    q_des = pd_stand_q_des_rad() if env.source == "official" else np.zeros(len(env.joint_order))
+    if q_des is None:
+        q_des = env.default_q_des_rad()
+        q_des_source = (
+            "official_pd_stand_desired_joint_position"
+            if env.source == "official"
+            else "fixture_zeros"
+        )
+    else:
+        q_des = np.asarray(q_des, dtype=np.float64).reshape(len(env.joint_order))
+        q_des_source = "caller_supplied"
     env.reset()
     env.set_q(q_des)
     env._mujoco.mj_forward(env.model, env.data)
@@ -62,9 +71,7 @@ def evaluate_freebase_stand(
     return {
         "hold_s": hold_s,
         "n_steps": n,
-        "q_des_source": (
-            "official_pd_stand_desired_joint_position" if env.source == "official" else "fixture_zeros"
-        ),
+        "q_des_source": q_des_source,
         "start_pelvis_z_m": float(pelvis0[2]),
         "end_pelvis_z_m": float(pelvis[2]),
         "min_pelvis_z_m": float(np.min(z_hist)),

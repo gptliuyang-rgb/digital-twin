@@ -1,17 +1,21 @@
 # Free-base T800 Table S4 planar root-push sweep + sustained force +
 # angular-velocity sweep + sustained torque + linear-z sweep +
-# WBC floor static-friction extrema + base CoM ipos extrema + air-drop.
+# WBC floor static-friction extrema + base CoM ipos extrema +
+# default joint-pos offset extrema + air-drop.
 # Not a SONIC gate (ADR-026 / ADR-027 / ADR-028 / ADR-029 / ADR-030 / ADR-031 /
-# ADR-032).
+# ADR-032 / ADR-033).
 # Velocities are Table S4 root_push extrema. One-shot qvel is ADR-027/029/030.
 # Sustained force is F = m v / T; sustained torque is τ = I ω / T for
 # duration extrema 1 s and 3 s (same impulse, not pad–cardboard).
 # Friction extrema are Table S4 physical.static_friction as MuJoCo sliding
 # on the WBC floor + foot geoms (ADR-031). CoM extrema are Table S4
 # physical.base_com_offset_m as additive body_ipos[LINK_BASE] (ADR-032).
+# Joint-pos extrema are Table S4 physical.default_joint_pos_offset_rad as a
+# uniform additive reset-qpos / PD-target offset on the 25 actuated hinges
+# (ADR-033). Restitution is not mapped to solref.
 # Grasp-success stays JSON null.
 # Planar sweep stays ±X/±Y at 0.5 m/s. Z (±0.2 m/s) is a separate vertical
-# diagnostic. Friction and CoM are not mixed into push_sweep.
+# diagnostic. Friction, CoM, and joint-pos are not mixed into push_sweep.
 
 schema_version: "1.0"
 physics: mujoco
@@ -110,6 +114,22 @@ com_sweep:
     y: [-0.1, 0.1]
     z: [-0.1, 0.1]
   not_mixed_into_push_sweep: true
+joint_offset:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.default_joint_pos_offset_rad"
+  kind: wbc_default_joint_pos_offset
+  name: qpos_+0.01               # +0.01 rad kept as the ADR-033 compatibility case
+  offset_rad: 0.01
+  mujoco_channel: actuated_hinge_qpos
+  additive_to_default_q_des: true
+  freejoint_unchanged: true
+  not_per_joint_corner_grid: true
+  restitution_not_mapped: true
+  not_dexhand2_contact: true
+  not_pad_cardboard: true
+joint_sweep:
+  use_table_s4_extrema: true
+  default_joint_pos_offset_rad: [-0.01, 0.01]  # Table S4; uniform on 25 hinges
+  not_mixed_into_push_sweep: true
 angvel_sweep:
   axes: [roll, pitch, yaw]       # roll/pitch ±0.52 rad/s, yaw ±0.78 rad/s
   use_table_s4_extrema: true
@@ -132,3 +152,6 @@ note: >
   MuJoCo has no separate dynamic coefficient; restitution is not mapped to solref.
   CoM extrema add Table S4 base_com_offset_m to compiled body_ipos[LINK_BASE].
   That is T800 pelvis inertial offset, not DexHand2 com_in_wrist_frame_m.
+  Joint-pos extrema add Table S4 default_joint_pos_offset_rad to the 25
+  actuated-hinge reset qpos and PD target. Freejoint is unchanged.
+  Restitution is not mapped to solref.
