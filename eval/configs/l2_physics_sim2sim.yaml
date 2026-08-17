@@ -1,0 +1,26 @@
+# Physics Sim2Sim on T800 (body only). Pinned-base PD tracking is the CI gate.
+# Free-base reports fall_rate; without a trained SONIC policy it is expected to be high.
+# grasp_success_rate is always JSON null (ADR-004 / ADR-023).
+# Combined T800+Hand remains PolicyEvalBlocked.
+
+schema_version: "1.0"
+physics: mujoco
+sources: [official_serial_t800, kinematics_fixture]
+pinned_base: true
+control_rate_hz: 50
+sim_timestep_s: 0.002
+n_frames: 40
+amplitude_rad: 0.05
+success_fail:
+  root_or_ee_height_err_m: 0.25
+  root_ori_err_rad: 1.0
+  pinned_joint_mae_rad: 0.15
+  pinned_fk_consistency_no_feet_m: 0.005
+  official_foot_urdf_mjcf_delta_z_m: 0.06453
+gates:
+  grasp_success_rate: null
+  combined_robot: PolicyEvalBlocked
+note: >
+  Official XML uses Native SDK inertias + pd_stand. The kinematics fixture uses
+  placeholder 1 kg / 0.01 kg·m² bodies and mild PD — not a sim2real number.
+  G1 ~6 cm wrist error is not a T800 gate.
