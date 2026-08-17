@@ -1,0 +1,6 @@
+# L0 diagnose: classify ckpt action space (A/B/C) before replay.
+# Does not invent a layout. Unknown dims exit 2.
+gates:
+  aligned_with_command_schema: true
+  refuse_g1: true
+  refuse_unknown_dim: true

@@ -1,0 +1,12 @@
+# 3×3 scan of official gen-1 kp/kv scales. Not a Hand 2 system-id.
+# Run every L2 eval across all 9 cells and report range, not a single success rate.
+
+schema_version: "1.0"
+source: official_mjcf_sim_kp_kv
+status: uncalibrated_carried_from_wuji_hand_gen1
+kp_scale: [0.5, 1.0, 2.0]
+kv_scale: [0.5, 1.0, 2.0]
+n_cells: 9
+note: >
+  Do not collapse the 9-cell range into one grasp-success number.
+  Hardware kp/kd remain REQUIRED_INPUT until E-gain / FAE data exists.

@@ -1,0 +1,17 @@
+# Hyperparameters for palmar-pad sphere fitting. Not physical pad stiffness.
+# Distal STL lives in the MJCF distal body frame. Official *_tip.STL is the same
+# mesh with Z flipped about a plane (CAD export frame) — do not inject raw tip
+# coordinates into the distal body.
+
+schema_version: "1.0"
+n_spheres_per_finger: 3
+distal_z_quantile: 0.45          # keep the more-distal (more negative Z) half
+pulp_y_quantile: 0.50            # palmar half of that slice
+radius_quantile: 0.75            # sphere radius vs pulp-cluster RMS
+min_radius_m: 0.004              # numerical floor for degenerate clusters, not a spec
+condim: 4                        # torsion friction for cardboard grasp
+disable_distal_hull_collision: true
+acceptance:
+  palmar_vertex_to_sphere_surface_m: 0.002
+  max_pad_spheres_per_hand: 15
+  max_collision_geoms_simplified: 60
