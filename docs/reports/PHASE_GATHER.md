@@ -32,7 +32,7 @@ and real GR00T/π0.5 dumps stay blocked on flange SE(3) and wrist CoM.
 ## Not done
 
 - Measured IMU/joint latency (must not be invented)
-- Encoder ONNX / motion-reference observations (`motion_*_10frame_step5`)
+- Running a T800 encoder ONNX (encoder *input* gather is ADR-042)
 - PICO / CloudXR / Isaac Teleop SDK
 - Isaac Lab PPO launch
 - Combined T800+Hand MJCF

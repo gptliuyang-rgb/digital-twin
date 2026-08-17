@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from wbc.checkpoint import G1CheckpointIncompatible, refuse_g1_checkpoint
-from wbc.dims import G1_DECODER_INPUT_DIM, decoder_history_dim, load_t800_sonic
+from wbc.dims import G1_DECODER_INPUT_DIM, G1_ENCODER_MOTION_DIM, decoder_history_dim, load_t800_sonic
 from wbc.retarget import retarget_blockers
 
 
@@ -26,7 +26,9 @@ def expected_io() -> dict[str, Any]:
         "n_dof": n,
         "encoder": {
             "model_encoder.onnx": {
-                "note": "universal token encoder; cmd dim depends on teleop_mode",
+                "note": "G1 ONNX refused. Encoder INPUT is motion_* 10frame_step5 (ADR-042).",
+                "input_dim": int(cfg.get("encoder_motion_dim", 570)),
+                "g1_input_dim_forbidden": G1_ENCODER_MOTION_DIM,
                 "vr_3point_cmd_dim": int(cfg["hybrid_encoder_cmd_dim_3point"]),
                 "vr_5point_cmd_dim": int(cfg["hybrid_encoder_cmd_dim_5point"]),
             }

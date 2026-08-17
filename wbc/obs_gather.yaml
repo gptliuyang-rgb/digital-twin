@@ -12,6 +12,8 @@ not_table_s4: true
 not_hand_mit_ring: true
 not_invented_latency: true
 not_pico_sdk: true
+not_invented_clip: true
+not_g1_encoder_onnx: true
 
 # Paper loops (Hz). Assembly runs on the 50 Hz control loop. HardwareHold
 # may be pushed at 500 Hz; latest-data-wins into the 50 Hz ring (paper S7).
@@ -35,6 +37,40 @@ csv_enabled: false
 # G1  64 + 30 + 290 + 290 + 290 + 30 = 994  (forbidden on T800)
 expected_total_dim: 874
 g1_total_dim_forbidden: 994
+
+# Encoder motion-reference window (official observation_config.yaml names).
+# Look-ahead, not robot-state history. step5 = 0.1 s at 50 Hz, 10 frames = 0.9 s.
+# T800  10*25 + 10*25 + 60 + 10 = 570. G1 650 is forbidden.
+# This is the encoder INPUT. Official G1 model_encoder.onnx is not loaded
+# (ADR-011). Token_state stays an external 64-D (planner / ZMQ / later T800 ONNX).
+not_invented_clip: true
+not_g1_encoder_onnx: true
+n_lower_body_dof: 12         # J00–J11. Same count as G1 legs; not a G1 copy.
+n_wrist_dof: 0               # T800 dummy wrists; motion_*_wrists_* is refused
+expected_encoder_dim: 570
+g1_encoder_dim_forbidden: 650
+
+encoder:
+  dimension: 64              # token output size; ONNX is not run here
+  use_fp16: false
+  encoder_observations:
+    - name: motion_joint_positions_10frame_step5
+      enabled: true
+    - name: motion_joint_velocities_10frame_step5
+      enabled: true
+    - name: motion_anchor_orientation_10frame_step5
+      enabled: true
+    - name: motion_root_z_position_10frame_step5
+      enabled: true
+  encoder_modes:
+    - name: t800
+      mode_id: 0
+      required_observations:
+        - motion_joint_positions_10frame_step5
+        - motion_joint_velocities_10frame_step5
+        - motion_anchor_orientation_10frame_step5
+        - motion_root_z_position_10frame_step5
+    # Official YAML uses mode name "g1". That name is refused on T800.
 
 # Deployment decoder / policy obs_dict. Names match GEAR-SONIC registry.
 # Offsets are compiled at startup from this list (paper S7).

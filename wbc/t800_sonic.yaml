@@ -11,6 +11,10 @@ robot: t800
 source_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
 source_model_yaml: third_party/engineai-native-sdk/assets/config/t800/model/default.yaml
 n_revolute: 25
+n_lower_body_dof: 12         # J00–J11; encoder lowerbody slice
+n_wrist_dof: 0               # dummy LINK_WRIST_END_*; motion_*_wrists_* refused
+encoder_motion_dim: 570      # 10frame_step5 q+dq+ori6+z ; G1 650 forbidden
+g1_encoder_motion_dim: 650
 floating_base_link: LINK_BASE
 control_rate_hz: 50          # Hz, SONIC policy / tracker token (ADR-021 sonic_command_hz)
 command_stream_hz: 500       # Hz, SONIC §3.5 PD instruction ring (ADR-039)
@@ -111,7 +115,8 @@ planner:
   command_stream: wbc/stream.yaml  # 500 Hz PD ring; ADR-039
   operator_input: wbc/operator.yaml  # 100 Hz operator ring; ADR-040
   obs_gather: wbc/obs_gather.yaml  # 50 Hz YAML observation assembler; ADR-041 / paper S7
-  note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring. The 500 Hz stream interpolates 10 Hz L1a, 50 Hz tokens, and 100 Hz operator samples onto the PD clock. The 50 Hz control loop assembles decoder observations from the StateLogger ring (paper S7).
+  encoder_motion: wbc/obs_gather.yaml  # encoder_observations 10frame_step5; ADR-042
+  note: Same code in sim and on the robot. Hands bypass WBC; planner still upsamples them for the DexHand2 ring. The 500 Hz stream interpolates 10 Hz L1a, 50 Hz tokens, and 100 Hz operator samples onto the PD clock. The 50 Hz control loop assembles decoder observations from the StateLogger ring (paper S7). Encoder motion_* look-ahead is a caller-supplied 50 Hz reference (not an invented clip, not G1 ONNX).
 
 g1_incompatible:
   g1_n_dof: 29

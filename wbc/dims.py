@@ -14,8 +14,23 @@ TOKEN_DIM = 64
 HISTORY_FRAMES = 10
 ANGVEL_DIM = 3
 GRAVITY_DIM = 3
+ANCHOR_ORI_DIM = 6  # Zhou 6D: first two columns of R
+ROOT_Z_DIM = 1
 G1_N_DOF = 29
 G1_DECODER_INPUT_DIM = 994
+# Official encoder motion window: 10frame_step5 of (q, dq, ori6, z).
+# G1  10*29 + 10*29 + 60 + 10 = 650. T800 10*25 + 10*25 + 60 + 10 = 570.
+G1_ENCODER_MOTION_DIM = 650
+G1_N_WRIST_DOF = 6
+T800_N_WRIST_DOF = 0
+T800_N_LOWER_BODY_DOF = 12  # J00–J11; G1 lower-body is also 12 hip/knee/ankle
+
+
+def encoder_motion_dim(n_dof: int, *, n_frames: int = HISTORY_FRAMES) -> int:
+    """Default SONIC encoder input: q_hist + dq_hist + ori6_hist + z_hist."""
+    n = int(n_dof)
+    nf = int(n_frames)
+    return nf * n + nf * n + ANCHOR_ORI_DIM * nf + ROOT_Z_DIM * nf
 
 
 def load_t800_sonic(path: Path | None = None) -> dict[str, Any]:
@@ -86,4 +101,15 @@ def assert_t800_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         raise ValueError("planner_hz must be 10 (SONIC L1a)")
     if int(cfg["operator_input_hz"]) != 100:
         raise ValueError("operator_input_hz must be 100 (SONIC §3.5, ADR-040)")
+    enc = encoder_motion_dim(int(cfg["n_revolute"]))
+    if enc == G1_ENCODER_MOTION_DIM:
+        raise ValueError("T800 encoder motion dim must not be G1 650")
+    if int(cfg.get("encoder_motion_dim", enc)) != enc:
+        raise ValueError(f"encoder_motion_dim {cfg.get('encoder_motion_dim')} != {enc}")
+    if int(cfg.get("n_wrist_dof", 0)) != 0:
+        raise ValueError("n_wrist_dof must be 0 on T800")
+    if int(cfg.get("n_lower_body_dof", T800_N_LOWER_BODY_DOF)) != T800_N_LOWER_BODY_DOF:
+        raise ValueError("n_lower_body_dof must be 12 (J00–J11)")
+    cfg["encoder_motion_dim"] = enc
+    cfg["g1_encoder_motion_dim"] = G1_ENCODER_MOTION_DIM
     return cfg

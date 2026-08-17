@@ -38,6 +38,8 @@ make eval-l1            # limits + coupling; IK skipped without Pinocchio
 make eval-l1a-spring    # SONIC Eq. 8 nav spring; grasp_success_rate stays null
 make eval-l1a-stream    # SONIC §3.5 500 Hz PD stream; grasp_success_rate stays null
 make eval-l1a-operator  # SONIC §3.5 100 Hz operator loop; grasp_success_rate stays null
+make eval-l1a-gather    # SONIC §S7 YAML decoder gather (874-D)
+make eval-l1a-encoder   # SONIC encoder motion_* 10frame_step5 (570-D); no invented clip
 make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null

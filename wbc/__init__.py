@@ -8,9 +8,18 @@ from wbc.gather import (
     ObsGather,
     ObsGatherError,
     StateLogger,
+    compile_encoder_observations,
     compile_observations,
     grouped_history_to_interleaved,
     interleaved_history_to_grouped,
+)
+from wbc.motion_ref import (
+    MotionCursor,
+    MotionFrame,
+    MotionHold,
+    MotionRefError,
+    heading_corrected_rel_rot6d,
+    refuse_g1_encoder_onnx,
 )
 from wbc.observation import ProprioHistory, heading_gravity, pack_decoder_step, policy_proprio
 from wbc.operator import (
@@ -58,9 +67,16 @@ __all__ = [
     "ObsGather",
     "ObsGatherError",
     "StateLogger",
+    "compile_encoder_observations",
     "compile_observations",
     "grouped_history_to_interleaved",
     "interleaved_history_to_grouped",
+    "MotionCursor",
+    "MotionFrame",
+    "MotionHold",
+    "MotionRefError",
+    "heading_corrected_rel_rot6d",
+    "refuse_g1_encoder_onnx",
     "HEADING_DAMPING_C",
     "KinematicPlanner",
     "MAX_NAV_SPEED_MPS",
