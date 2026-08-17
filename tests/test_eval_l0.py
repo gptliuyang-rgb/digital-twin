@@ -17,3 +17,5 @@ def test_l0_flags_swapped_finger_channel() -> None:
     pred[..., lh0 + 2] = gt[..., lh0 + 9] * 3.0
     report = evaluate_episode(pred, gt, spec)
     assert 2 in report["left_hand_outliers"]
+    names = {item["joint"] for item in report["left_hand_outlier_names"]}
+    assert spec.joint_order[2] in names
