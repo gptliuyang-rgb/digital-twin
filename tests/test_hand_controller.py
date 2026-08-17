@@ -4,9 +4,10 @@ import numpy as np
 import pytest
 
 from hand.backends.mock_backend import MockBackend
-from hand.controller import DexHand2Controller, SafetyLimits, mit_torque
+from hand.controller import DexHand2Controller, SafetyLimits
 from hand.coupling import Coupling
 from hand.grasp_primitives import GraspLibrary
+from hand.mit import mit_torque
 from interface.schema import load_hand_spec
 
 

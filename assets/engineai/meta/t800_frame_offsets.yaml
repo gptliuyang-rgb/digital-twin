@@ -1,0 +1,28 @@
+# Official T800 URDF vs MJCF body-frame mismatches. Copied from the Native SDK,
+# not invented. Physics Sim2Sim reports these instead of averaging them away.
+#
+# URDF: J_FIXED_FOOT_* origin xyz="0 0 -0.06453" (LINK_ANKLE_ROLL → LINK_FOOT)
+# MJCF serial_links.xml: <body name="LINK_FOOT_L"> has no pos (defaults 0 0 0)
+# Wrists (J_FIXED_WAIST_*) match between URDF and MJCF.
+
+schema_version: "1.0"
+robot: t800
+source_urdf: third_party/engineai-native-sdk/assets/resource/robot/t800/urdf/serial_t800.urdf
+source_mjcf: third_party/engineai-native-sdk/assets/resource/robot/t800/xml/serial_links.xml
+foot:
+  decision: mjcf_link_foot_at_ankle_roll   # ADR-024; same key as wbc/t800_sonic.yaml foot_frame
+  urdf_fixed_joint: [J_FIXED_FOOT_L, J_FIXED_FOOT_R]
+  urdf_offset_in_ankle_roll_m: [0.0, 0.0, -0.06453]
+  mjcf_body_pos_in_parent_m: [0.0, 0.0, 0.0]
+  delta_z_m: 0.06453
+  mjcf_collision_box_z_in_foot_m: -0.054
+  sonic_gmr_body: LINK_FOOT_L / LINK_FOOT_R   # MJCF, not the URDF displaced sole
+  forbidden: urdf_link_foot_as_sonic_body
+  note: >
+    SONIC/GMR tracked body LINK_FOOT_* is the official MJCF body (ankle-roll origin).
+    URDF J_FIXED_FOOT_* puts a same-named link 64.53 mm below that. Do not average
+    or swap. MJCF foot collision boxes are centered at z=-0.054 m in the MJCF foot frame.
+wrist:
+  urdf_fixed_joint: [J_FIXED_WAIST_L, J_FIXED_WAIST_R]
+  match: true
+  note: Dummy LINK_WRIST_END_* frames match URDF and MJCF.
