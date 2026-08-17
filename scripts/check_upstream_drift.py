@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from interface.schema import REPO_ROOT
 
@@ -16,6 +19,7 @@ WATCH = [
     "hand2/hand2_beta1/body/mjcf/left.xml",
     "hand2/hand2_beta1/body/urdf/right.urdf",
     "hand2/hand2_beta1/body/mjcf/right_with_mount.xml",
+    "hand2/hand2_beta1/attachment/wuji-hand2-description-right-mount_beta1_step.STEP",
 ]
 
 

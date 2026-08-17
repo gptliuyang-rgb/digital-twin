@@ -1,0 +1,53 @@
+# SONIC paper Table S3. arXiv:2511.07820v3 appendix S2.
+# Body set B is T800 tracked_bodies in t800_sonic.yaml, not G1 link names.
+# End-effector set K = head, both wrists, both ankles (5), same as the paper.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 Table S3"
+robot: t800
+body_set: t800_sonic.tracked_bodies
+ee_set: [head, left_wrist, right_wrist, left_foot, right_foot]
+contact_allowed: [ankles, wrists]
+undesired_contact_force_n: 1.0   # N; penalty if |F_c| > 1 on other bodies
+
+tracking:
+  root_pos:
+    scale_m: 0.3
+    weight: 0.5
+  root_ori:
+    scale: 0.4
+    weight: 0.5
+  body_pos_rel:
+    scale_m: 0.3
+    weight: 1.0
+  body_ori_rel:
+    scale: 0.4
+    weight: 1.0
+  body_lin_vel:
+    scale_m_s: 1.0
+    weight: 1.0
+  body_ang_vel:
+    scale_rad_s: 3.14
+    weight: 1.0
+  ee_pos:
+    scale_m: 0.1
+    weight: 2.0
+
+penalty:
+  action_rate:
+    weight: -0.1
+  joint_limit:
+    weight: -10.0
+  undesired_contacts:
+    weight: -0.1
+  anti_shake:
+    weight: -5.0e-3
+    omega_threshold_rad_s: 1.5
+    bodies: [left_wrist, right_wrist, head]
+  feet_acceleration:
+    weight: -2.5e-6
+
+note: >
+  Tracking terms are exp(-err^2 / scale^2). Penalty terms are subtracted
+  (negative weights). DexHand2 pad–cardboard friction is NOT in this table
+  (REQUIRED_INPUT, ADR-004). Floor/robot friction for WBC is Table S4.

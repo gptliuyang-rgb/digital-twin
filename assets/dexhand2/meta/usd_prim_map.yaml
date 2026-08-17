@@ -1,0 +1,20 @@
+# Official Hand 2 USD link prims match MJCF body names (wuji-description integration docs).
+# Verify against third_party/wuji-description/hand2/hand2_beta1/body/usd/{left,right}/wujihand2.usd
+# when that file is cloned. Do not invent a second naming scheme.
+
+schema_version: "1.0"
+source: wuji-description hand2_beta1 USD link prims ≡ MJCF body names
+distal_prim_template: "{prefix}_{finger}_distal"
+root_prim_template: "{prefix}_wrist"
+prefix:
+  left: l
+  right: r
+fingers:
+  - thumb
+  - index_finger
+  - middle_finger
+  - ring_finger
+  - pinky
+note: >
+  Overlay spheres are parented under the distal prim in the derived USDA layer.
+  Official USD is never overwritten (ADR-002).
