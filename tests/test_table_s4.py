@@ -14,10 +14,12 @@ from wbc.ppo.table_s4 import (
     axis_aligned_angvel_extrema_rad_s,
     axis_aligned_linvel_extrema_mps,
     base_com_offset_extrema,
+    default_joint_pos_offset_extrema,
     duration_extrema_s,
     force_n_from_impulse,
     load_table_s4,
     physical_base_com_offset_ranges_m,
+    physical_default_joint_pos_offset_range_rad,
     physical_dynamic_friction_range,
     physical_restitution_range,
     physical_static_friction_range,
@@ -276,3 +278,40 @@ def test_base_com_offset_is_not_a_root_push_axis() -> None:
     assert set(com_names).isdisjoint(force_names)
     friction_names = [c["name"] for c in static_friction_extrema()]
     assert set(com_names).isdisjoint(friction_names)
+
+
+def test_default_joint_pos_offset_extrema_match_domain_rand() -> None:
+    assert physical_default_joint_pos_offset_range_rad() == (-0.01, 0.01)
+    cases = default_joint_pos_offset_extrema()
+    assert [c["name"] for c in cases] == ["qpos_-0.01", "qpos_+0.01"]
+    by_name = {c["name"]: c for c in cases}
+    assert by_name["qpos_-0.01"]["offset_rad"] == -0.01
+    assert by_name["qpos_+0.01"]["offset_rad"] == 0.01
+    assert all(c["kind"] == "wbc_default_joint_pos_offset" for c in cases)
+    assert all(c["additive_to_default_q_des"] is True for c in cases)
+    assert all(c["freejoint_unchanged"] is True for c in cases)
+    assert all(c["not_per_joint_corner_grid"] is True for c in cases)
+    assert all(c["not_dexhand2_contact"] is True for c in cases)
+    assert all(c["not_pad_cardboard"] is True for c in cases)
+    assert all(c["restitution_not_mapped"] is True for c in cases)
+    recipe = load_ppo_recipe()
+    raw = recipe["domain_rand"]["physical"]["default_joint_pos_offset_rad"]
+    assert by_name["qpos_-0.01"]["offset_rad"] == float(raw[0])
+    assert by_name["qpos_+0.01"]["offset_rad"] == float(raw[1])
+    spec = (REPO_ROOT / "assets" / "dexhand2" / "meta" / "dexhand2_spec.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "default_joint_pos_offset_rad" not in spec
+    assert "command_latency_ms: REQUIRED_INPUT" in spec
+
+
+def test_default_joint_pos_offset_is_not_a_root_push_axis() -> None:
+    push_names = [c["name"] for c in axis_aligned_linvel_extrema_mps()]
+    qpos_names = [c["name"] for c in default_joint_pos_offset_extrema()]
+    assert set(qpos_names).isdisjoint(push_names)
+    force_names = [c["name"] for c in sustained_force_cases()]
+    assert set(qpos_names).isdisjoint(force_names)
+    friction_names = [c["name"] for c in static_friction_extrema()]
+    assert set(qpos_names).isdisjoint(friction_names)
+    com_names = [c["name"] for c in base_com_offset_extrema()]
+    assert set(qpos_names).isdisjoint(com_names)

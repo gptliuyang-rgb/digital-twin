@@ -10,7 +10,9 @@ free-base path defaults to the official collision default, labelled as WBC
 floor, not pad–cardboard. Table S4 physical.static_friction extrema (ADR-031)
 overwrite only ``geom_friction[0]`` on that floor and on foot collision geoms.
 Table S4 physical.base_com_offset_m extrema (ADR-032) add to compiled
-``body_ipos[LINK_BASE]``; they are not DexHand2 wrist CoM.
+``body_ipos[LINK_BASE]``; they are not DexHand2 wrist CoM. Table S4
+physical.default_joint_pos_offset_rad extrema (ADR-033) add to the
+actuated-hinge reset qpos and PD target; the freejoint is not offset.
 """
 
 from __future__ import annotations
@@ -371,6 +373,55 @@ class T800MujocoEnv(BaseEnv):
             "not_dexhand2_contact": True,
             "not_pad_cardboard": True,
             "not_wrist_com": True,
+        }
+
+    def default_q_des_rad(self) -> np.ndarray:
+        """Bring-up PD target (rad) in ``joint_order``. Not a SONIC reference."""
+        if self.source == "official":
+            return pd_stand_q_des_rad()
+        return np.zeros(len(self.joint_order), dtype=np.float64)
+
+    def offset_default_joint_pos(self, offset_rad: float) -> dict[str, Any]:
+        """Add Table S4 default_joint_pos_offset to every actuated hinge.
+
+        ``offset_rad`` must come from Table S4
+        ``physical.default_joint_pos_offset_rad``, not a guessed Hand 2
+        command. Applied uniformly to all 25 hinges: reset qpos *and* PD
+        target. The freejoint is not touched. Out-of-limit poses raise
+        rather than clip. Restitution is not mapped.
+        """
+        offset = float(offset_rad)
+        if not np.isfinite(offset):
+            raise ValueError(f"offset_rad must be finite, got {offset}")
+        q0 = self.default_q_des_rad()
+        q = q0 + offset
+        mujoco = self._mujoco
+        limited: list[str] = []
+        for name, val in zip(self.joint_order, q, strict=True):
+            jid = int(mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, name))
+            if jid < 0:
+                raise KeyError(f"joint {name} missing from {self.xml_note}")
+            if int(self.model.jnt_limited[jid]):
+                lo, hi = (float(x) for x in self.model.jnt_range[jid])
+                if val < lo - 1e-12 or val > hi + 1e-12:
+                    raise ValueError(
+                        f"default_joint_pos + {offset} rad puts {name} at {val} rad "
+                        f"outside [{lo}, {hi}]"
+                    )
+                limited.append(name)
+        return {
+            "offset_rad": offset,
+            "n_joints": int(len(q0)),
+            "q0_rad": [float(x) for x in q0],
+            "q_des_rad": [float(x) for x in q],
+            "n_limited_joints_checked": len(limited),
+            "mujoco_channel": "actuated_hinge_qpos",
+            "additive_to_default_q_des": True,
+            "freejoint_unchanged": True,
+            "not_per_joint_corner_grid": True,
+            "not_dexhand2_contact": True,
+            "not_pad_cardboard": True,
+            "restitution_not_mapped": True,
         }
 
     def get_q(self) -> np.ndarray:

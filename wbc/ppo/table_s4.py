@@ -3,7 +3,7 @@
 These numbers randomize the *humanoid* / floor during motion-tracking PPO. They
 are not DexHand2 pad–cardboard coefficients and must not enter
 dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 /
-ADR-030 / ADR-031 / ADR-032).
+ADR-030 / ADR-031 / ADR-032 / ADR-033).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -415,8 +415,8 @@ def base_com_offset_extrema() -> list[dict[str, Any]]:
     Six cases: ±X 0.075 m and ±Y/±Z 0.1 m. Applied in the free-base diagnostic
     as an *additive* offset on compiled ``body_ipos[LINK_BASE]`` (ADR-032).
     This is not a full 2³ corner grid, not a wrist-hang CoM, and must not be
-    mixed into ``push_sweep``. Restitution and ``default_joint_pos_offset_rad``
-    stay recorded-only — they have no non-invented MuJoCo map here.
+    mixed into ``push_sweep``. Restitution stays recorded-only — it has no
+    non-invented MuJoCo ``solref`` map. Joint-pos offset is ADR-033.
     """
     ranges = physical_base_com_offset_ranges_m()
     out: list[dict[str, Any]] = []
@@ -442,4 +442,59 @@ def base_com_offset_extrema() -> list[dict[str, Any]]:
                     "not_wrist_com": True,
                 }
             )
+    return out
+
+
+def physical_default_joint_pos_offset_range_rad() -> tuple[float, float]:
+    """Return Table S4 physical.default_joint_pos_offset_rad, radians.
+
+    Isaac Lab samples this independently per actuated joint. The free-base
+    diagnostic sweeps the published scalar extrema as a *uniform* additive
+    offset on all 25 hinges (ADR-033) — not a 2^25 corner grid. This is a
+    reset-qpos / PD-target term, not pad–cardboard and not restitution.
+    """
+    raw = load_table_s4()["physical"]["default_joint_pos_offset_rad"]
+    lo, hi = float(raw[0]), float(raw[1])
+    if lo >= 0.0 or hi <= 0.0:
+        raise ValueError(
+            f"Table S4 default_joint_pos_offset_rad must straddle zero, got {[lo, hi]}"
+        )
+    return (lo, hi)
+
+
+def _qpos_case_name(offset_rad: float) -> str:
+    return f"qpos_{offset_rad:+g}"
+
+
+def default_joint_pos_offset_extrema() -> list[dict[str, Any]]:
+    """Inclusive extrema of Table S4 physical.default_joint_pos_offset_rad.
+
+    Two cases: −0.01 rad and +0.01 rad, applied uniformly to every actuated
+    hinge's reset qpos *and* PD target (ADR-033). The freejoint is not
+    offset. This is not a per-joint 2^25 corner grid, not mixed into
+    ``push_sweep``, and not a SONIC gate. Restitution stays recorded-only.
+    """
+    lo, hi = physical_default_joint_pos_offset_range_rad()
+    out: list[dict[str, Any]] = []
+    for offset_rad in (lo, hi):
+        value = float(offset_rad)
+        out.append(
+            {
+                "name": _qpos_case_name(value),
+                "offset_rad": value,
+                "table_s4_field": "physical.default_joint_pos_offset_rad",
+                "kind": "wbc_default_joint_pos_offset",
+                "mujoco_channel": "actuated_hinge_qpos",
+                "additive_to_default_q_des": True,
+                "freejoint_unchanged": True,
+                "not_per_joint_corner_grid": True,
+                "source": (
+                    "He et al., SONIC, arXiv:2511.07820v3 "
+                    "Table S4 physical.default_joint_pos_offset_rad"
+                ),
+                "not_dexhand2_contact": True,
+                "not_pad_cardboard": True,
+                "restitution_not_mapped": True,
+            }
+        )
     return out
