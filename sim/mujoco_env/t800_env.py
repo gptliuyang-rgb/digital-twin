@@ -15,6 +15,9 @@ physical.default_joint_pos_offset_rad extrema (ADR-033) add to the
 actuated-hinge reset qpos and PD target; the freejoint is not offset.
 Table S4 target_motion.joint_jitter_rad extrema (ADR-034) add to the
 pinned-base *clip* ``dof_pos``, not the robot reset pose.
+Table S4 target_motion pos/ori jitter extrema (ADR-035) add to clip
+``root_pos`` / ``root_rot``. A pinned pelvis cannot follow them; they are
+a negative control, not a 0.25 m / 1.0 rad height/ori gate.
 """
 
 from __future__ import annotations

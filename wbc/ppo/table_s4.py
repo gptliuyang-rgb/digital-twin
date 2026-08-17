@@ -3,7 +3,7 @@
 These numbers randomize the *humanoid* / floor during motion-tracking PPO. They
 are not DexHand2 pad–cardboard coefficients and must not enter
 dexhand2_spec.yaml (ADR-004 / ADR-014 / ADR-022 / ADR-027 / ADR-028 / ADR-029 /
-ADR-030 / ADR-031 / ADR-032 / ADR-033 / ADR-034).
+ADR-030 / ADR-031 / ADR-032 / ADR-033 / ADR-034 / ADR-035).
 
 This module does not import MuJoCo or Isaac.
 """
@@ -33,7 +33,8 @@ DURATION_EXTREMA_S = (1.0, 3.0)
 COM_AXES = ("x", "y", "z")
 # Table S4 target_motion pos/ori jitter. Not root_push (robot state) and not
 # physical.default_joint_pos_offset (reset qpos). Pinned-base Sim2Sim sweeps
-# joint_jitter only (ADR-034); pos/ori helpers exist so they are not re-guessed.
+# these as a *negative control* on clip root (ADR-035): joint MAE stays,
+# MPJPE vs the jittered root moves. Not a 0.25 m / 1.0 rad height/ori gate.
 POS_JITTER_AXES = ("x", "y", "z")
 ORI_JITTER_AXES = ("roll", "pitch", "yaw")
 
@@ -566,8 +567,9 @@ def target_motion_pos_jitter_ranges_m() -> dict[str, tuple[float, float]]:
     """Return Table S4 target_motion.pos_jitter_m per axis, metres.
 
     Reference-root position jitter, not a robot root_push and not a weld.
-    Pinned-base Sim2Sim cannot follow a jittered root (ADR-034); these
-    ranges are recorded so they are not re-invented.
+    Pinned-base Sim2Sim cannot *follow* a jittered root; ADR-035 sweeps
+    these extrema as a negative control (joint MAE stays, MPJPE moves).
+    Not a 0.25 m / 1.0 rad height/ori gate — those bands swallow ±0.05 m.
     """
     raw = load_table_s4()["target_motion"]["pos_jitter_m"]
     out: dict[str, tuple[float, float]] = {}
@@ -585,7 +587,8 @@ def target_motion_pos_jitter_extrema() -> list[dict[str, Any]]:
     """Axis-aligned signed extrema of Table S4 target_motion.pos_jitter_m.
 
     Six cases: ±X/±Y 0.05 m and ±Z 0.01 m. Names are ``pos_±axis`` so they
-    do not collide with root_push ``±x``. Not mixed into ``push_sweep``.
+    do not collide with root_push ``±x``. Not mixed into ``push_sweep`` or
+    ``joint_jitter_sweep``. ``pos_+x`` is the ``pos_jitter`` compatibility key.
     """
     ranges = target_motion_pos_jitter_ranges_m()
     out: list[dict[str, Any]] = []
@@ -603,8 +606,12 @@ def target_motion_pos_jitter_extrema() -> list[dict[str, Any]]:
                     "offset_m": vec,
                     "table_s4_field": "target_motion.pos_jitter_m",
                     "kind": "target_motion_pos_jitter",
-                    "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.pos_jitter_m",
+                    "mujoco_channel": "clip_root_pos",
+                    "additive_to_clip_root_pos": True,
+                    "not_joint_jitter": True,
                     "not_root_push": True,
+                    "not_height_ori_gate": True,
+                    "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.pos_jitter_m",
                     "not_dexhand2_contact": True,
                     "not_pad_cardboard": True,
                     "restitution_not_mapped": True,
@@ -616,8 +623,9 @@ def target_motion_pos_jitter_extrema() -> list[dict[str, Any]]:
 def target_motion_ori_jitter_ranges_rad() -> dict[str, tuple[float, float]]:
     """Return Table S4 target_motion.ori_jitter_rad per axis, radians.
 
-    Reference-root orientation jitter. Same caveat as pos jitter: a pinned
-    pelvis cannot track it. Not mixed into root_push ang_vel.
+    Reference-root orientation jitter. A pinned pelvis cannot track it;
+    ADR-035 sweeps these extrema as a negative control. Not mixed into
+    root_push ang_vel. Not a 1.0 rad ori gate — that band swallows ±0.2 rad.
     """
     raw = load_table_s4()["target_motion"]["ori_jitter_rad"]
     out: dict[str, tuple[float, float]] = {}
@@ -636,6 +644,7 @@ def target_motion_ori_jitter_extrema() -> list[dict[str, Any]]:
 
     Six cases: ±roll/±pitch 0.1 rad and ±yaw 0.2 rad. Names are
     ``ori_±axis`` so they do not collide with root_push angvel ``±yaw``.
+    ``ori_+yaw`` is the ``ori_jitter`` compatibility key.
     """
     ranges = target_motion_ori_jitter_ranges_rad()
     out: list[dict[str, Any]] = []
@@ -653,8 +662,12 @@ def target_motion_ori_jitter_extrema() -> list[dict[str, Any]]:
                     "offset_rad": vec,
                     "table_s4_field": "target_motion.ori_jitter_rad",
                     "kind": "target_motion_ori_jitter",
-                    "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.ori_jitter_rad",
+                    "mujoco_channel": "clip_root_rot",
+                    "additive_to_clip_root_rot": True,
+                    "not_joint_jitter": True,
                     "not_root_push": True,
+                    "not_height_ori_gate": True,
+                    "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.ori_jitter_rad",
                     "not_dexhand2_contact": True,
                     "not_pad_cardboard": True,
                     "restitution_not_mapped": True,

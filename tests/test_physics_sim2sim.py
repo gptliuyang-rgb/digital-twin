@@ -75,6 +75,41 @@ def test_fixture_pinned_compiles_and_tracks() -> None:
     by_off = {c["name"]: c["offset_rad"] for c in report["joint_jitter_sweep"]}
     assert by_off["q_jit_-0.1"] == -0.1
     assert by_off["q_jit_+0.1"] == 0.1
+    assert report["pos_jitter"]["name"] == "pos_+x"
+    assert report["pos_jitter"]["kind"] == "target_motion_pos_jitter"
+    assert report["pos_jitter"]["offset_m"] == [0.05, 0.0, 0.0]
+    assert report["pos_jitter"]["not_a_height_ori_gate"] is True
+    assert report["pos_jitter"]["not_a_sonic_gate"] is True
+    assert report["pos_jitter"]["grasp_success_rate"] is None
+    assert [c["name"] for c in report["pos_jitter_sweep"]] == [
+        "pos_-x",
+        "pos_+x",
+        "pos_-y",
+        "pos_+y",
+        "pos_-z",
+        "pos_+z",
+    ]
+    assert report["pos_jitter_sweep_summary"]["n_cases"] == 6
+    assert report["pos_jitter_sweep_summary"]["not_a_height_ori_gate"] is True
+    assert report["ori_jitter"]["name"] == "ori_+yaw"
+    assert report["ori_jitter"]["kind"] == "target_motion_ori_jitter"
+    assert report["ori_jitter"]["offset_rad"] == [0.0, 0.0, 0.2]
+    assert report["ori_jitter"]["not_a_height_ori_gate"] is True
+    assert report["ori_jitter"]["grasp_success_rate"] is None
+    assert [c["name"] for c in report["ori_jitter_sweep"]] == [
+        "ori_-roll",
+        "ori_+roll",
+        "ori_-pitch",
+        "ori_+pitch",
+        "ori_-yaw",
+        "ori_+yaw",
+    ]
+    assert report["ori_jitter_sweep_summary"]["n_cases"] == 6
+    # Negative control: joints stay, root metrics move. Not a 0.25 m / 1.0 rad gate.
+    assert abs(report["pos_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["pos_jitter"]["root_pos_err_m"] == pytest.approx(0.05, abs=0.02)
+    assert abs(report["ori_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["ori_jitter"]["pelvis_ori_err_rad"] == pytest.approx(0.2, abs=0.05)
 
 
 @pytest.mark.skipif(not OFFICIAL_MJCF.is_file(), reason="engineai Native SDK not cloned")
@@ -104,6 +139,16 @@ def test_official_pinned_pd_and_fk() -> None:
     assert report["joint_jitter"]["grasp_success_rate"] is None
     # Jittered tracking is a diagnostic, not a SONIC fail.
     assert report["joint_jitter"]["not_a_sonic_gate"] is True
+    assert report["pos_jitter_sweep_summary"]["n_cases"] == 6
+    assert report["pos_jitter"]["not_a_height_ori_gate"] is True
+    assert report["pos_jitter"]["grasp_success_rate"] is None
+    assert report["ori_jitter_sweep_summary"]["n_cases"] == 6
+    assert report["ori_jitter"]["not_a_height_ori_gate"] is True
+    assert report["ori_jitter"]["not_a_sonic_gate"] is True
+    assert abs(report["pos_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["pos_jitter"]["root_pos_err_m"] == pytest.approx(0.05, abs=0.02)
+    assert abs(report["ori_jitter"]["joint_mae_rad"] - report["joint_mae_rad"]) < 0.02
+    assert report["ori_jitter"]["pelvis_ori_err_rad"] == pytest.approx(0.2, abs=0.05)
 
 
 def test_clip_joint_jitter_is_uniform_and_refuses_free_base() -> None:
@@ -129,6 +174,47 @@ def test_clip_joint_jitter_is_uniform_and_refuses_free_base() -> None:
             ref,
             offset_rad=0.1,
             case_name="q_jit_+0.1",
+            height_fail_m=0.25,
+            ori_fail_rad=1.0,
+        )
+
+
+def test_clip_pos_ori_jitter_is_root_only_and_refuses_free_base() -> None:
+    pytest.importorskip("mujoco")
+    from eval.l2_physics_sim2sim import (
+        apply_clip_ori_jitter,
+        apply_clip_pos_jitter,
+        evaluate_ori_jitter,
+        evaluate_pos_jitter,
+    )
+    from wbc.gmr.synthetic_clip import synthetic_stand_clip
+
+    ref = synthetic_stand_clip(n_frames=8, fps=50.0, amplitude_rad=0.03)
+    pos = apply_clip_pos_jitter(ref, [0.05, 0.0, 0.0])
+    delta = np.asarray(pos["root_pos"]) - np.asarray(ref["root_pos"])
+    assert delta == pytest.approx(np.tile([0.05, 0.0, 0.0], (8, 1)))
+    assert np.asarray(pos["dof_pos"]) == pytest.approx(np.asarray(ref["dof_pos"]))
+    assert pos["root_rot"] is ref["root_rot"]
+    ori = apply_clip_ori_jitter(ref, [0.0, 0.0, 0.2])
+    assert np.asarray(ori["dof_pos"]) == pytest.approx(np.asarray(ref["dof_pos"]))
+    assert np.asarray(ori["root_pos"]) == pytest.approx(np.asarray(ref["root_pos"]))
+    assert ori["root_rot"] is not ref["root_rot"]
+    free = T800MujocoEnv(source="fixture", pinned_base=False, add_floor=True)
+    with pytest.raises(ValueError, match="pinned_base"):
+        evaluate_pos_jitter(
+            free,
+            ref,
+            offset_m=[0.05, 0.0, 0.0],
+            case_name="pos_+x",
+            height_fail_m=0.25,
+            ori_fail_rad=1.0,
+        )
+    with pytest.raises(ValueError, match="pinned_base"):
+        evaluate_ori_jitter(
+            free,
+            ref,
+            offset_rad=[0.0, 0.0, 0.2],
+            case_name="ori_+yaw",
             height_fail_m=0.25,
             ori_fail_rad=1.0,
         )

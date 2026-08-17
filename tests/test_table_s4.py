@@ -373,6 +373,10 @@ def test_target_motion_pos_and_ori_jitter_extrema_match_domain_rand() -> None:
     assert by_pos["pos_+x"] == [0.05, 0.0, 0.0]
     assert by_pos["pos_-z"] == [0.0, 0.0, -0.01]
     assert all(c["kind"] == "target_motion_pos_jitter" for c in pos)
+    assert all(c["additive_to_clip_root_pos"] is True for c in pos)
+    assert all(c["not_joint_jitter"] is True for c in pos)
+    assert all(c["not_height_ori_gate"] is True for c in pos)
+    assert all(c["mujoco_channel"] == "clip_root_pos" for c in pos)
     assert all(c["not_root_push"] is True for c in pos)
     ori_ranges = target_motion_ori_jitter_ranges_rad()
     assert ori_ranges["roll"] == (-0.1, 0.1)
@@ -391,6 +395,10 @@ def test_target_motion_pos_and_ori_jitter_extrema_match_domain_rand() -> None:
     assert by_ori["ori_+roll"] == [0.1, 0.0, 0.0]
     assert by_ori["ori_-yaw"] == [0.0, 0.0, -0.2]
     assert all(c["kind"] == "target_motion_ori_jitter" for c in ori)
+    assert all(c["additive_to_clip_root_rot"] is True for c in ori)
+    assert all(c["not_joint_jitter"] is True for c in ori)
+    assert all(c["not_height_ori_gate"] is True for c in ori)
+    assert all(c["mujoco_channel"] == "clip_root_rot" for c in ori)
     recipe = load_ppo_recipe()
     tm = recipe["domain_rand"]["target_motion"]
     assert by_pos["pos_+y"][1] == float(tm["pos_jitter_m"]["y"][1])

@@ -5,12 +5,17 @@ fall_rate; a trained SONIC policy is required before that number is meaningful.
 Combined T800+Hand stays PolicyEvalBlocked. G1 ~6 cm wrist error is not a gate.
 Table S4 target_motion.joint_jitter_rad extrema (ADR-034) are a pinned-base
 clip offset, not a SONIC gate and not ADR-033 reset-qpos.
+Table S4 target_motion pos/ori jitter extrema (ADR-035) are a pinned-base
+*negative control* on clip root: joint MAE stays, MPJPE vs the jittered root
+moves. Not a 0.25 m / 1.0 rad height/ori gate — those bands swallow the paper
+ranges.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -22,14 +27,32 @@ from eval.l2_sim2sim import EE_ROLES, _so3_geodesic_rad
 from interface.schema import REPO_ROOT
 from sim.mujoco_env.t800_env import ROOT_Z_M, T800MujocoEnv, refuse_combined_robot
 from sim.urdf_fk import KINEMATICS_YAML, UrdfTree, fk_bodies_world, load_t800_kinematics
+from vla.adapters.rotation import matrix_to_quaternion_wxyz, quaternion_wxyz_to_matrix, rpy_to_matrix
 from wbc.gmr.synthetic_clip import synthetic_stand_clip
 from wbc.observation import ProprioHistory
-from wbc.ppo.table_s4 import target_motion_joint_jitter_extrema
+from wbc.ppo.table_s4 import (
+    target_motion_joint_jitter_extrema,
+    target_motion_ori_jitter_extrema,
+    target_motion_pos_jitter_extrema,
+)
 
 
 def _xyzw_to_wxyz(q: np.ndarray) -> np.ndarray:
     x, y, z, w = np.asarray(q, dtype=np.float64).reshape(4)
     return np.array([w, x, y, z], dtype=np.float64)
+
+
+def _wxyz_to_xyzw(q: np.ndarray) -> np.ndarray:
+    w, x, y, z = np.asarray(q, dtype=np.float64).reshape(4)
+    return np.array([x, y, z, w], dtype=np.float64)
+
+
+def _xyzw_to_matrix(q: np.ndarray) -> np.ndarray:
+    return quaternion_wxyz_to_matrix(_xyzw_to_wxyz(q))
+
+
+def _matrix_to_xyzw(matrix: np.ndarray) -> np.ndarray:
+    return _wxyz_to_xyzw(matrix_to_quaternion_wxyz(matrix))
 
 
 def evaluate_physics(
@@ -63,6 +86,8 @@ def evaluate_physics(
     joint_mae: list[float] = []
     height_fail = 0
     ori_fail = 0
+    root_pos_err: list[float] = []
+    pelvis_ori_err: list[float] = []
     last_a = np.zeros(len(order))
 
     for i in range(q_ref.shape[0]):
@@ -112,11 +137,13 @@ def evaluate_physics(
         fk_consist_no_feet.append(float(np.mean(consist_no_feet)))
         foot_dz_frames.append(float(np.mean(np.abs(foot_dz))))
         pelvis_p, pelvis_r = env.body_pose("pelvis")
+        root_pos_err.append(float(np.linalg.norm(pelvis_p - fk_ref["pelvis"][0])))
+        pelvis_ori_err.append(_so3_geodesic_rad(pelvis_r, fk_ref["pelvis"][1]))
         root_h = abs(float(pelvis_p[2] - fk_ref["pelvis"][0][2]))
         ee_h = max(abs(float(env.body_pose(r)[0][2] - fk_ref[r][0][2])) for r in EE_ROLES)
         if root_h > height_fail_m or ee_h > height_fail_m:
             height_fail += 1
-        if _so3_geodesic_rad(pelvis_r, fk_ref["pelvis"][1]) > ori_fail_rad:
+        if pelvis_ori_err[-1] > ori_fail_rad:
             ori_fail += 1
         omega = np.zeros(3) if env.pinned_base else np.asarray(env.data.qvel[3:6], dtype=np.float64)
         yaw = float(np.arctan2(pelvis_r[1, 0], pelvis_r[0, 0]))
@@ -135,6 +162,8 @@ def evaluate_physics(
         "fk_consistency_no_feet_m": float(np.mean(fk_consist_no_feet)),
         "foot_urdf_mjcf_delta_z_m": float(np.mean(foot_dz_frames)),
         "joint_mae_rad": float(np.mean(joint_mae)),
+        "root_pos_err_m": float(np.mean(root_pos_err)),
+        "pelvis_ori_err_rad": float(np.mean(pelvis_ori_err)),
         "height_fail_frames": height_fail,
         "ori_fail_frames": ori_fail,
         "local_tracking_success": bool(success) if env.pinned_base else False,
@@ -237,6 +266,169 @@ def evaluate_joint_jitter_sweep(
     return out
 
 
+_NEG_CONTROL: dict[str, Any] = {
+    "not_a_sonic_gate": True,
+    "not_a_height_ori_gate": True,
+    "not_joint_jitter": True,
+    "not_root_push": True,
+    "not_default_joint_pos_offset": True,
+    "not_dexhand2_contact": True,
+    "not_pad_cardboard": True,
+    "restitution_not_mapped": True,
+    "grasp_success_rate": None,
+}
+
+
+def apply_clip_pos_jitter(ref: dict[str, Any], offset_m: Sequence[float]) -> dict[str, Any]:
+    """Uniform additive offset on clip ``root_pos``. ``dof_pos`` is unchanged.
+
+    ``offset_m`` must come from Table S4 ``target_motion.pos_jitter_m``.
+    The robot stays pinned; this is a negative control, not a root_push.
+    """
+    offset = np.asarray(offset_m, dtype=np.float64).reshape(3)
+    if not np.isfinite(offset).all():
+        raise ValueError(f"offset_m must be finite, got {offset}")
+    out = dict(ref)
+    root = np.asarray(ref["root_pos"], dtype=np.float64).copy()
+    out["root_pos"] = root + offset
+    out["pos_jitter_m"] = offset.tolist()
+    return out
+
+
+def apply_clip_ori_jitter(ref: dict[str, Any], offset_rad: Sequence[float]) -> dict[str, Any]:
+    """World-frame RPY on clip ``root_rot`` (xyzw). ``dof_pos`` is unchanged.
+
+    ``offset_rad`` is ``[roll, pitch, yaw]`` from Table S4
+    ``target_motion.ori_jitter_rad``. Composition is ``R_offset @ R_root``.
+    """
+    rpy = np.asarray(offset_rad, dtype=np.float64).reshape(3)
+    if not np.isfinite(rpy).all():
+        raise ValueError(f"offset_rad must be finite, got {rpy}")
+    r_off = rpy_to_matrix(float(rpy[0]), float(rpy[1]), float(rpy[2]))
+    out = dict(ref)
+    rot = np.asarray(ref["root_rot"], dtype=np.float64).copy()
+    jittered = np.empty_like(rot)
+    for i in range(rot.shape[0]):
+        jittered[i] = _matrix_to_xyzw(r_off @ _xyzw_to_matrix(rot[i]))
+    out["root_rot"] = jittered
+    out["ori_jitter_rad"] = rpy.tolist()
+    return out
+
+
+def evaluate_pos_jitter(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    offset_m: Sequence[float],
+    case_name: str,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> dict[str, Any]:
+    """PD-track one Table S4 pos-jitter extremum. Not a SONIC / height gate."""
+    if not env.pinned_base:
+        raise ValueError("target_motion pos jitter sweep requires pinned_base=True")
+    offset = np.asarray(offset_m, dtype=np.float64).reshape(3)
+    ref = apply_clip_pos_jitter(ref_base, offset)
+    metrics = evaluate_physics(
+        env,
+        ref,
+        height_fail_m=height_fail_m,
+        ori_fail_rad=ori_fail_rad,
+    )
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "target_motion_pos_jitter",
+        "offset_m": offset.tolist(),
+        "expected_root_shift_m": float(np.linalg.norm(offset)),
+        "table_s4_field": "target_motion.pos_jitter_m",
+        "mujoco_channel": "clip_root_pos",
+        "additive_to_clip_root_pos": True,
+        "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.pos_jitter_m",
+        **_NEG_CONTROL,
+    }
+
+
+def evaluate_ori_jitter(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    offset_rad: Sequence[float],
+    case_name: str,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> dict[str, Any]:
+    """PD-track one Table S4 ori-jitter extremum. Not a SONIC / ori gate."""
+    if not env.pinned_base:
+        raise ValueError("target_motion ori jitter sweep requires pinned_base=True")
+    rpy = np.asarray(offset_rad, dtype=np.float64).reshape(3)
+    ref = apply_clip_ori_jitter(ref_base, rpy)
+    metrics = evaluate_physics(
+        env,
+        ref,
+        height_fail_m=height_fail_m,
+        ori_fail_rad=ori_fail_rad,
+    )
+    return {
+        **metrics,
+        "name": case_name,
+        "kind": "target_motion_ori_jitter",
+        "offset_rad": rpy.tolist(),
+        "expected_pelvis_ori_err_rad": float(np.linalg.norm(rpy)),
+        "table_s4_field": "target_motion.ori_jitter_rad",
+        "mujoco_channel": "clip_root_rot",
+        "additive_to_clip_root_rot": True,
+        "source": "He et al., SONIC, arXiv:2511.07820v3 Table S4 target_motion.ori_jitter_rad",
+        **_NEG_CONTROL,
+    }
+
+
+def evaluate_pos_jitter_sweep(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> list[dict[str, Any]]:
+    """PD-track each Table S4 target_motion.pos_jitter_m extremum."""
+    out: list[dict[str, Any]] = []
+    for case in target_motion_pos_jitter_extrema():
+        out.append(
+            evaluate_pos_jitter(
+                env,
+                ref_base,
+                offset_m=list(case["offset_m"]),
+                case_name=str(case["name"]),
+                height_fail_m=height_fail_m,
+                ori_fail_rad=ori_fail_rad,
+            )
+        )
+    return out
+
+
+def evaluate_ori_jitter_sweep(
+    env: T800MujocoEnv,
+    ref_base: dict[str, Any],
+    *,
+    height_fail_m: float,
+    ori_fail_rad: float,
+) -> list[dict[str, Any]]:
+    """PD-track each Table S4 target_motion.ori_jitter_rad extremum."""
+    out: list[dict[str, Any]] = []
+    for case in target_motion_ori_jitter_extrema():
+        out.append(
+            evaluate_ori_jitter(
+                env,
+                ref_base,
+                offset_rad=list(case["offset_rad"]),
+                case_name=str(case["name"]),
+                height_fail_m=height_fail_m,
+                ori_fail_rad=ori_fail_rad,
+            )
+        )
+    return out
+
+
 def _jitter_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "n_cases": len(cases),
@@ -244,6 +436,19 @@ def _jitter_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
         "joint_mae_rad": {c["name"]: c["joint_mae_rad"] for c in cases},
         "local_tracking_success": {c["name"]: c["local_tracking_success"] for c in cases},
         "not_a_sonic_gate": True,
+    }
+
+
+def _root_jitter_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "n_cases": len(cases),
+        "names": [c["name"] for c in cases],
+        "joint_mae_rad": {c["name"]: c["joint_mae_rad"] for c in cases},
+        "mpjpe_m": {c["name"]: c["mpjpe_m"] for c in cases},
+        "root_pos_err_m": {c["name"]: c["root_pos_err_m"] for c in cases},
+        "pelvis_ori_err_rad": {c["name"]: c["pelvis_ori_err_rad"] for c in cases},
+        "not_a_sonic_gate": True,
+        "not_a_height_ori_gate": True,
     }
 
 
@@ -283,11 +488,13 @@ def run(
         **metrics,
     }
     if env.pinned_base:
+        h_fail = float(cfg["success_fail"]["root_or_ee_height_err_m"])
+        o_fail = float(cfg["success_fail"]["root_ori_err_rad"])
         sweep = evaluate_joint_jitter_sweep(
             env,
             ref,
-            height_fail_m=float(cfg["success_fail"]["root_or_ee_height_err_m"]),
-            ori_fail_rad=float(cfg["success_fail"]["root_ori_err_rad"]),
+            height_fail_m=h_fail,
+            ori_fail_rad=o_fail,
         )
         plus = next((c for c in sweep if c["name"] == "q_jit_+0.1"), None)
         if plus is None:
@@ -297,6 +504,28 @@ def run(
         report["joint_jitter"] = plus
         report["joint_jitter_sweep"] = sweep
         report["joint_jitter_sweep_summary"] = _jitter_summary(sweep)
+        pos_sweep = evaluate_pos_jitter_sweep(
+            env, ref, height_fail_m=h_fail, ori_fail_rad=o_fail
+        )
+        plus_pos = next((c for c in pos_sweep if c["name"] == "pos_+x"), None)
+        if plus_pos is None:
+            raise ValueError(
+                "Table S4 pos-jitter sweep must include pos_+x (ADR-035 compatibility)"
+            )
+        report["pos_jitter"] = plus_pos
+        report["pos_jitter_sweep"] = pos_sweep
+        report["pos_jitter_sweep_summary"] = _root_jitter_summary(pos_sweep)
+        ori_sweep = evaluate_ori_jitter_sweep(
+            env, ref, height_fail_m=h_fail, ori_fail_rad=o_fail
+        )
+        plus_ori = next((c for c in ori_sweep if c["name"] == "ori_+yaw"), None)
+        if plus_ori is None:
+            raise ValueError(
+                "Table S4 ori-jitter sweep must include ori_+yaw (ADR-035 compatibility)"
+            )
+        report["ori_jitter"] = plus_ori
+        report["ori_jitter_sweep"] = ori_sweep
+        report["ori_jitter_sweep_summary"] = _root_jitter_summary(ori_sweep)
     return report
 
 
@@ -331,6 +560,18 @@ def main() -> None:
         summary["joint_jitter_sweep_names"] = report["joint_jitter_sweep_summary"]["names"]
         summary["joint_jitter_mae_rad"] = report["joint_jitter_sweep_summary"]["joint_mae_rad"]
         summary["joint_jitter_offset_rad"] = report["joint_jitter"]["offset_rad"]
+    if report.get("pos_jitter_sweep_summary"):
+        summary["pos_jitter_sweep_names"] = report["pos_jitter_sweep_summary"]["names"]
+        summary["pos_jitter_mpjpe_m"] = report["pos_jitter_sweep_summary"]["mpjpe_m"]
+        summary["pos_jitter_offset_m"] = report["pos_jitter"]["offset_m"]
+        summary["pos_jitter_not_a_height_ori_gate"] = True
+    if report.get("ori_jitter_sweep_summary"):
+        summary["ori_jitter_sweep_names"] = report["ori_jitter_sweep_summary"]["names"]
+        summary["ori_jitter_pelvis_ori_err_rad"] = report["ori_jitter_sweep_summary"][
+            "pelvis_ori_err_rad"
+        ]
+        summary["ori_jitter_offset_rad"] = report["ori_jitter"]["offset_rad"]
+        summary["ori_jitter_not_a_height_ori_gate"] = True
     print(json.dumps(summary, indent=2))
 
 
