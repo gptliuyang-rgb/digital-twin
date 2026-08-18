@@ -1,0 +1,21 @@
+# Opt-in overlay on network.yaml for 5-point (elbow) teleop.
+# command_schema_v1 stays 75-D. This overlay only changes the hybrid-encoder
+# command token (21 → 27) and default_teleop_mode. action_dim stays 25.
+# Mixing a 3-point checkpoint with this recipe raises TeleopModeIncompatible.
+# refuse_ppo_launch() still raises PpoLaunchBlocked (flange SE(3) + wrist CoM).
+
+schema_version: "1.0"
+source: "ADR-017 / ADR-023 overlay on He et al. Table S1"
+robot: t800
+action_dim: 25
+paper_g1_action_dim: 29
+default_teleop_mode: vr_5point
+hybrid_encoder_cmd_dim_3point: 21
+hybrid_encoder_cmd_dim_5point: 27
+g1_last_pt_finetune: forbidden
+elbow_bodies:
+  left_elbow: LINK_ELBOW_PITCH_L
+  right_elbow: LINK_ELBOW_PITCH_R
+note: >
+  Retrain. Do not concatenate elbows onto a 3-point decoder.
+  Isaac Lab PPO is still not launched from this overlay.

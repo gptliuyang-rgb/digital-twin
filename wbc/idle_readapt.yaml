@@ -1,0 +1,63 @@
+# Official GEAR-SONIC idle-mode error-based readaptation.
+# Source: NVlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp
+#   IdleReadaptState { IDLE, ADAPTING, RECOVERING }
+# Shared sim/real. Hands bypass WBC. This is NOT a G1 ONNX run.
+# This is NOT the ADR-047 8-frame blend and NOT the ADR-018 interpolator.
+#
+# C++ only enters this path when:
+#   - operator_state.play
+#   - playback has clamped to the last planner frame
+#   - locomotion_mode == LocomotionMode::IDLE (0)
+# Squat / kneel / lying / idleBoxing are static (ADR-047) but are NOT this path.
+# command_schema loco_mode 0 is idle. loco_mode 1/2 never enter.
+#
+# Double-threshold machine (strict inequalities, C++ > / <):
+#   IDLE:      avg_error > 0.10 → ADAPTING
+#              avg_error < 0.045 → RECOVERING
+#   ADAPTING:  avg_error < 0.05 → IDLE
+#   RECOVERING: avg_error > 0.10 → ADAPTING
+# There is NO kRecoverStop. Do not invent one. RECOVERING at 0 rad stays RECOVERING.
+#
+# avg_error is the mean absolute hinge error over lower-body joints only
+# (T800 J00–J11, 12 DoF; G1 lower-body is also 12). Upper body is never blended.
+# ADAPTING:  q ← 0.98 q + 0.02 q_motor
+# RECOVERING: q ← 0.98 q + 0.02 q_original  (original stored on first idle last-frame)
+# IDLE: do nothing.
+# A new planner clip (ADR-047 success) clears the stored flag.
+
+schema_version: "1.0"
+source: "nvlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp IdleReadaptState (T800 dims)"
+adr: ADR-048
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_planner_onnx: true
+not_interpolator_substitute: true
+not_onnx_run: true
+not_planner_blend: true
+not_recover_stop: true
+not_wrist_pose_augmentation_sampler: true
+
+control_hz: 50
+n_dof: 25
+n_lower_body_dof: 12
+g1_n_dof_forbidden: 29
+idle_mode: 0
+
+k_adapt_trigger_rad: 0.10
+k_adapt_stop_rad: 0.05
+k_recover_trigger_rad: 0.045
+blend_keep: 0.98
+blend_to: 0.02
+
+lower_body_slice: [0, 12]   # J00–J11 inclusive-exclusive, IsaacLab/SONIC order
+upper_body_untouched: true
+
+note: >
+  Control-thread last-frame hold of caller-supplied T800 25-D hinges.
+  Official G1 planner_sonic.onnx is refused. ADR-047 blend stays a sibling.
+  ADR-018 interpolators stay the runtime L1a until a T800 planner exists.
+  Combined T800+Hand stays PolicyEvalBlocked. This is not a pad–cardboard number.
