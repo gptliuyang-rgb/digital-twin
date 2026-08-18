@@ -1,0 +1,27 @@
+# SONIC paper Table S1, T800-adapted. arXiv:2511.07820v3 appendix S2.
+# Paper action dimension is 29 (Unitree G1). T800 Native SDK is 25 revolute.
+# Loading a 29-D decoder on T800 is forbidden (ADR-011 / ADR-022).
+
+schema_version: "1.0"
+source: "He et al., SONIC, Science Robotics / arXiv:2511.07820v3 Table S1"
+robot: t800
+quantizer:
+  type: FSQ
+  token_dim: 64
+  note: Paper lists token dim D_z and levels L_z symbolically; 64 matches wbc/dims.TOKEN_DIM.
+encoder_hidden: [2048, 1024, 512, 512]
+decoder_actions_hidden: [4096, 4096, 2048, 2048, 1024, 1024, 512, 512]
+decoder_refs_hidden: [2048, 1024, 512, 512]
+critic_hidden: [4096, 4096, 2048, 2048, 1024, 1024, 512, 512]
+action_distribution: diagonal_gaussian
+action_dim: 25
+paper_g1_action_dim: 29
+motion_command:
+  future_frames: 10
+  frame_interval_robot_s: 0.1
+  frame_interval_human_s: 0.02
+  frame_interval_hybrid_s: 0.1
+hybrid_encoder_cmd_dim_3point: 21
+hybrid_encoder_cmd_dim_5point: 27
+default_teleop_mode: vr_3point
+note: 5-point is a retrain (ADR-017). Do not concatenate elbows onto a 3-point decoder.
