@@ -1,0 +1,10 @@
+# L1a shared PlannerPlayback.current_frame dump. Not a trained planner. Not G1 ONNX.
+schema_version: "1.0"
+adr: ADR-051
+source: wbc/shared_cursor.yaml
+not_g1_planner_onnx: true
+not_onnx_run: true
+not_motion_cursor_mix: true
+not_invented_clip: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked
