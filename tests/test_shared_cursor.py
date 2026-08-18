@@ -33,6 +33,7 @@ from wbc.shared_cursor import (
     bind_encoder_hold,
     decoder_joint_history,
     decoder_last_action_history,
+    decoder_omega_history,
     encoder_look_ahead_indices_from_playback,
     load_shared_cursor_cfg,
     qpos_clip_to_motion_frames,
@@ -49,6 +50,7 @@ from wbc.shared_cursor import (
     refuse_policy_pd_physics_finite_diff_dq,
     refuse_policy_pd_physics_hermite,
     refuse_policy_pd_physics_invent_imu,
+    refuse_policy_pd_physics_omit_push_hw_invent_imu,
     refuse_policy_pd_physics_q_onto_this_tick_decoder,
     refuse_policy_pd_plant_as_decoder_run,
     refuse_policy_pd_plant_finite_diff_dq,
@@ -82,14 +84,20 @@ def _motor(*, lower: float = 0.0) -> np.ndarray:
     return q
 
 
-def _hw(*, q0: float = 0.0, t_s: float = 0.0) -> HardwareSnapshot:
+def _hw(
+    *,
+    q0: float = 0.0,
+    t_s: float = 0.0,
+    omega_imu: np.ndarray | None = None,
+) -> HardwareSnapshot:
     q = np.zeros(25)
     q[0] = q0
+    omega = np.zeros(3) if omega_imu is None else np.asarray(omega_imu, dtype=np.float64).reshape(3)
     return HardwareSnapshot(
         t_s=t_s,
         q_hw=q,
         dq_hw=np.zeros(25),
-        omega_imu=np.zeros(3),
+        omega_imu=omega,
         imu_quat_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
         last_action=np.zeros(25),
     )
@@ -101,7 +109,7 @@ def _token() -> np.ndarray:
 
 def test_yaml_locks_official_table() -> None:
     cfg = load_shared_cursor_cfg()
-    assert cfg["adr"] == "ADR-056"
+    assert cfg["adr"] == "ADR-057"
     assert cfg["encoder_reads_playback_current_frame"] is True
     assert cfg["planner_context_reads_playback_current_frame"] is True
     assert cfg["decoder_assembles_on_shared_tick"] is True
@@ -131,6 +139,8 @@ def test_yaml_locks_official_table() -> None:
     assert cfg["not_pd_physics_q_onto_this_tick_decoder"] is True
     assert cfg["not_pd_physics_invent_imu"] is True
     assert cfg["not_pd_physics_from_planner_qpos"] is True
+    assert cfg["pd_physics_feeds_next_tick_decoder_q"] is True
+    assert cfg["omit_push_hw_keeps_imu"] is True
     assert cfg["pd_physics_n_steps_per_tick"] == 10
     assert cfg["pd_physics_timestep_s"] == 0.002
     assert cfg["not_decoder_from_planner_qpos"] is True
@@ -924,6 +934,8 @@ def test_pd_g1_hands_qpos_refused() -> None:
         refuse_policy_pd_physics_q_onto_this_tick_decoder()
     with pytest.raises(CommandStreamError, match="invent IMU"):
         refuse_policy_pd_physics_invent_imu()
+    with pytest.raises(CommandStreamError, match="omitting push_hw"):
+        refuse_policy_pd_physics_omit_push_hw_invent_imu()
 
 
 def test_tau_does_not_enter_decoder_obs() -> None:
@@ -1051,4 +1063,83 @@ def test_same_tick_last_action_does_not_write_physics_q_des() -> None:
     np.testing.assert_allclose(step.pd_q_des[0], 2.5)
     assert step.pd_physics_n_steps == 10
     assert physics.n_applies == 20
+
+
+def test_omit_push_hw_decoder_q_follows_plant_and_keeps_imu() -> None:
+    omega = np.array([0.1, 0.2, 0.3])
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=0.0, t_s=0.0, omega_imu=omega))
+    physics = _IncrementPhysics(q0=0.0)
+    cur = SharedPlaybackCursor(gather=gather, physics=physics)
+    token = np.zeros(TOKEN_DIM)
+    last = None
+    for i in range(10):
+        last = cur.control_tick(
+            _motor(),
+            locomotion_mode=0,
+            token=token,
+            new_qpos=_clip(n=16) if i == 0 else None,
+            t_s=i / 50.0,
+            policy_action=_action(a0=10.0 + i),
+        )
+    assert last is not None
+    q_hist = decoder_joint_history(last.decoder_obs)[:, 0]
+    a_hist = decoder_last_action_history(last.decoder_obs)[:, 0]
+    w_hist = decoder_omega_history(last.decoder_obs)
+    np.testing.assert_allclose(q_hist, [0.01 * i for i in range(10)])
+    np.testing.assert_allclose(a_hist, [0.0] + [10.0 + i for i in range(9)])
+    np.testing.assert_allclose(w_hist, np.broadcast_to(omega, (10, 3)))
+    np.testing.assert_allclose(last.pd_physics_q[0], 0.10)
+    np.testing.assert_allclose(gather.hw.read().q_hw[0], 0.10)
+    np.testing.assert_allclose(gather.hw.read().omega_imu, omega)
+    np.testing.assert_allclose(last.pd_q_des[0], 19.0)
+    kp, _kd = pd_stand_kp_kd()
+    np.testing.assert_allclose(last.pd_tau_nm[0], kp[0] * (19.0 - 0.09))
+    assert physics.n_applies == 100
+    np.testing.assert_allclose(q_hist[-1], last.pd_physics_q[0] - 0.01)
+
+
+def test_push_hw_still_overrides_plant_q() -> None:
+    omega0 = np.array([0.1, 0.2, 0.3])
+    omega1 = np.array([0.4, 0.5, 0.6])
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=0.0, t_s=0.0, omega_imu=omega0))
+    physics = _IncrementPhysics(q0=0.0)
+    cur = SharedPlaybackCursor(gather=gather, physics=physics)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=10.0),
+    )
+    np.testing.assert_allclose(gather.hw.read().q_hw[0], 0.01)
+    gather.push_hw(_hw(q0=7.0, t_s=0.02, omega_imu=omega1))
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+        policy_action=_action(a0=11.0),
+    )
+    q_hist = decoder_joint_history(step.decoder_obs)[:, 0]
+    w_hist = decoder_omega_history(step.decoder_obs)
+    np.testing.assert_allclose(q_hist[-1], 7.0)
+    np.testing.assert_allclose(w_hist[-1], omega1)
+    assert not np.isclose(q_hist[-1], physics.q[0] - 0.01)
+
+
+def test_first_tick_without_push_hw_stays_empty() -> None:
+    cur = SharedPlaybackCursor(gather=ObsGather(), physics=_IncrementPhysics())
+    with pytest.raises(ObsGatherError, match="empty"):
+        cur.control_tick(
+            _motor(),
+            locomotion_mode=0,
+            token=_token(),
+            new_qpos=_clip(n=16),
+            t_s=0.0,
+            policy_action=_action(a0=1.0),
+        )
 

@@ -21,6 +21,8 @@
 #   JointPdPhysics                 ← optional 10 × 2 ms substeps of that τ
 #                                    (ADR-056). q/dq measured, not interpolated.
 #                                    This tick's decoder 874-D stays pre-physics.
+#   omit push_hw after tick 0        ← next decoder q/dq from plant (ADR-057)
+#                                    IMU kept; not invented from body rates.
 #
 # Encoder last-frame-repeats past the clip end (ADR-042).
 # Planner context does NOT last-frame-repeat (ADR-046); short windows raise.
@@ -32,14 +34,16 @@
 # After that stash the same a_t is ZOH-held as PD q_des. The joint-PD
 # plant then evaluates τ. If a JointPdPhysics backend is attached, the
 # same tick applies that τ for 10 physics substeps at 1/500 s (ADR-056).
-# Omit the backend to keep ADR-055. Do not Hermite it. Do not invent
-# either from decoder ONNX or copy clip qpos. Hands bypass WBC. Official
-# G1 planner_sonic.onnx / encoder ONNX / decoder ONNX refused. ADR-018
-# interpolators stay the runtime L1a.
+# Omit the backend to keep ADR-055. Omit push_hw after the first tick
+# to close the loop (ADR-057): decoder q follows the plant, IMU stays.
+# Passing push_hw every tick still overrides the plant. Do not Hermite
+# it. Do not invent either from decoder ONNX or copy clip qpos. Hands
+# bypass WBC. Official G1 planner_sonic.onnx / encoder ONNX / decoder
+# ONNX refused. ADR-018 interpolators stay the runtime L1a.
 
 schema_version: "1.0"
 source: "nvlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp CurrentFrameAdvancement + encoder motion_* + planner context + S7 decoder gather (T800 dims)"
-adr: ADR-056
+adr: ADR-057
 not_dexhand2_contact: true
 not_table_s4: true
 not_hand_mit_ring: true
@@ -84,6 +88,8 @@ not_pd_physics_finite_diff_dq: true
 not_pd_physics_q_onto_this_tick_decoder: true
 not_pd_physics_invent_imu: true
 not_pd_physics_from_planner_qpos: true
+pd_physics_feeds_next_tick_decoder_q: true
+omit_push_hw_keeps_imu: true
 pd_physics_n_steps_per_tick: 10
 pd_physics_timestep_s: 0.002
 
@@ -117,8 +123,10 @@ note: >
   and the joint-PD plant evaluates τ = Kp(a_t − q) − Kd q̇ with EngineAI
   pd_stand bring-up gains (ADR-055, not SONIC tracking). If a physics
   backend is attached, the same tick applies that τ for 10 × 2 ms
-  substeps (ADR-056). last_action= does not write PD or physics.
-  Token_state stays an external 64-D.
+  substeps (ADR-056). Omit push_hw after the first tick to close the
+  loop (ADR-057): next decoder q follows the plant; IMU is kept.
+  last_action= does not write PD or physics. Passing push_hw every
+  tick still overrides the plant. Token_state stays an external 64-D.
   MotionCursor remains a sibling over motion_lib and must not be stored
   inside PlannerPlayback. Combined T800+Hand stays PolicyEvalBlocked.
   This is not a pad–cardboard number and not a G1 decoder ONNX run.

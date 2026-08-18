@@ -14,6 +14,7 @@ from wbc.pd_physics import (
     PdPhysicsPeriod,
     as_plant_stream,
     load_pd_physics_cfg,
+    refuse_omit_push_hw_invent_imu,
     refuse_pd_physics_as_decoder_run,
     refuse_pd_physics_finite_diff_dq,
     refuse_pd_physics_hermite,
@@ -48,7 +49,7 @@ class _HoldPhysics:
 
 def test_yaml_locks_pd_physics() -> None:
     cfg = load_pd_physics_cfg()
-    assert cfg["adr"] == "ADR-056"
+    assert cfg["adr"] == "ADR-057"
     assert cfg["pd_physics_on_same_tick"] is True
     assert cfg["pd_physics_is_optional"] is True
     assert cfg["not_pd_physics_from_decoder_onnx"] is True
@@ -56,6 +57,8 @@ def test_yaml_locks_pd_physics() -> None:
     assert cfg["not_pd_physics_finite_diff_dq"] is True
     assert cfg["not_pd_physics_q_onto_this_tick_decoder"] is True
     assert cfg["not_pd_physics_invent_imu"] is True
+    assert cfg["pd_physics_feeds_next_tick_decoder_q"] is True
+    assert cfg["omit_push_hw_keeps_imu"] is True
     assert cfg["pd_physics_n_steps_per_tick"] == PHYSICS_N_STEPS == 10
     assert cfg["pd_physics_timestep_s"] == PHYSICS_TIMESTEP_S == 0.002
     assert cfg["gains_source"] == GAINS_SOURCE
@@ -105,6 +108,8 @@ def test_g1_hands_qpos_tau_refused() -> None:
         refuse_pd_physics_q_onto_this_tick_decoder()
     with pytest.raises(PdPhysicsError, match="invent IMU"):
         refuse_pd_physics_invent_imu()
+    with pytest.raises(PdPhysicsError, match="omitting push_hw"):
+        refuse_omit_push_hw_invent_imu()
 
 
 def test_period_type() -> None:

@@ -1,0 +1,37 @@
+# L1a closed-loop next-tick gather: omit push_hw after tick 0.
+# Decoder q follows the 500 Hz plant. IMU is kept, not invented.
+schema_version: "1.0"
+adr: ADR-057
+source: wbc/pd_physics.yaml
+command_stream_hz: 500
+policy_hz: 50
+factor_policy_to_stream: 10
+pd_action_dim: 25
+g1_action_dim_forbidden: 29
+gains_source: pd_stand_bringup_not_sonic
+pd_plant_on_same_tick: true
+pd_physics_on_same_tick: true
+pd_physics_is_optional: true
+pd_physics_n_steps_per_tick: 10
+pd_physics_timestep_s: 0.002
+pd_physics_feeds_next_tick_decoder_q: true
+omit_push_hw_keeps_imu: true
+not_pd_physics_from_decoder_onnx: true
+not_pd_physics_hermite: true
+not_pd_physics_finite_diff_dq: true
+not_pd_physics_q_onto_this_tick_decoder: true
+not_pd_physics_invent_imu: true
+pd_plant_gains_are_pd_stand_bringup: true
+not_sonic_tracking_gains: true
+pd_plant_dq_des_is_zero: true
+not_pd_tau_onto_decoder_obs: true
+policy_action_pd_is_zoh: true
+not_policy_action_hermite: true
+policy_action_feeds_500hz_pd_after_stash: true
+policy_action_feeds_next_tick_last_action: true
+decoder_history_is_hardware_not_clip: true
+not_g1_decoder_onnx: true
+not_onnx_run: true
+not_invented_clip: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked

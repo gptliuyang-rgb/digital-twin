@@ -97,3 +97,58 @@ def test_cursor_physics_period_on_fixture() -> None:
     assert np.isfinite(step.pd_physics_q).all()
     np.testing.assert_allclose(decoder_joint_history(step.decoder_obs)[-1], 0.0)
     np.testing.assert_allclose(step.pd_q_des, 0.0)
+
+
+def test_cursor_omit_push_hw_follows_fixture_q() -> None:
+    pytest.importorskip("mujoco")
+    env = T800MujocoEnv(source="fixture", pinned_base=True)
+    env.reset()
+    q0 = env.get_q().copy()
+    gather = ObsGather()
+    gather.push_hw(
+        HardwareSnapshot(
+            t_s=0.0,
+            q_hw=q0,
+            dq_hw=np.zeros(25),
+            omega_imu=np.array([0.1, 0.2, 0.3]),
+            imu_quat_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+            last_action=np.zeros(25),
+        )
+    )
+    cur = SharedPlaybackCursor(gather=gather, physics=env)
+    token = np.zeros(TOKEN_DIM)
+    q = np.zeros(25)
+    clip = np.stack(
+        [
+            pack_qpos(
+                PlannerQpos(
+                    root_pos_m=np.array([0.01 * i, 0.0, 1.03]),
+                    root_rot_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+                    q_rad=q,
+                )
+            )
+            for i in range(16)
+        ]
+    )
+    q_des = np.zeros(25)
+    q_des[0] = 0.05
+    first = cur.control_tick(
+        np.zeros(25),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=clip,
+        t_s=0.0,
+        policy_action=q_des,
+    )
+    np.testing.assert_allclose(decoder_joint_history(first.decoder_obs)[-1], q0)
+    plant_q = first.pd_physics_q.copy()
+    second = cur.control_tick(
+        np.zeros(25),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+        policy_action=q_des,
+    )
+    np.testing.assert_allclose(decoder_joint_history(second.decoder_obs)[-1], plant_q)
+    np.testing.assert_allclose(gather.hw.read().omega_imu, [0.1, 0.2, 0.3])
+    assert not np.allclose(second.pd_physics_q, plant_q)

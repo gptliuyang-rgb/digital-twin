@@ -7,6 +7,9 @@
 # 10 substeps. q/dq come from the physics plant (measured), not from
 # interpolating the 50 Hz HardwareSnapshot and not from finite-diff.
 # This tick's decoder 874-D stays pre-physics. IMU is not invented.
+# Omit push_hw after the first tick to close the loop: next gather q/dq
+# come from the previous period (ADR-057). IMU stays on the last full
+# HardwareSnapshot. Measured IMU latency stays REQUIRED_INPUT.
 #
 # Gains stay EngineAI pd_stand bring-up (ADR-022 / ADR-055), NOT SONIC
 # tracking. Do not Hermite. Do not treat τ as a decoder ONNX run.
@@ -14,7 +17,7 @@
 
 schema_version: "1.0"
 source: "He et al., SONIC, arXiv:2511.07820v3 §3.5 PD ring; EngineAI pd_stand/default.yaml"
-adr: ADR-056
+adr: ADR-057
 not_dexhand2_contact: true
 not_table_s4: true
 not_hand_mit_ring: true
@@ -39,6 +42,8 @@ not_pd_physics_invent_imu: true
 not_pd_physics_from_planner_qpos: true
 not_policy_action_from_decoder_onnx: true
 not_policy_action_same_tick_decoder_obs: true
+pd_physics_feeds_next_tick_decoder_q: true
+omit_push_hw_keeps_imu: true
 
 command_stream_hz: 500
 policy_hz: 50
@@ -57,6 +62,9 @@ note: >
   alone does not write PD or physics. This tick's decoder obs is assembled
   before physics. Joints may be pushed into HardwareHold after the period
   for the *next* gather; IMU is left as the previous snapshot. Omit the
-  backend to keep ADR-055. DexHand2 stays on its 1 kHz MIT backend.
+  backend to keep ADR-055. Omit push_hw after the first tick to close
+  the loop (ADR-057): decoder q follows the plant; IMU is kept, not
+  invented from body rates. Passing push_hw every tick still overrides
+  the plant (ADR-056 eval). DexHand2 stays on its 1 kHz MIT backend.
   Combined T800+Hand stays PolicyEvalBlocked. This is not a trained
   decoder ONNX run and not SONIC tracking PD.

@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l1a-spring eval-l1a-stream eval-l1a-operator eval-l1a-gather eval-l1a-encoder eval-l1a-planner-onnx eval-l1a-planner-blend eval-l1a-idle-readapt eval-l1a-playback eval-l1a-shared-cursor eval-l1a-decoder-tick eval-l1a-last-action eval-l1a-policy-action eval-l1a-pd-stream eval-l1a-pd-plant eval-l1a-pd-physics eval-l0-diagnose eval-l1-case-a extract-kinematics ppo-status ppo-train eval-l2-sim2sim eval-l2-physics-sim2sim eval-l2-freebase-stand eval-l2-freebase-push eval-l3-isaac-bind
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official check-drift eval-qr ingest-t800 eval-report weld-recipe sonic-status gmr-export gmr-tpose usd-pads eval-l2-priv eval-l3-priv eval-gain-scan eval-l1a eval-l1a-spring eval-l1a-stream eval-l1a-operator eval-l1a-gather eval-l1a-encoder eval-l1a-planner-onnx eval-l1a-planner-blend eval-l1a-idle-readapt eval-l1a-playback eval-l1a-shared-cursor eval-l1a-decoder-tick eval-l1a-last-action eval-l1a-policy-action eval-l1a-pd-stream eval-l1a-pd-plant eval-l1a-pd-physics eval-l1a-pd-closedloop eval-l0-diagnose eval-l1-case-a extract-kinematics ppo-status ppo-train eval-l2-sim2sim eval-l2-physics-sim2sim eval-l2-freebase-stand eval-l2-freebase-push eval-l3-isaac-bind
 
 PYTHON ?= python3
 
@@ -126,6 +126,9 @@ eval-l1a-pd-plant:
 
 eval-l1a-pd-physics:
 	$(PYTHON) -m eval.l1a_pd_physics
+
+eval-l1a-pd-closedloop:
+	$(PYTHON) -m eval.l1a_pd_closedloop
 
 ppo-status:
 	$(PYTHON) -c "from wbc.ppo.recipe import status_report; import json; print(json.dumps(status_report(), indent=2, default=str))"

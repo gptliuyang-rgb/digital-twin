@@ -519,8 +519,9 @@ class HardwareHold:
         """Overwrite q/dq after a 500 Hz physics period. Does not invent IMU.
 
         Call *after* this tick's decoder assemble (ADR-056). Keeps omega/quat
-        and last_action from the previous snapshot. Measured IMU latency
-        stays REQUIRED_INPUT.
+        and last_action from the previous snapshot. Omit ``push_hw`` on the
+        next tick to close the loop (ADR-057). Measured IMU latency stays
+        REQUIRED_INPUT.
         """
         if self._snap is None:
             raise ObsGatherError("hardware hold is empty; push a snapshot first")

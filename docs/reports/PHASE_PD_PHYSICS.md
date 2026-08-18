@@ -47,6 +47,7 @@ slot inside an optional physics backend.
 - Filling policy_action from a live policy output (caller must supply it)
 - Writing physics q into this tick's decoder obs (refused on purpose)
 - Inventing IMU from body rates (refused on purpose)
+- Closed-loop next-tick gather when the caller omits `push_hw` (ADR-057)
 - Reference-motion named-clip loop-to-zero (refused on purpose)
 - Mixing `MotionCursor` into `PlannerPlayback` (refused on purpose)
 - PICO / CloudXR / Isaac Teleop SDK

@@ -12,7 +12,9 @@ backend lives in ``sim/``.
 
 q/dq are **measured** from the backend each substep. Do not interpolate
 a 50 Hz snapshot. Do not finite-diff dq. This tick's decoder 874-D stays
-pre-physics. IMU is not invented. Gains are EngineAI ``pd_stand``
+pre-physics. IMU is not invented. Omit ``push_hw`` after the first
+tick to close the loop (ADR-057): next gather q/dq follow the plant;
+IMU stays on the last full snapshot. Gains are EngineAI ``pd_stand``
 bring-up (ADR-022), **not** SONIC tracking. Hands still bypass WBC.
 Not a decoder ONNX run. Not Table S4. Not pad–cardboard. Not a
 T800+Hand weld (ADR-009 / ADR-039).
@@ -94,6 +96,8 @@ def load_pd_physics_cfg(path: Path | None = None) -> dict[str, Any]:
         "not_pd_physics_from_planner_qpos",
         "not_policy_action_from_decoder_onnx",
         "not_policy_action_same_tick_decoder_obs",
+        "pd_physics_feeds_next_tick_decoder_q",
+        "omit_push_hw_keeps_imu",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -158,6 +162,15 @@ def refuse_pd_physics_invent_imu() -> None:
     raise PdPhysicsError(
         "do not invent IMU from physics. push_joints copies q/dq only and "
         "keeps the previous omega/quat. Measured IMU latency stays REQUIRED_INPUT."
+    )
+
+
+def refuse_omit_push_hw_invent_imu() -> None:
+    """Omitting push_hw copies q/dq only. Do not invent IMU from body rates."""
+    raise PdPhysicsError(
+        "omitting push_hw after a physics period copies q/dq only. "
+        "Do not invent IMU from physics body rates. Measured IMU latency "
+        "stays REQUIRED_INPUT."
     )
 
 

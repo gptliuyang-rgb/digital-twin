@@ -26,6 +26,9 @@ bring-up gains (ADR-055). If a ``JointPdPhysics`` backend is attached,
 the same tick applies that τ for 10 physics substeps at 1/500 s
 (ADR-056). q/dq are measured from the backend, not interpolated.
 This tick's decoder 874-D stays pre-physics. IMU is not invented.
+Omit ``push_hw`` after the first tick to close the loop (ADR-057):
+next gather q/dq follow the plant; IMU stays. Passing ``push_hw``
+every tick still overrides the plant.
 Do not invent policy_action from decoder ONNX or copy clip qpos.
 Hands still bypass WBC. ADR-018 interpolators stay the runtime L1a.
 """
@@ -63,6 +66,7 @@ from wbc.pd_physics import (
     PHYSICS_TIMESTEP_S,
     JointPdPhysics,
     PdPhysicsPeriod,
+    refuse_omit_push_hw_invent_imu,
     refuse_pd_physics_as_decoder_run,
     refuse_pd_physics_finite_diff_dq,
     refuse_pd_physics_hermite,
@@ -147,6 +151,8 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         "not_pd_physics_q_onto_this_tick_decoder",
         "not_pd_physics_invent_imu",
         "not_pd_physics_from_planner_qpos",
+        "pd_physics_feeds_next_tick_decoder_q",
+        "omit_push_hw_keeps_imu",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -317,6 +323,18 @@ def refuse_decoder_from_planner_qpos() -> None:
     )
 
 
+def decoder_omega_history(obs: np.ndarray, *, n_dof: int = 25) -> np.ndarray:
+    """Grouped YAML ω-history block: shape (10, 3). Token sits in front."""
+    vec = np.asarray(obs, dtype=np.float64).reshape(-1)
+    expected = decoder_history_dim(int(n_dof))
+    if vec.shape == (G1_DECODER_INPUT_DIM,):
+        refuse_g1_checkpoint(decoder_input_dim=G1_DECODER_INPUT_DIM)
+    if vec.shape != (expected,):
+        raise SharedCursorError(f"decoder obs dim {vec.shape} != T800 {expected}")
+    start = TOKEN_DIM
+    return vec[start : start + 3 * HISTORY_FRAMES].reshape(HISTORY_FRAMES, 3)
+
+
 def decoder_joint_history(obs: np.ndarray, *, n_dof: int = 25) -> np.ndarray:
     """Grouped YAML q-history block: shape (10, n_dof). Token/ω sit in front."""
     n = int(n_dof)
@@ -457,6 +475,11 @@ def refuse_policy_pd_physics_invent_imu() -> None:
     refuse_pd_physics_invent_imu()
 
 
+def refuse_policy_pd_physics_omit_push_hw_invent_imu() -> None:
+    """Omitting push_hw copies q/dq only. IMU stays REQUIRED_INPUT."""
+    refuse_omit_push_hw_invent_imu()
+
+
 @dataclass(frozen=True)
 class DecoderControlTick:
     """One 50 Hz control thread sample: playback + decoder 874-D.
@@ -472,7 +495,8 @@ class DecoderControlTick:
     bring-up (ADR-055). ``dq_des`` is 0. τ does not enter decoder obs.
     ``pd_physics_*`` is the optional 10-substep plant (ADR-056). n_steps
     is 0 when no backend is attached. Physics q does not rewrite this
-    tick's decoder obs.
+    tick's decoder obs. Omit ``push_hw`` after the first tick (ADR-057)
+    so the *next* gather's q/dq come from the plant; IMU is kept.
     """
 
     playback: PlaybackTick
@@ -509,7 +533,9 @@ class SharedPlaybackCursor:
     joint-PD plant evaluates τ (ADR-055). If ``physics`` is attached,
     the same tick applies that τ for 10 substeps (ADR-056). Do not
     invent a decoder ONNX vector for either slot. ``last_action=``
-    does **not** write the PD ring, the plant, or physics.
+    does **not** write the PD ring, the plant, or physics. Omit
+    ``push_hw`` after the first tick to close the loop (ADR-057);
+    IMU is kept. Passing ``push_hw`` every tick still overrides q.
     """
 
     playback: PlannerPlayback = field(default_factory=PlannerPlayback)
@@ -633,7 +659,8 @@ class SharedPlaybackCursor:
         Does not rewrite this tick's decoder obs. Does not run ONNX.
         Does not invent IMU. ``last_action=`` does not change q_des.
         After the period, q/dq are pushed into HardwareHold for the
-        *next* gather.
+        *next* gather. IMU is not invented. Omit ``push_hw`` on the
+        next tick to use those joints (ADR-057).
         """
         if self.physics is None:
             raise SharedCursorError("step_physics needs a JointPdPhysics backend")
@@ -714,6 +741,9 @@ class SharedPlaybackCursor:
         plant evaluates τ with pd_stand bring-up gains (not SONIC tracking).
         If ``physics`` is attached, the same tick applies that τ for 10
         substeps at 1/500 s. Physics q does not rewrite this tick's decoder.
+        Omit ``push_hw`` after the first tick to close the loop: the next
+        gather's q/dq follow the plant and IMU stays (ADR-057). Passing
+        ``push_hw`` every tick still overrides the plant.
         """
         playback = self.tick(
             q_motor,
