@@ -9,6 +9,7 @@ import yaml
 from wbc.checkpoint import G1CheckpointIncompatible
 from wbc.dims import (
     G1_DECODER_INPUT_DIM,
+    G1_N_DOF,
     G1_PLANNER_QPOS_DIM,
     HISTORY_FRAMES,
     PLANNER_CONTEXT_FRAMES,
@@ -29,14 +30,18 @@ from wbc.shared_cursor import (
     SharedPlaybackCursor,
     bind_encoder_hold,
     decoder_joint_history,
+    decoder_last_action_history,
     encoder_look_ahead_indices_from_playback,
     load_shared_cursor_cfg,
     qpos_clip_to_motion_frames,
     refuse_decoder_from_planner_qpos,
     refuse_g1_decoder_onnx,
+    refuse_last_action_from_decoder_onnx,
+    refuse_last_action_from_planner_qpos,
     refuse_motion_cursor_in_playback,
     refuse_run_shared_cursor_onnx,
     sample_planner_context_from_playback,
+    validate_t800_last_action,
 )
 
 
@@ -81,17 +86,22 @@ def _token() -> np.ndarray:
 
 def test_yaml_locks_official_table() -> None:
     cfg = load_shared_cursor_cfg()
-    assert cfg["adr"] == "ADR-051"
+    assert cfg["adr"] == "ADR-052"
     assert cfg["encoder_reads_playback_current_frame"] is True
     assert cfg["planner_context_reads_playback_current_frame"] is True
     assert cfg["decoder_assembles_on_shared_tick"] is True
     assert cfg["decoder_history_is_hardware_not_clip"] is True
+    assert cfg["last_action_is_caller_supplied_policy"] is True
+    assert cfg["not_last_action_from_decoder_onnx"] is True
+    assert cfg["not_last_action_from_planner_qpos"] is True
     assert cfg["not_decoder_from_planner_qpos"] is True
     assert cfg["not_g1_decoder_onnx"] is True
     assert cfg["not_motion_cursor_mix"] is True
     assert cfg["not_onnx_run"] is True
     assert cfg["control_hz"] == 50
     assert cfg["n_dof"] == 25
+    assert cfg["action_dim"] == 25
+    assert cfg["g1_action_dim_forbidden"] == 29
     assert cfg["expected_qpos_dim"] == t800_planner_qpos_dim() == 32
     assert cfg["lookahead_steps_50hz"] == PLANNER_LOOKAHEAD_STEPS_50HZ
     assert cfg["encoder_look_ahead_n_frames"] == HISTORY_FRAMES
@@ -352,3 +362,145 @@ def test_assemble_decoder_requires_gather_hardware_and_token() -> None:
 def test_g1_decoder_vector_refused() -> None:
     with pytest.raises(G1CheckpointIncompatible):
         decoder_joint_history(np.zeros(G1_DECODER_INPUT_DIM))
+    with pytest.raises(G1CheckpointIncompatible):
+        decoder_last_action_history(np.zeros(G1_DECODER_INPUT_DIM))
+
+
+def _action(*, a0: float) -> np.ndarray:
+    a = np.zeros(25)
+    a[0] = a0
+    return a
+
+
+def test_control_tick_pushes_caller_last_action_into_decoder_ring() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=7.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = _token()
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        last_action=_action(a0=3.5),
+    )
+    assert step.last_action.shape == (25,)
+    np.testing.assert_allclose(step.last_action[0], 3.5)
+    a_hist = decoder_last_action_history(step.decoder_obs)
+    np.testing.assert_allclose(a_hist[:9], 0.0)
+    np.testing.assert_allclose(a_hist[-1, 0], 3.5)
+    q_hist = decoder_joint_history(step.decoder_obs)
+    np.testing.assert_allclose(q_hist[-1, 0], 7.0)
+    assert not np.isclose(a_hist[-1, 0], q_hist[-1, 0])
+    enc = cur.assemble_encoder("t800")
+    q_enc = enc[4:254].reshape(10, 25)
+    np.testing.assert_allclose(q_enc[0, 0], 0.01)
+    assert not np.isclose(a_hist[-1, 0], q_enc[0, 0])
+
+
+def test_ten_ticks_last_action_history_independent_of_q_and_clip() -> None:
+    gather = ObsGather()
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    last = None
+    for i in range(10):
+        gather.push_hw(_hw(q0=float(i), t_s=i / 50.0))
+        last = cur.control_tick(
+            _motor(),
+            locomotion_mode=0,
+            token=token,
+            new_qpos=_clip(n=16) if i == 0 else None,
+            t_s=i / 50.0,
+            last_action=_action(a0=10.0 + i),
+        )
+    assert last is not None
+    q_hist = decoder_joint_history(last.decoder_obs)
+    a_hist = decoder_last_action_history(last.decoder_obs)
+    np.testing.assert_allclose(q_hist[:, 0], np.arange(10.0))
+    np.testing.assert_allclose(a_hist[:, 0], np.arange(10.0, 20.0))
+    assert cur.encoder_look_ahead_indices() == look_ahead_indices(10, 10, 5, 16)
+
+
+def test_omit_last_action_keeps_hardware_hold_does_not_invent_onnx() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=np.zeros(TOKEN_DIM),
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+    )
+    np.testing.assert_allclose(step.last_action, np.zeros(25))
+    a_hist = decoder_last_action_history(step.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1], 0.0)
+
+
+def test_play_false_still_logs_caller_last_action() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        last_action=_action(a0=1.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    paused = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        play=False,
+        t_s=0.02,
+        last_action=_action(a0=8.0),
+    )
+    assert paused.current_frame == 1
+    assert paused.logger_len == 2
+    a_hist = decoder_last_action_history(paused.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1, 0], 8.0)
+
+
+def test_tick_without_token_still_applies_last_action() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw())
+    cur = SharedPlaybackCursor(gather=gather)
+    tick = cur.tick(
+        _motor(),
+        locomotion_mode=0,
+        new_qpos=_clip(n=16),
+        last_action=_action(a0=4.0),
+    )
+    assert tick.current_frame == 1
+    assert cur.last_decoder_obs is None
+    assert len(gather.logger) == 0
+    np.testing.assert_allclose(gather.hw.read().last_action[0], 4.0)
+
+
+def test_last_action_g1_hands_qpos_onnx_refused() -> None:
+    with pytest.raises(G1CheckpointIncompatible):
+        validate_t800_last_action(np.zeros(G1_N_DOF))
+    with pytest.raises(G1CheckpointIncompatible):
+        validate_t800_last_action(np.zeros(G1_PLANNER_QPOS_DIM))
+    with pytest.raises(SharedCursorError, match="planner qpos"):
+        validate_t800_last_action(np.zeros(32))
+    with pytest.raises(SharedCursorError, match="DexHand2"):
+        validate_t800_last_action(np.zeros(45))
+    with pytest.raises(SharedCursorError, match="NaN"):
+        validate_t800_last_action(np.array([np.nan] + [0.0] * 24))
+    with pytest.raises(SharedCursorError, match="planner clip"):
+        refuse_last_action_from_planner_qpos()
+    with pytest.raises(SharedCursorError, match="fake decoder ONNX"):
+        refuse_last_action_from_decoder_onnx()
+    gather = ObsGather()
+    cur = SharedPlaybackCursor(gather=gather)
+    with pytest.raises(ObsGatherError, match="empty"):
+        cur.apply_last_action(_action(a0=1.0))
+    cur_bare = SharedPlaybackCursor()
+    with pytest.raises(SharedCursorError, match="ObsGather"):
+        cur_bare.apply_last_action(_action(a0=1.0))

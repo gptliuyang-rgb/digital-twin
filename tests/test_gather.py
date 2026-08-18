@@ -207,3 +207,22 @@ def test_csv_optional(tmp_path: Path) -> None:
     q_csv = (tmp_path / "q.csv").read_text(encoding="utf-8").strip().splitlines()
     assert q_csv[0].startswith("t_s")
     assert len(q_csv) == 2
+
+
+def test_push_last_action_overwrites_without_inventing_q() -> None:
+    hold = HardwareHold()
+    hold.push(_hw(t_s=0.1, q0=2.0, a0=0.0))
+    a = np.zeros(25)
+    a[0] = 4.5
+    hold.push_last_action(a)
+    snap = hold.read()
+    np.testing.assert_allclose(snap.q_hw[0], 2.0)
+    np.testing.assert_allclose(snap.last_action[0], 4.5)
+    assert snap.t_s == pytest.approx(0.1)
+    with pytest.raises(G1CheckpointIncompatible):
+        hold.push_last_action(np.zeros(29))
+    with pytest.raises(ObsGatherError, match="DexHand2"):
+        hold.push_last_action(np.zeros(45))
+    empty = HardwareHold()
+    with pytest.raises(ObsGatherError, match="empty"):
+        empty.push_last_action(np.zeros(25))

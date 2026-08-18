@@ -15,8 +15,10 @@ ADR-049 owns ``current_frame``. This module is the shared reader:
   (ADR-041 / paper S7; 874-D grouped history)
 
 Decoder history is robot proprioception. Token is an external 64-D —
-do not invent it from ONNX. Hands still bypass WBC. ADR-018 interpolators
-stay the runtime L1a.
+do not invent it from ONNX. ``last_action`` is a caller-supplied 25-D
+previous policy output pushed into ``HardwareHold`` on the same 50 Hz
+tick (ADR-052). Do not invent it from decoder ONNX or copy clip qpos.
+Hands still bypass WBC. ADR-018 interpolators stay the runtime L1a.
 """
 
 from __future__ import annotations
@@ -91,6 +93,9 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         "planner_context_reads_playback_current_frame",
         "decoder_assembles_on_shared_tick",
         "decoder_history_is_hardware_not_clip",
+        "last_action_is_caller_supplied_policy",
+        "not_last_action_from_decoder_onnx",
+        "not_last_action_from_planner_qpos",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -125,6 +130,10 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         raise SharedCursorError(f"expected_decoder_dim must stay {expected_dec}")
     if int(raw["g1_decoder_dim_forbidden"]) != G1_DECODER_INPUT_DIM:
         raise SharedCursorError("g1_decoder_dim_forbidden must stay 994")
+    if int(raw["action_dim"]) != n:
+        raise SharedCursorError(f"action_dim must stay T800 {n}, got {raw['action_dim']}")
+    if int(raw["g1_action_dim_forbidden"]) != G1_N_DOF:
+        raise SharedCursorError("g1_action_dim_forbidden must stay 29")
     return raw
 
 
@@ -266,18 +275,79 @@ def decoder_joint_history(obs: np.ndarray, *, n_dof: int = 25) -> np.ndarray:
     return vec[start : start + n * HISTORY_FRAMES].reshape(HISTORY_FRAMES, n)
 
 
+def decoder_last_action_history(obs: np.ndarray, *, n_dof: int = 25) -> np.ndarray:
+    """Grouped YAML last-action history: shape (10, n_dof). After ω/q/dq."""
+    n = int(n_dof)
+    vec = np.asarray(obs, dtype=np.float64).reshape(-1)
+    expected = decoder_history_dim(n)
+    if vec.shape == (G1_DECODER_INPUT_DIM,):
+        refuse_g1_checkpoint(decoder_input_dim=G1_DECODER_INPUT_DIM)
+    if vec.shape != (expected,):
+        raise SharedCursorError(f"decoder obs dim {vec.shape} != T800 {expected}")
+    start = TOKEN_DIM + 3 * HISTORY_FRAMES + 2 * n * HISTORY_FRAMES
+    return vec[start : start + n * HISTORY_FRAMES].reshape(HISTORY_FRAMES, n)
+
+
+def validate_t800_last_action(last_action: np.ndarray, *, n_dof: int = 25) -> np.ndarray:
+    """T800 PPO/decoder action is 25-D. G1 29-D, planner qpos, and hands refused."""
+    n = int(n_dof)
+    a = np.asarray(last_action, dtype=np.float64).reshape(-1)
+    if a.shape == (G1_N_DOF,):
+        refuse_g1_checkpoint(n_dof=G1_N_DOF)
+    if a.shape == (G1_PLANNER_QPOS_DIM,):
+        refuse_g1_checkpoint(planner_qpos_dim=G1_PLANNER_QPOS_DIM)
+    if a.shape == (planner_qpos_dim(n),):
+        raise SharedCursorError(
+            f"last_action dim {a.shape[0]} is planner qpos, not the {n}-D policy "
+            "action. Do not copy playback.qpos into HardwareHold.last_action."
+        )
+    if a.shape[0] == 45:
+        raise SharedCursorError(
+            "last_action dim 45 looks like DexHand2 concat; hands bypass WBC"
+        )
+    if a.shape != (n,):
+        raise SharedCursorError(
+            f"last_action dim {a.shape} != T800 {n} (PPO/decoder action). "
+            "Do not invent a decoder ONNX output."
+        )
+    if not np.isfinite(a).all():
+        raise SharedCursorError("last_action contains NaN/Inf")
+    return a.copy()
+
+
+def refuse_last_action_from_planner_qpos() -> None:
+    """last_action is the previous 25-D policy output, not clip hinges."""
+    raise SharedCursorError(
+        "last_action is the previous 25-D policy output (PPO/decoder), not "
+        "planner clip qpos. Do not copy playback.qpos hinges into "
+        "HardwareHold.last_action."
+    )
+
+
+def refuse_last_action_from_decoder_onnx() -> None:
+    """Do not fill last_action from a fake decoder ONNX vector."""
+    raise SharedCursorError(
+        "do not fill last_action from a fake decoder ONNX output. "
+        "Caller supplies the previous 25-D policy action when one exists. "
+        "Until a T800 decoder exists, omit last_action and keep HardwareHold."
+    )
+
+
 @dataclass(frozen=True)
 class DecoderControlTick:
     """One 50 Hz control thread sample: playback + decoder 874-D.
 
     ``decoder_obs`` is grouped YAML order (token | ω | q | dq | a | g).
     Encoder look-ahead and planner context still read ``current_frame``.
+    ``last_action`` is the 25-D vector that entered the ring this tick
+    (caller-supplied policy output, or HardwareHold's existing value).
     """
 
     playback: PlaybackTick
     decoder_obs: np.ndarray
     current_frame: int
     logger_len: int
+    last_action: np.ndarray
 
 
 @dataclass
@@ -291,6 +361,9 @@ class SharedPlaybackCursor:
     Decoder history comes from ``HardwareHold``, not from the planner clip.
     ``tick(..., token=)`` is optional so ADR-050 callers stay valid; the
     official combined entry is ``control_tick`` (token required).
+    ``last_action`` is optional so ADR-051 callers stay valid; omit it to
+    keep HardwareHold's existing 25-D (startup zeros are padding, not an
+    invented decoder output).
     """
 
     playback: PlannerPlayback = field(default_factory=PlannerPlayback)
@@ -312,6 +385,7 @@ class SharedPlaybackCursor:
         new_dq: np.ndarray | None = None,
         token: np.ndarray | None = None,
         t_s: float | None = None,
+        last_action: np.ndarray | None = None,
     ) -> PlaybackTick:
         tick = self.playback.tick(
             q_motor,
@@ -322,9 +396,23 @@ class SharedPlaybackCursor:
             new_dq=new_dq,
         )
         self.sync()
+        if last_action is not None:
+            self.apply_last_action(last_action)
         if token is not None:
             self.assemble_decoder(token, t_s=t_s)
         return tick
+
+    def apply_last_action(self, last_action: np.ndarray) -> np.ndarray:
+        """Push a caller-supplied 25-D policy action into HardwareHold.
+
+        Does not run decoder ONNX. Does not copy planner clip qpos.
+        Requires a hardware snapshot already on the hold.
+        """
+        if self.gather is None:
+            raise SharedCursorError("apply_last_action needs an ObsGather")
+        a = validate_t800_last_action(last_action, n_dof=self.playback.n_dof)
+        self.gather.hw.push_last_action(a, n_dof=int(self.playback.n_dof))
+        return a
 
     def sync(self) -> None:
         if self.gather is not None:
@@ -357,11 +445,14 @@ class SharedPlaybackCursor:
         gen_frame: int | None = None,
         new_dq: np.ndarray | None = None,
         t_s: float | None = None,
+        last_action: np.ndarray | None = None,
     ) -> DecoderControlTick:
-        """Official 50 Hz order: advance playback, bind encoder, assemble decoder.
+        """Official 50 Hz order: advance playback, bind encoder, last_action, decoder.
 
         ``play == false`` holds ``current_frame`` (and therefore encoder /
         planner readers) but still logs hardware into the 50 Hz decoder ring.
+        ``last_action`` is the previous 25-D policy output. Omit it to keep
+        HardwareHold (do not invent a decoder ONNX vector).
         """
         playback = self.tick(
             q_motor,
@@ -372,6 +463,7 @@ class SharedPlaybackCursor:
             new_dq=new_dq,
             token=token,
             t_s=t_s,
+            last_action=last_action,
         )
         if self.last_decoder_obs is None:
             raise SharedCursorError("control_tick did not assemble a decoder vector")
@@ -382,6 +474,7 @@ class SharedPlaybackCursor:
             decoder_obs=self.last_decoder_obs,
             current_frame=int(playback.current_frame),
             logger_len=len(self.gather.logger),
+            last_action=self.gather.hw.read().last_action.copy(),
         )
 
     def assemble_encoder(self, mode: str | None = None) -> np.ndarray:

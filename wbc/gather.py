@@ -487,6 +487,27 @@ class HardwareHold:
             raise ObsGatherError("t_s must be finite")
         self._snap = snap
 
+    def push_last_action(self, last_action: np.ndarray, *, n_dof: int = 25) -> None:
+        """Overwrite last_action on the current snapshot. Does not invent q/dq/IMU.
+
+        ``last_action`` is the previous 25-D policy output (PPO / decoder).
+        Do not copy planner clip qpos or a fake decoder ONNX vector.
+        """
+        if self._snap is None:
+            raise ObsGatherError("hardware hold is empty; push a snapshot first")
+        a = remap_identity(last_action, n_dof)
+        if not np.isfinite(a).all():
+            raise ObsGatherError("last_action contains NaN/Inf")
+        prev = self._snap
+        self._snap = HardwareSnapshot(
+            t_s=prev.t_s,
+            q_hw=np.asarray(prev.q_hw, dtype=np.float64).copy(),
+            dq_hw=np.asarray(prev.dq_hw, dtype=np.float64).copy(),
+            omega_imu=np.asarray(prev.omega_imu, dtype=np.float64).copy(),
+            imu_quat_wxyz=np.asarray(prev.imu_quat_wxyz, dtype=np.float64).copy(),
+            last_action=a,
+        )
+
     def read(self) -> HardwareSnapshot:
         if self._snap is None:
             raise ObsGatherError("hardware hold is empty; push a snapshot first")

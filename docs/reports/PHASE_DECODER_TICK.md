@@ -46,7 +46,7 @@ block GMR-on-BONES-SEED and the combined weld.
 - Running a T800 encoder / planner / decoder ONNX (G1 weights are refused)
 - Replacing ADR-018 interpolators with a trained generative planner
 - Official clip-library modes beyond command_schema `{0,1,2}`
-- Feeding decoder last-action from a policy output (still HardwareHold)
+- Feeding decoder last-action from a policy output — **ADR-052** (caller-supplied 25-D; still no ONNX)
 - Reference-motion named-clip loop-to-zero (refused on purpose)
 - Mixing `MotionCursor` into `PlannerPlayback` (refused on purpose)
 - PICO / CloudXR / Isaac Teleop SDK
