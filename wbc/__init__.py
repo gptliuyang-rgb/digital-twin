@@ -79,6 +79,7 @@ from wbc.playback import (
 )
 from wbc.shared_cursor import (
     SHARED_CURSOR_YAML,
+    DecoderControlTick,
     SharedCursorError,
     SharedPlaybackCursor,
     load_shared_cursor_cfg,
@@ -138,6 +139,7 @@ __all__ = [
     "PlannerReplanClock",
     "PlaybackError",
     "SHARED_CURSOR_YAML",
+    "DecoderControlTick",
     "SharedCursorError",
     "SharedPlaybackCursor",
     "command_to_planner_inputs",

@@ -1,7 +1,9 @@
-"""Wire encoder look-ahead and planner context to PlannerPlayback.current_frame.
+"""Wire encoder look-ahead, planner context, and decoder gather to one 50 Hz tick.
 
-Numpy only — no simulator, no onnxruntime. Does **not** run encoder or
-planner ONNX. Does **not** mix ``MotionCursor`` into ``PlannerPlayback``.
+Numpy only — no simulator, no onnxruntime. Does **not** run encoder,
+planner, or decoder ONNX. Does **not** mix ``MotionCursor`` into
+``PlannerPlayback``. Does **not** copy planner clip qpos into the
+decoder vector.
 
 ADR-049 owns ``current_frame``. This module is the shared reader:
 
@@ -9,8 +11,12 @@ ADR-049 owns ``current_frame``. This module is the shared reader:
   (ADR-042 last-frame-repeat look-ahead)
 * ``sample_context_from_50hz(..., current_frame=playback.current_frame)``
   (ADR-046; short windows raise, no last-frame-repeat)
+* ``ObsGather.control_tick`` ← same 50 Hz tick, ``HardwareHold``
+  (ADR-041 / paper S7; 874-D grouped history)
 
-Hands still bypass WBC. ADR-018 interpolators stay the runtime L1a.
+Decoder history is robot proprioception. Token is an external 64-D —
+do not invent it from ONNX. Hands still bypass WBC. ADR-018 interpolators
+stay the runtime L1a.
 """
 
 from __future__ import annotations
@@ -22,8 +28,9 @@ from typing import Any
 import numpy as np
 import yaml
 
-from wbc.checkpoint import refuse_g1_checkpoint
+from wbc.checkpoint import G1CheckpointIncompatible, refuse_g1_checkpoint
 from wbc.dims import (
+    G1_DECODER_INPUT_DIM,
     G1_N_DOF,
     G1_PLANNER_QPOS_DIM,
     HISTORY_FRAMES,
@@ -32,6 +39,8 @@ from wbc.dims import (
     PLANNER_IDLE_MODE,
     PLANNER_LOOKAHEAD_STEPS_50HZ,
     PLAYBACK_CONTROL_HZ,
+    TOKEN_DIM,
+    decoder_history_dim,
     load_t800_sonic,
     planner_qpos_dim,
     t800_planner_qpos_dim,
@@ -76,8 +85,12 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         "not_reference_motion_loop",
         "not_motion_cursor_mix",
         "not_wrist_pose_augmentation_sampler",
+        "not_g1_decoder_onnx",
+        "not_decoder_from_planner_qpos",
         "encoder_reads_playback_current_frame",
         "planner_context_reads_playback_current_frame",
+        "decoder_assembles_on_shared_tick",
+        "decoder_history_is_hardware_not_clip",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -105,6 +118,13 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         raise SharedCursorError("encoder_look_ahead_step must stay 5 (default YAML)")
     if int(raw["planner_context_frames"]) != PLANNER_CONTEXT_FRAMES:
         raise SharedCursorError(f"planner_context_frames must stay {PLANNER_CONTEXT_FRAMES}")
+    if int(raw["token_dim"]) != TOKEN_DIM:
+        raise SharedCursorError(f"token_dim must stay {TOKEN_DIM}")
+    expected_dec = decoder_history_dim(n)
+    if int(raw["expected_decoder_dim"]) != expected_dec:
+        raise SharedCursorError(f"expected_decoder_dim must stay {expected_dec}")
+    if int(raw["g1_decoder_dim_forbidden"]) != G1_DECODER_INPUT_DIM:
+        raise SharedCursorError("g1_decoder_dim_forbidden must stay 994")
     return raw
 
 
@@ -197,28 +217,85 @@ def refuse_motion_cursor_in_playback() -> None:
 
 
 def refuse_run_shared_cursor_onnx(path: str | Path | None = None) -> None:
-    """Never execute encoder or planner weights from this wiring."""
+    """Never execute encoder, planner, or decoder weights from this wiring."""
+    if path is not None:
+        lowered = str(path).lower().replace("\\", "/")
+        if "model_decoder" in lowered or "decoder.onnx" in lowered:
+            refuse_g1_decoder_onnx(path)
     try:
         refuse_run_playback_onnx(path)
     except PlannerOnnxBlocked as exc:
         raise PlannerOnnxBlocked(
             f"{exc} Shared cursor still does not run ONNX. "
             f"T800 hinges are {int(load_t800_sonic()['n_revolute'])}-D; "
-            f"qpos is {t800_planner_qpos_dim()}-D; control_hz is {PLANNER_CONTROL_HZ}."
+            f"qpos is {t800_planner_qpos_dim()}-D; decoder is "
+            f"{decoder_history_dim(int(load_t800_sonic()['n_revolute']))}-D; "
+            f"control_hz is {PLANNER_CONTROL_HZ}."
         ) from exc
+
+
+def refuse_g1_decoder_onnx(path: str | Path | None = None) -> None:
+    """Official model_decoder.onnx is Unitree G1 994-D. Do not load it on T800."""
+    label = str(path) if path is not None else "model_decoder.onnx"
+    n = int(load_t800_sonic()["n_revolute"])
+    raise G1CheckpointIncompatible(
+        f"{label} is a G1 decoder (ONNX input {G1_DECODER_INPUT_DIM}-D). "
+        f"T800 decoder input is {decoder_history_dim(n)}-D. Retrain; do not load G1 ONNX."
+    )
+
+
+def refuse_decoder_from_planner_qpos() -> None:
+    """Decoder 874-D is HardwareHold proprioception, not clip hinges."""
+    raise SharedCursorError(
+        "decoder 874-D is HardwareHold proprioception (paper S7), not planner "
+        "clip qpos. Do not copy playback.qpos hinges into ObsGather.control_tick. "
+        "Token_state stays an external 64-D; do not invent it from ONNX."
+    )
+
+
+def decoder_joint_history(obs: np.ndarray, *, n_dof: int = 25) -> np.ndarray:
+    """Grouped YAML q-history block: shape (10, n_dof). Token/ω sit in front."""
+    n = int(n_dof)
+    vec = np.asarray(obs, dtype=np.float64).reshape(-1)
+    expected = decoder_history_dim(n)
+    if vec.shape == (G1_DECODER_INPUT_DIM,):
+        refuse_g1_checkpoint(decoder_input_dim=G1_DECODER_INPUT_DIM)
+    if vec.shape != (expected,):
+        raise SharedCursorError(f"decoder obs dim {vec.shape} != T800 {expected}")
+    start = TOKEN_DIM + 3 * HISTORY_FRAMES
+    return vec[start : start + n * HISTORY_FRAMES].reshape(HISTORY_FRAMES, n)
+
+
+@dataclass(frozen=True)
+class DecoderControlTick:
+    """One 50 Hz control thread sample: playback + decoder 874-D.
+
+    ``decoder_obs`` is grouped YAML order (token | ω | q | dq | a | g).
+    Encoder look-ahead and planner context still read ``current_frame``.
+    """
+
+    playback: PlaybackTick
+    decoder_obs: np.ndarray
+    current_frame: int
+    logger_len: int
 
 
 @dataclass
 class SharedPlaybackCursor:
-    """50 Hz loop: tick playback, then encoder + planner context read that frame.
+    """50 Hz loop: tick playback, then encoder / planner / decoder share that clock.
 
     ``MotionCursor`` is not stored here. Pass a motion_lib through
     ``MotionCursor`` separately if you need encoder look-ahead over a
     validated clip that is *not* the planner animation.
+
+    Decoder history comes from ``HardwareHold``, not from the planner clip.
+    ``tick(..., token=)`` is optional so ADR-050 callers stay valid; the
+    official combined entry is ``control_tick`` (token required).
     """
 
     playback: PlannerPlayback = field(default_factory=PlannerPlayback)
     gather: ObsGather | None = None
+    last_decoder_obs: np.ndarray | None = None
 
     @property
     def current_frame(self) -> int:
@@ -233,6 +310,8 @@ class SharedPlaybackCursor:
         new_qpos: np.ndarray | None = None,
         gen_frame: int | None = None,
         new_dq: np.ndarray | None = None,
+        token: np.ndarray | None = None,
+        t_s: float | None = None,
     ) -> PlaybackTick:
         tick = self.playback.tick(
             q_motor,
@@ -243,11 +322,67 @@ class SharedPlaybackCursor:
             new_dq=new_dq,
         )
         self.sync()
+        if token is not None:
+            self.assemble_decoder(token, t_s=t_s)
         return tick
 
     def sync(self) -> None:
         if self.gather is not None:
             bind_encoder_hold(self.playback, self.gather.motion)
+
+    def assemble_decoder(self, token: np.ndarray, *, t_s: float | None = None) -> np.ndarray:
+        """Paper S7 874-D from HardwareHold. Does not read clip qpos."""
+        if self.gather is None:
+            raise SharedCursorError("assemble_decoder needs an ObsGather")
+        tok = np.asarray(token, dtype=np.float64).reshape(-1)
+        if tok.shape != (TOKEN_DIM,):
+            raise SharedCursorError(
+                f"token dim {tok.shape} != {TOKEN_DIM}. Token_state is external; "
+                "do not invent a 64-D vector from decoder ONNX."
+            )
+        obs = self.gather.control_tick(tok, t_s=t_s)
+        if obs.shape == (G1_DECODER_INPUT_DIM,):
+            refuse_g1_checkpoint(decoder_input_dim=G1_DECODER_INPUT_DIM)
+        self.last_decoder_obs = obs
+        return obs
+
+    def control_tick(
+        self,
+        q_motor: np.ndarray | None = None,
+        *,
+        locomotion_mode: int,
+        token: np.ndarray,
+        play: bool | None = None,
+        new_qpos: np.ndarray | None = None,
+        gen_frame: int | None = None,
+        new_dq: np.ndarray | None = None,
+        t_s: float | None = None,
+    ) -> DecoderControlTick:
+        """Official 50 Hz order: advance playback, bind encoder, assemble decoder.
+
+        ``play == false`` holds ``current_frame`` (and therefore encoder /
+        planner readers) but still logs hardware into the 50 Hz decoder ring.
+        """
+        playback = self.tick(
+            q_motor,
+            locomotion_mode=locomotion_mode,
+            play=play,
+            new_qpos=new_qpos,
+            gen_frame=gen_frame,
+            new_dq=new_dq,
+            token=token,
+            t_s=t_s,
+        )
+        if self.last_decoder_obs is None:
+            raise SharedCursorError("control_tick did not assemble a decoder vector")
+        if self.gather is None:
+            raise SharedCursorError("control_tick needs an ObsGather")
+        return DecoderControlTick(
+            playback=playback,
+            decoder_obs=self.last_decoder_obs,
+            current_frame=int(playback.current_frame),
+            logger_len=len(self.gather.logger),
+        )
 
     def assemble_encoder(self, mode: str | None = None) -> np.ndarray:
         if self.gather is None:

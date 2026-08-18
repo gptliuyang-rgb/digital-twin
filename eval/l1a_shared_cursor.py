@@ -90,7 +90,7 @@ def _dump() -> dict:
         onnx_blocked = True
     return {
         "source": SHARED_CURSOR_YAML.name,
-        "adr": "ADR-050",
+        "adr": "ADR-051",
         "control_hz": cfg["control_hz"],
         "n_dof": cfg["n_dof"],
         "expected_qpos_dim": cfg["expected_qpos_dim"],

@@ -22,8 +22,8 @@ grasp-success number and no combined T800+Hand weld.
 - `planner_sonic.onnx` / encoder ONNX / 36-D qpos / 29-D hinges /
   45-D hands still raise. `refuse_run_shared_cursor_onnx()` never
   executes weights. ADR-018 interpolators stay the runtime L1a.
-- `make eval-l1a-shared-cursor` dumps both readers. Decoder 874-D and
-  encoder layouts are unchanged. Hands bypass WBC.
+- `make eval-l1a-shared-cursor` dumps both readers. Decoder 874-D on
+  this same tick is ADR-051. Hands bypass WBC.
   `grasp_success_rate` JSON `null`.
 
 ## Why this is not a G1 checkpoint
