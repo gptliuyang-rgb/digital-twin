@@ -12,8 +12,10 @@ timestamps (ADR-038), not a Hermite resample of the 10 Hz spring samples.
 ADR-054: the 25-D ``policy_action`` (T800 PPO/decoder joint targets) is
 **zero-order held** onto this ring on the same 50 Hz tick *after* ADR-053
 stash. That vector is ``a_t`` for PD. Decoder ``last_action`` still sees
-``a_{t-1}``. Do **not** Hermite it (Hermite is for command_schema poses).
-Do **not** treat it as a decoder ONNX run.
+``a_{t-1}``. ADR-055 evaluates ``τ = Kp(a_t − q) − Kd q̇`` with EngineAI
+``pd_stand`` bring-up (not SONIC tracking). Do **not** Hermite it
+(Hermite is for command_schema poses). Do **not** treat it as a decoder
+ONNX run.
 
 Not Table S4. Not pad–cardboard. Not a T800+Hand weld (ADR-009 / ADR-039).
 """
@@ -76,6 +78,14 @@ def load_stream_cfg(path: Path | None = None) -> dict[str, Any]:
         "policy_action_feeds_500hz_pd_after_stash",
         "not_policy_action_from_decoder_onnx",
         "not_policy_action_same_tick_decoder_obs",
+        "pd_plant_on_same_tick",
+        "pd_plant_gains_are_pd_stand_bringup",
+        "not_sonic_tracking_gains",
+        "pd_plant_dq_des_is_zero",
+        "not_pd_plant_from_decoder_onnx",
+        "not_pd_plant_hermite",
+        "not_pd_plant_finite_diff_dq",
+        "not_pd_tau_onto_decoder_obs",
     )
     for key in pd_flags:
         if raw.get(key) is not True:

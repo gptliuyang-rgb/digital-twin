@@ -42,7 +42,7 @@ output is still missing — this increment only ZOH-holds the caller slot.
 - Running a T800 encoder / planner / decoder ONNX (G1 weights are refused)
 - Replacing ADR-018 interpolators with a trained generative planner
 - Filling policy_action from a live policy output (caller must supply it)
-- Applying PD `q_des` to a 500 Hz joint-PD plant (this is the hold only)
+- Applying PD `q_des` to a 500 Hz joint-PD plant (ADR-055)
 - Reference-motion named-clip loop-to-zero (refused on purpose)
 - Mixing `MotionCursor` into `PlannerPlayback` (refused on purpose)
 - PICO / CloudXR / Isaac Teleop SDK

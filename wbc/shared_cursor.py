@@ -20,9 +20,11 @@ previous policy output pushed into ``HardwareHold`` on the same 50 Hz
 tick (ADR-052). ``policy_action`` is this tick's 25-D output; it is
 stashed and becomes ``last_action`` on the **next** 50 Hz tick
 (ADR-053, official ``a_{t-1}``). After that stash, the same ``a_t`` is
-ZOH-held onto the 500 Hz PD ring (ADR-054). Do not invent either from
-decoder ONNX or copy clip qpos. Hands still bypass WBC. ADR-018
-interpolators stay the runtime L1a.
+ZOH-held onto the 500 Hz PD ring (ADR-054) and the joint-PD plant
+evaluates ``τ = Kp(a_t − q) − Kd q̇`` with EngineAI ``pd_stand``
+bring-up gains (ADR-055). Do not invent either from decoder ONNX or
+copy clip qpos. Hands still bypass WBC. ADR-018 interpolators stay
+the runtime L1a.
 """
 
 from __future__ import annotations
@@ -51,8 +53,15 @@ from wbc.dims import (
     planner_qpos_dim,
     t800_planner_qpos_dim,
 )
-from wbc.gather import ObsGather
+from wbc.gather import ObsGather, ObsGatherError
 from wbc.motion_ref import MotionCursor, MotionFrame, MotionHold, look_ahead_indices
+from wbc.pd_plant import (
+    GAINS_SOURCE,
+    PolicyPdPlant,
+    refuse_pd_plant_as_decoder_run,
+    refuse_pd_plant_finite_diff_dq,
+    refuse_pd_plant_hermite,
+)
 from wbc.planner_onnx import (
     PlannerOnnxBlocked,
     PlannerOnnxError,
@@ -107,6 +116,14 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         "policy_action_feeds_500hz_pd_after_stash",
         "policy_action_pd_is_zoh",
         "not_policy_action_hermite",
+        "pd_plant_on_same_tick",
+        "pd_plant_gains_are_pd_stand_bringup",
+        "not_sonic_tracking_gains",
+        "pd_plant_dq_des_is_zero",
+        "not_pd_plant_from_decoder_onnx",
+        "not_pd_plant_hermite",
+        "not_pd_plant_finite_diff_dq",
+        "not_pd_tau_onto_decoder_obs",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -373,6 +390,21 @@ def refuse_policy_pd_as_decoder_run() -> None:
     refuse_policy_action_as_decoder_run()
 
 
+def refuse_policy_pd_plant_hermite() -> None:
+    """PD plant τ is ZOH. Re-export of pd_plant.refuse_pd_plant_hermite."""
+    refuse_pd_plant_hermite()
+
+
+def refuse_policy_pd_plant_as_decoder_run() -> None:
+    """PD plant τ is not a decoder ONNX vector."""
+    refuse_pd_plant_as_decoder_run()
+
+
+def refuse_policy_pd_plant_finite_diff_dq() -> None:
+    """Do not invent 500 Hz dq from a 50 Hz q snapshot."""
+    refuse_pd_plant_finite_diff_dq()
+
+
 @dataclass(frozen=True)
 class DecoderControlTick:
     """One 50 Hz control thread sample: playback + decoder 874-D.
@@ -384,6 +416,8 @@ class DecoderControlTick:
     ``policy_action`` is this tick's stashed ``a_t`` (None if omitted).
     ``pd_q_des`` is the 25-D currently ZOH-held on the 500 Hz PD ring
     (ADR-054; ``a_t`` this tick, zeros if never pushed).
+    ``pd_tau_nm`` is ``Kp(a_t − q) − Kd q̇`` from EngineAI pd_stand
+    bring-up (ADR-055). ``dq_des`` is 0. τ does not enter decoder obs.
     """
 
     playback: PlaybackTick
@@ -393,6 +427,8 @@ class DecoderControlTick:
     last_action: np.ndarray
     policy_action: np.ndarray | None = None
     pd_q_des: np.ndarray = field(default_factory=lambda: np.zeros(25))
+    pd_tau_nm: np.ndarray = field(default_factory=lambda: np.zeros(25))
+    pd_gains_source: str = GAINS_SOURCE
 
 
 @dataclass
@@ -411,15 +447,17 @@ class SharedPlaybackCursor:
     invented decoder output). ``policy_action`` is optional so ADR-052
     callers stay valid; it is stashed and applied as ``last_action`` on
     the **next** tick (official ``a_{t-1}``). After that stash the same
-    ``a_t`` is ZOH-held onto ``pd_hold`` (ADR-054 500 Hz PD). Do not
-    invent a decoder ONNX vector for either slot. ``last_action=`` does
-    **not** write the PD ring.
+    ``a_t`` is ZOH-held onto ``pd_hold`` (ADR-054 500 Hz PD) and the
+    joint-PD plant evaluates τ (ADR-055). Do not invent a decoder ONNX
+    vector for either slot. ``last_action=`` does **not** write the PD
+    ring or the plant.
     """
 
     playback: PlannerPlayback = field(default_factory=PlannerPlayback)
     gather: ObsGather | None = None
     last_decoder_obs: np.ndarray | None = None
     pd_hold: PolicyPdHold = field(default_factory=PolicyPdHold)
+    pd_plant: PolicyPdPlant = field(default_factory=PolicyPdPlant)
     _pending_last_action: np.ndarray | None = None
 
     @property
@@ -465,6 +503,7 @@ class SharedPlaybackCursor:
         if policy_action is not None:
             self.stash_policy_action(policy_action)
             self.push_policy_pd(policy_action, t_s=t_s)
+        self._maybe_apply_pd_plant()
         return tick
 
     def apply_last_action(self, last_action: np.ndarray) -> np.ndarray:
@@ -500,6 +539,29 @@ class SharedPlaybackCursor:
                 f"pd_hold n_dof {self.pd_hold.n_dof} != playback {self.playback.n_dof}"
             )
         return self.pd_hold.push(policy_action, t_s=t_s)
+
+    def apply_pd_plant(self) -> np.ndarray:
+        """τ = Kp(a_t − q) − Kd q̇ from HardwareHold and PolicyPdHold.
+
+        Does not write decoder last_action. Does not run ONNX. Hands bypass.
+        ``last_action=`` does not change q_des. Requires a hardware snapshot.
+        """
+        if self.gather is None:
+            raise SharedCursorError("apply_pd_plant needs an ObsGather")
+        if self.pd_plant.n_dof != int(self.playback.n_dof):
+            raise SharedCursorError(
+                f"pd_plant n_dof {self.pd_plant.n_dof} != playback {self.playback.n_dof}"
+            )
+        snap = self.gather.hw.read()
+        return self.pd_plant.torque(snap.q_hw, snap.dq_hw, self.pd_hold.read())
+
+    def _maybe_apply_pd_plant(self) -> np.ndarray | None:
+        if self.gather is None:
+            return None
+        try:
+            return self.apply_pd_plant()
+        except ObsGatherError:
+            return None
 
     def sync(self) -> None:
         if self.gather is not None:
@@ -542,9 +604,10 @@ class SharedPlaybackCursor:
         ``last_action`` is the previous 25-D policy output (same-tick). Omit
         it to apply a stashed ``policy_action`` from the previous tick, or
         keep HardwareHold if none is stashed (do not invent a decoder ONNX
-        vector).         ``policy_action`` is this tick's output and is applied as
+        vector). ``policy_action`` is this tick's output and is applied as
         ``last_action`` on the next tick. After that stash the same
-        ``a_t`` is ZOH-held onto the 500 Hz PD ring.
+        ``a_t`` is ZOH-held onto the 500 Hz PD ring and the joint-PD
+        plant evaluates τ with pd_stand bring-up gains (not SONIC tracking).
         """
         playback = self.tick(
             q_motor,
@@ -571,6 +634,8 @@ class SharedPlaybackCursor:
             last_action=self.gather.hw.read().last_action.copy(),
             policy_action=pending,
             pd_q_des=self.pd_hold.read(),
+            pd_tau_nm=self.pd_plant.read(),
+            pd_gains_source=self.pd_plant.gains_source,
         )
 
     def assemble_encoder(self, mode: str | None = None) -> np.ndarray:

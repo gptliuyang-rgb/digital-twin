@@ -43,12 +43,20 @@ def test_yaml_locks_paper_rates() -> None:
     assert stream_factor(100) == 5
     assert cfg["factor_operator_to_stream"] == 5
     assert cfg["nav_eval"] == "closed_form_eq8"
-    assert cfg["adr"] == "ADR-054"
+    assert cfg["adr"] == "ADR-055"
     assert cfg["policy_action_pd_is_zoh"] is True
     assert cfg["not_policy_action_hermite"] is True
     assert cfg["policy_action_feeds_500hz_pd_after_stash"] is True
     assert cfg["not_policy_action_from_decoder_onnx"] is True
     assert cfg["not_policy_action_same_tick_decoder_obs"] is True
+    assert cfg["pd_plant_on_same_tick"] is True
+    assert cfg["pd_plant_gains_are_pd_stand_bringup"] is True
+    assert cfg["not_sonic_tracking_gains"] is True
+    assert cfg["pd_plant_dq_des_is_zero"] is True
+    assert cfg["not_pd_plant_from_decoder_onnx"] is True
+    assert cfg["not_pd_plant_hermite"] is True
+    assert cfg["not_pd_plant_finite_diff_dq"] is True
+    assert cfg["not_pd_tau_onto_decoder_obs"] is True
     assert cfg["pd_action_dim"] == 25
     assert cfg["g1_action_dim_forbidden"] == 29
     assert cfg["policy_action_hold"] == "zoh"

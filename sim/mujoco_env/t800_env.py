@@ -39,6 +39,7 @@ from sim.base_env import BaseEnv
 from sim.urdf_fk import load_t800_kinematics, rpy_to_matrix
 from wbc.dims import load_t800_sonic
 from wbc.foot_frame import urdf_sole_world_m
+from wbc.pd_plant import joint_pd_torque_nm
 from wbc.pd_stand import pd_stand_kp_kd, pd_stand_q_des_rad
 from wbc.ppo.table_s4 import refuse_recorded_only_physical_map
 
@@ -602,7 +603,7 @@ class T800MujocoEnv(BaseEnv):
     def apply_pd(self, q_des: np.ndarray) -> np.ndarray:
         q = self.get_q()
         dq = self.get_dq()
-        tau = self.kp * (np.asarray(q_des, dtype=np.float64) - q) - self.kd * dq
+        tau = joint_pd_torque_nm(q, dq, q_des, kp=self.kp, kd=self.kd)
         for aid, val in zip(self._act, tau, strict=True):
             self.data.ctrl[aid] = val
         return tau

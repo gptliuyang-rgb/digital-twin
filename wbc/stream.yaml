@@ -3,12 +3,13 @@
 # Not Table S4. Not pad–cardboard. Not DexHand2's 1 kHz MIT ring.
 #
 # ADR-054: 25-D policy_action is ZOH-held onto this ring on the same 50 Hz
-# tick *after* ADR-053 stash. PD sees a_t; decoder last_action sees a_{t-1}.
+# tick *after* ADR-053 stash. ADR-055: the joint-PD plant evaluates
+# τ = Kp(a_t − q) − Kd q̇ with pd_stand bring-up (not SONIC tracking).
 # Do not Hermite joint targets. Do not treat the vector as a decoder ONNX run.
 
 schema_version: "1.0"
 source: "He et al., SONIC, arXiv:2511.07820v3 §3.5 Deployment (four concurrent loops)"
-adr: ADR-054
+adr: ADR-055
 not_dexhand2_contact: true
 not_table_s4: true
 not_hand_mit_ring: true
@@ -17,6 +18,14 @@ not_policy_action_hermite: true
 policy_action_feeds_500hz_pd_after_stash: true
 not_policy_action_from_decoder_onnx: true
 not_policy_action_same_tick_decoder_obs: true
+pd_plant_on_same_tick: true
+pd_plant_gains_are_pd_stand_bringup: true
+not_sonic_tracking_gains: true
+pd_plant_dq_des_is_zero: true
+not_pd_plant_from_decoder_onnx: true
+not_pd_plant_hermite: true
+not_pd_plant_finite_diff_dq: true
+not_pd_tau_onto_decoder_obs: true
 
 # Paper loops (Hz):
 #   kinematic planner  10
@@ -50,5 +59,7 @@ note: >
   clock. Nav uses SONIC Eq. 8 evaluated at 500 Hz timestamps (ADR-038), not a
   second Hermite pass. Operator nav_cmd is hold-last (ADR-040). The T800 25-D
   policy_action is ZOH-held here after the 50 Hz stash (ADR-054); it is not a
-  decoder ONNX run and must not enter this tick's decoder obs. DexHand2 stays
+  decoder ONNX run and must not enter this tick's decoder obs. The joint-PD
+  plant then evaluates τ = Kp(a_t − q) − Kd q̇ with pd_stand bring-up
+  (ADR-055, not SONIC tracking). DexHand2 stays
   on its own 1 kHz MIT backend. Combined T800+Hand stays PolicyEvalBlocked.
