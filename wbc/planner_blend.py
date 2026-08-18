@@ -454,10 +454,10 @@ def finite_diff_dq(qpos: np.ndarray, *, hz: int = PLANNER_CONTROL_HZ, n_dof: int
 
 
 def refuse_idle_readapt() -> None:
-    """Idle ADAPTING/RECOVERING is a separate C++ path. Not this module."""
+    """Idle ADAPTING/RECOVERING is a separate C++ path (ADR-048). Not this module."""
     raise PlannerBlendError(
         "Idle-mode ADAPTING/RECOVERING readapt is not the 8-frame planner blend. "
-        "Do not mix kAdaptTrigger into this table."
+        "Do not mix kAdaptTrigger into this table. Use wbc/idle_readapt.py."
     )
 
 

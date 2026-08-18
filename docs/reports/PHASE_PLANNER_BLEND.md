@@ -45,7 +45,7 @@ block GMR-on-BONES-SEED and the combined weld.
 
 - Running a T800 planner ONNX (G1 `planner_sonic.onnx` is refused)
 - Replacing ADR-018 interpolators with a trained generative planner
-- Idle-mode ADAPTING/RECOVERING readapt (`kAdaptTrigger`)
+- Idle-mode ADAPTING/RECOVERING readapt (`kAdaptTrigger`) — moved to ADR-048
 - Official clip-library modes beyond command_schema `{0,1,2}`
 - PICO / CloudXR / Isaac Teleop SDK
 - Isaac Lab PPO launch

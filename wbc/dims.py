@@ -74,6 +74,14 @@ PLANNER_STATIC_MODES = frozenset({0, 4, 5, 6, 7, 9})
 PLANNER_RUNNING_MODE = 3  # official run. command_schema loco_mode 2 is walk, not this.
 PLANNER_CRAWLING_MODE = 8  # C++ LocomotionMode::CRAWLING only; elbow (14) is default 1.0 s
 PLANNER_BOXING_MODES = frozenset({11, 12, 13, 15, 16})  # punches/hooks, not idle/walk boxing
+PLANNER_IDLE_MODE = 0  # C++ LocomotionMode::IDLE only; squat/kneel are not this path
+# Idle-mode error-based readapt (g1_deploy_onnx_ref.cpp). 50 Hz last-frame hold.
+# Not the 8-frame blend. Not a G1 ONNX run. Not a recover-stop threshold.
+IDLE_READAPT_ADAPT_TRIGGER_RAD = 0.10
+IDLE_READAPT_ADAPT_STOP_RAD = 0.05
+IDLE_READAPT_RECOVER_TRIGGER_RAD = 0.045
+IDLE_READAPT_BLEND_KEEP = 0.98
+IDLE_READAPT_BLEND_TO = 0.02
 
 
 def planner_qpos_dim(n_dof: int) -> int:
