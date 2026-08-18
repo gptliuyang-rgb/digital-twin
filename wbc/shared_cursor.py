@@ -17,8 +17,11 @@ ADR-049 owns ``current_frame``. This module is the shared reader:
 Decoder history is robot proprioception. Token is an external 64-D —
 do not invent it from ONNX. ``last_action`` is a caller-supplied 25-D
 previous policy output pushed into ``HardwareHold`` on the same 50 Hz
-tick (ADR-052). Do not invent it from decoder ONNX or copy clip qpos.
-Hands still bypass WBC. ADR-018 interpolators stay the runtime L1a.
+tick (ADR-052). ``policy_action`` is this tick's 25-D output; it is
+stashed and becomes ``last_action`` on the **next** 50 Hz tick
+(ADR-053, official ``a_{t-1}``). Do not invent either from decoder
+ONNX or copy clip qpos. Hands still bypass WBC. ADR-018 interpolators
+stay the runtime L1a.
 """
 
 from __future__ import annotations
@@ -96,6 +99,9 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         "last_action_is_caller_supplied_policy",
         "not_last_action_from_decoder_onnx",
         "not_last_action_from_planner_qpos",
+        "policy_action_feeds_next_tick_last_action",
+        "not_policy_action_same_tick_decoder_obs",
+        "not_policy_action_from_decoder_onnx",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -333,6 +339,25 @@ def refuse_last_action_from_decoder_onnx() -> None:
     )
 
 
+def refuse_policy_action_from_decoder_onnx() -> None:
+    """Do not fill policy_action from a fake decoder ONNX vector."""
+    raise SharedCursorError(
+        "do not fill policy_action from a fake decoder ONNX output. "
+        "Caller supplies this tick's 25-D policy action when one exists. "
+        "It is stashed and becomes last_action on the next 50 Hz tick. "
+        "Until a T800 decoder exists, omit policy_action."
+    )
+
+
+def refuse_policy_action_same_tick_into_obs() -> None:
+    """policy_action is a_t. It must not enter this tick's decoder last_action slot."""
+    raise SharedCursorError(
+        "policy_action is this tick's 25-D output (a_t). Official C++ writes "
+        "it into last_action on the *next* 50 Hz gather. Do not push it into "
+        "this tick's decoder obs. Pass last_action= for same-tick ADR-052."
+    )
+
+
 @dataclass(frozen=True)
 class DecoderControlTick:
     """One 50 Hz control thread sample: playback + decoder 874-D.
@@ -340,7 +365,8 @@ class DecoderControlTick:
     ``decoder_obs`` is grouped YAML order (token | ω | q | dq | a | g).
     Encoder look-ahead and planner context still read ``current_frame``.
     ``last_action`` is the 25-D vector that entered the ring this tick
-    (caller-supplied policy output, or HardwareHold's existing value).
+    (ADR-052 same-tick, ADR-053 delayed ``a_{t-1}``, or HardwareHold).
+    ``policy_action`` is this tick's stashed ``a_t`` (None if omitted).
     """
 
     playback: PlaybackTick
@@ -348,6 +374,7 @@ class DecoderControlTick:
     current_frame: int
     logger_len: int
     last_action: np.ndarray
+    policy_action: np.ndarray | None = None
 
 
 @dataclass
@@ -363,16 +390,27 @@ class SharedPlaybackCursor:
     official combined entry is ``control_tick`` (token required).
     ``last_action`` is optional so ADR-051 callers stay valid; omit it to
     keep HardwareHold's existing 25-D (startup zeros are padding, not an
-    invented decoder output).
+    invented decoder output). ``policy_action`` is optional so ADR-052
+    callers stay valid; it is stashed and applied as ``last_action`` on
+    the **next** tick (official ``a_{t-1}``). Do not invent a decoder
+    ONNX vector for either slot.
     """
 
     playback: PlannerPlayback = field(default_factory=PlannerPlayback)
     gather: ObsGather | None = None
     last_decoder_obs: np.ndarray | None = None
+    _pending_last_action: np.ndarray | None = None
 
     @property
     def current_frame(self) -> int:
         return int(self.playback.current_frame)
+
+    @property
+    def pending_policy_action(self) -> np.ndarray | None:
+        """Stashed ``a_t`` that will become ``last_action`` on the next tick."""
+        if self._pending_last_action is None:
+            return None
+        return self._pending_last_action.copy()
 
     def tick(
         self,
@@ -386,6 +424,7 @@ class SharedPlaybackCursor:
         token: np.ndarray | None = None,
         t_s: float | None = None,
         last_action: np.ndarray | None = None,
+        policy_action: np.ndarray | None = None,
     ) -> PlaybackTick:
         tick = self.playback.tick(
             q_motor,
@@ -398,8 +437,12 @@ class SharedPlaybackCursor:
         self.sync()
         if last_action is not None:
             self.apply_last_action(last_action)
+        elif self._pending_last_action is not None:
+            self.apply_last_action(self._pending_last_action)
         if token is not None:
             self.assemble_decoder(token, t_s=t_s)
+        if policy_action is not None:
+            self.stash_policy_action(policy_action)
         return tick
 
     def apply_last_action(self, last_action: np.ndarray) -> np.ndarray:
@@ -412,6 +455,16 @@ class SharedPlaybackCursor:
             raise SharedCursorError("apply_last_action needs an ObsGather")
         a = validate_t800_last_action(last_action, n_dof=self.playback.n_dof)
         self.gather.hw.push_last_action(a, n_dof=int(self.playback.n_dof))
+        return a
+
+    def stash_policy_action(self, policy_action: np.ndarray) -> np.ndarray:
+        """Keep this tick's 25-D output to feed last_action on the next tick.
+
+        Does not write into this tick's decoder obs. Does not run ONNX.
+        Does not copy planner clip qpos.
+        """
+        a = validate_t800_last_action(policy_action, n_dof=self.playback.n_dof)
+        self._pending_last_action = a
         return a
 
     def sync(self) -> None:
@@ -446,13 +499,17 @@ class SharedPlaybackCursor:
         new_dq: np.ndarray | None = None,
         t_s: float | None = None,
         last_action: np.ndarray | None = None,
+        policy_action: np.ndarray | None = None,
     ) -> DecoderControlTick:
         """Official 50 Hz order: advance playback, bind encoder, last_action, decoder.
 
         ``play == false`` holds ``current_frame`` (and therefore encoder /
         planner readers) but still logs hardware into the 50 Hz decoder ring.
-        ``last_action`` is the previous 25-D policy output. Omit it to keep
-        HardwareHold (do not invent a decoder ONNX vector).
+        ``last_action`` is the previous 25-D policy output (same-tick). Omit
+        it to apply a stashed ``policy_action`` from the previous tick, or
+        keep HardwareHold if none is stashed (do not invent a decoder ONNX
+        vector). ``policy_action`` is this tick's output and is applied as
+        ``last_action`` on the next tick.
         """
         playback = self.tick(
             q_motor,
@@ -464,17 +521,20 @@ class SharedPlaybackCursor:
             token=token,
             t_s=t_s,
             last_action=last_action,
+            policy_action=policy_action,
         )
         if self.last_decoder_obs is None:
             raise SharedCursorError("control_tick did not assemble a decoder vector")
         if self.gather is None:
             raise SharedCursorError("control_tick needs an ObsGather")
+        pending = self.pending_policy_action
         return DecoderControlTick(
             playback=playback,
             decoder_obs=self.last_decoder_obs,
             current_frame=int(playback.current_frame),
             logger_len=len(self.gather.logger),
             last_action=self.gather.hw.read().last_action.copy(),
+            policy_action=pending,
         )
 
     def assemble_encoder(self, mode: str | None = None) -> np.ndarray:

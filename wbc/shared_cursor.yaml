@@ -11,22 +11,24 @@
 #   MotionHold.cursor              ← playback.current_frame
 #   sample_context_from_50hz(...)  ← playback.current_frame
 #   ObsGather.control_tick         ← same 50 Hz tick, HardwareHold (not clip qpos)
-#   HardwareHold.last_action       ← caller-supplied 25-D previous policy output
-#                                    (ADR-052; omit to keep hold; never invent ONNX)
+#   HardwareHold.last_action       ← previous 25-D policy output
+#                                    (ADR-052 same-tick last_action=, or
+#                                     ADR-053 delayed policy_action from t-1)
 #
 # Encoder last-frame-repeats past the clip end (ADR-042).
 # Planner context does NOT last-frame-repeat (ADR-046); short windows raise.
 # Decoder history is robot proprioception (IMU + joints). Do not copy
 # planner clip hinges into the 874-D vector. Token is an external 64-D;
 # do not invent it from ONNX. last_action is a caller-supplied 25-D
-# previous policy output (PPO/decoder). Do not invent it from decoder
-# ONNX or copy clip qpos. Hands bypass WBC.
+# previous policy output (PPO/decoder). policy_action is this tick's
+# 25-D output; it is stashed and becomes last_action on the next tick.
+# Do not invent either from decoder ONNX or copy clip qpos. Hands bypass WBC.
 # Official G1 planner_sonic.onnx / encoder ONNX / decoder ONNX refused.
 # ADR-018 interpolators stay the runtime L1a.
 
 schema_version: "1.0"
 source: "nvlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp CurrentFrameAdvancement + encoder motion_* + planner context + S7 decoder gather (T800 dims)"
-adr: ADR-052
+adr: ADR-053
 not_dexhand2_contact: true
 not_table_s4: true
 not_hand_mit_ring: true
@@ -49,6 +51,9 @@ decoder_history_is_hardware_not_clip: true
 last_action_is_caller_supplied_policy: true
 not_last_action_from_decoder_onnx: true
 not_last_action_from_planner_qpos: true
+policy_action_feeds_next_tick_last_action: true
+not_policy_action_same_tick_decoder_obs: true
+not_policy_action_from_decoder_onnx: true
 
 control_hz: 50
 n_dof: 25
@@ -71,9 +76,12 @@ note: >
   planner context sampling read playback.current_frame. Decoder 874-D
   is assembled on that same tick from HardwareHold (paper S7), not from
   clip qpos. last_action is a caller-supplied 25-D previous policy
-  output pushed into HardwareHold before decoder assemble. Omit it to
-  keep the hold (startup zeros are padding, not an invented ONNX
-  vector). Token_state stays an external 64-D. MotionCursor remains a
+  output pushed into HardwareHold before decoder assemble (ADR-052).
+  Omit last_action to apply a stashed policy_action from the previous
+  tick (ADR-053 official a_{t-1}), or keep the hold if none is stashed
+  (startup zeros are padding, not an invented ONNX vector). policy_action
+  is this tick's output and must not enter this tick's decoder obs.
+  Token_state stays an external 64-D. MotionCursor remains a
   sibling over motion_lib and must not be stored inside PlannerPlayback.
   Combined T800+Hand stays PolicyEvalBlocked. This is not a pad–cardboard
   number and not a G1 decoder ONNX run.

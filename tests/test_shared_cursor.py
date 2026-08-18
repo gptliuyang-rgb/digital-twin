@@ -39,6 +39,8 @@ from wbc.shared_cursor import (
     refuse_last_action_from_decoder_onnx,
     refuse_last_action_from_planner_qpos,
     refuse_motion_cursor_in_playback,
+    refuse_policy_action_from_decoder_onnx,
+    refuse_policy_action_same_tick_into_obs,
     refuse_run_shared_cursor_onnx,
     sample_planner_context_from_playback,
     validate_t800_last_action,
@@ -86,7 +88,7 @@ def _token() -> np.ndarray:
 
 def test_yaml_locks_official_table() -> None:
     cfg = load_shared_cursor_cfg()
-    assert cfg["adr"] == "ADR-052"
+    assert cfg["adr"] == "ADR-053"
     assert cfg["encoder_reads_playback_current_frame"] is True
     assert cfg["planner_context_reads_playback_current_frame"] is True
     assert cfg["decoder_assembles_on_shared_tick"] is True
@@ -94,6 +96,9 @@ def test_yaml_locks_official_table() -> None:
     assert cfg["last_action_is_caller_supplied_policy"] is True
     assert cfg["not_last_action_from_decoder_onnx"] is True
     assert cfg["not_last_action_from_planner_qpos"] is True
+    assert cfg["policy_action_feeds_next_tick_last_action"] is True
+    assert cfg["not_policy_action_same_tick_decoder_obs"] is True
+    assert cfg["not_policy_action_from_decoder_onnx"] is True
     assert cfg["not_decoder_from_planner_qpos"] is True
     assert cfg["not_g1_decoder_onnx"] is True
     assert cfg["not_motion_cursor_mix"] is True
@@ -504,3 +509,187 @@ def test_last_action_g1_hands_qpos_onnx_refused() -> None:
     cur_bare = SharedPlaybackCursor()
     with pytest.raises(SharedCursorError, match="ObsGather"):
         cur_bare.apply_last_action(_action(a0=1.0))
+
+
+def test_policy_action_is_delayed_one_tick_into_last_action() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=7.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = _token()
+    first = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=3.5),
+    )
+    np.testing.assert_allclose(first.last_action, 0.0)
+    assert first.policy_action is not None
+    np.testing.assert_allclose(first.policy_action[0], 3.5)
+    a_hist = decoder_last_action_history(first.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1], 0.0)
+    q_hist = decoder_joint_history(first.decoder_obs)
+    np.testing.assert_allclose(q_hist[-1, 0], 7.0)
+    gather.push_hw(_hw(q0=8.0, t_s=0.02))
+    second = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+        policy_action=_action(a0=4.5),
+    )
+    np.testing.assert_allclose(second.last_action[0], 3.5)
+    assert second.policy_action is not None
+    np.testing.assert_allclose(second.policy_action[0], 4.5)
+    a_hist = decoder_last_action_history(second.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1, 0], 3.5)
+    q_hist = decoder_joint_history(second.decoder_obs)
+    np.testing.assert_allclose(q_hist[-1, 0], 8.0)
+    assert not np.isclose(a_hist[-1, 0], q_hist[-1, 0])
+
+
+def test_ten_ticks_policy_action_history_is_shifted_vs_q() -> None:
+    gather = ObsGather()
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    last = None
+    for i in range(10):
+        gather.push_hw(_hw(q0=float(i), t_s=i / 50.0))
+        last = cur.control_tick(
+            _motor(),
+            locomotion_mode=0,
+            token=token,
+            new_qpos=_clip(n=16) if i == 0 else None,
+            t_s=i / 50.0,
+            policy_action=_action(a0=10.0 + i),
+        )
+    assert last is not None
+    q_hist = decoder_joint_history(last.decoder_obs)
+    a_hist = decoder_last_action_history(last.decoder_obs)
+    np.testing.assert_allclose(q_hist[:, 0], np.arange(10.0))
+    expected_a = np.concatenate(([0.0], np.arange(10.0, 19.0)))
+    np.testing.assert_allclose(a_hist[:, 0], expected_a)
+    assert last.policy_action is not None
+    np.testing.assert_allclose(last.policy_action[0], 19.0)
+    np.testing.assert_allclose(cur.pending_policy_action[0], 19.0)
+    assert cur.encoder_look_ahead_indices() == look_ahead_indices(10, 10, 5, 16)
+
+
+def test_omit_policy_action_keeps_stash_feeding_last_action() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=6.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    held = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+    )
+    np.testing.assert_allclose(held.last_action[0], 6.0)
+    a_hist = decoder_last_action_history(held.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1, 0], 6.0)
+    assert held.policy_action is not None
+    np.testing.assert_allclose(held.policy_action[0], 6.0)
+
+
+def test_play_false_still_delays_policy_action() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=1.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    paused = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        play=False,
+        t_s=0.02,
+        policy_action=_action(a0=8.0),
+    )
+    assert paused.current_frame == 1
+    assert paused.logger_len == 2
+    a_hist = decoder_last_action_history(paused.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1, 0], 1.0)
+    assert paused.policy_action is not None
+    np.testing.assert_allclose(paused.policy_action[0], 8.0)
+
+
+def test_tick_without_token_still_stashes_policy_action() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw())
+    cur = SharedPlaybackCursor(gather=gather)
+    tick = cur.tick(
+        _motor(),
+        locomotion_mode=0,
+        new_qpos=_clip(n=16),
+        policy_action=_action(a0=4.0),
+    )
+    assert tick.current_frame == 1
+    assert cur.last_decoder_obs is None
+    assert len(gather.logger) == 0
+    np.testing.assert_allclose(gather.hw.read().last_action, 0.0)
+    np.testing.assert_allclose(cur.pending_policy_action[0], 4.0)
+    gather.push_hw(_hw(q0=1.0, t_s=0.02))
+    cur.tick(_motor(), locomotion_mode=0, t_s=0.02)
+    np.testing.assert_allclose(gather.hw.read().last_action[0], 4.0)
+
+
+def test_same_tick_last_action_overrides_delayed_stash() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=9.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+        last_action=_action(a0=1.5),
+        policy_action=_action(a0=2.5),
+    )
+    np.testing.assert_allclose(step.last_action[0], 1.5)
+    assert step.policy_action is not None
+    np.testing.assert_allclose(step.policy_action[0], 2.5)
+    a_hist = decoder_last_action_history(step.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1, 0], 1.5)
+
+
+def test_policy_action_g1_hands_qpos_onnx_refused() -> None:
+    with pytest.raises(G1CheckpointIncompatible):
+        SharedPlaybackCursor().stash_policy_action(np.zeros(G1_N_DOF))
+    with pytest.raises(SharedCursorError, match="planner qpos"):
+        SharedPlaybackCursor().stash_policy_action(np.zeros(32))
+    with pytest.raises(SharedCursorError, match="DexHand2"):
+        SharedPlaybackCursor().stash_policy_action(np.zeros(45))
+    with pytest.raises(SharedCursorError, match="next 50 Hz"):
+        refuse_policy_action_from_decoder_onnx()
+    with pytest.raises(SharedCursorError, match="next"):
+        refuse_policy_action_same_tick_into_obs()

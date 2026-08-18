@@ -15,7 +15,7 @@ interface/     command_schema_v1.yaml, command_schema_v1_5point.yaml, frames.yam
 assets/        dexhand2 spec + official ingest; T800 joint table
 hand/          controller, coupling, primitives, backends, calibration
 runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
-wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a interpolator + Eq. 8 nav spring + 100 Hz operator loop + 500 Hz PD stream + S7 YAML obs gather + encoder motion_* look-ahead (default 10frame_step5 + low-latency 10frame_step1 + v1.1 heading 10frame_step5) + planner ONNX I/O (T800 32-D qpos; G1 36-D refused) + 8-frame blend/replan + idle ADAPTING/RECOVERING + 50 Hz last-frame playback cursor + shared encoder/planner/decoder tick + caller-supplied 25-D last_action, G1-checkpoint guard
+wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a interpolator + Eq. 8 nav spring + 100 Hz operator loop + 500 Hz PD stream + S7 YAML obs gather + encoder motion_* look-ahead (default 10frame_step5 + low-latency 10frame_step1 + v1.1 heading 10frame_step5) + planner ONNX I/O (T800 32-D qpos; G1 36-D refused) + 8-frame blend/replan + idle ADAPTING/RECOVERING + 50 Hz last-frame playback cursor + shared encoder/planner/decoder tick + caller-supplied 25-D last_action + delayed policy_action a_{t-1}, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
 sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
 eval/          L0–L2 harnesses, 9-cell gain scan, L0 ckpt diagnose
@@ -64,6 +64,7 @@ make eval-l1a-playback       # 50 Hz current_frame clamp + idle hold after blend
 make eval-l1a-shared-cursor  # encoder look-ahead + planner context share playback.current_frame; G1 ONNX refused
 make eval-l1a-decoder-tick   # decoder 874-D on the same 50 Hz tick (HardwareHold, not clip qpos); G1 ONNX refused
 make eval-l1a-last-action    # caller-supplied 25-D last_action on that tick; not an invented decoder ONNX vector
+make eval-l1a-policy-action  # delay this tick's 25-D policy_action into next-tick last_action; not ONNX
 ```
 
 ## Facts already taken from official sources
