@@ -1,0 +1,44 @@
+# 500 Hz joint-PD command plant on the held 25-D policy_action.
+# Paper / prompt: τ = Kp (a_t − q) − Kd q̇. Shared sim/real. Numpy only.
+#
+# a_t is the ADR-054 ZOH-held PD q_des. Gains are EngineAI pd_stand
+# bring-up (ADR-022), NOT SONIC tracking. dq_des is 0 under ZOH.
+# Do not Hermite joint targets. Do not treat τ as a decoder ONNX run.
+# Do not finite-diff dq from a 50 Hz q snapshot. Hands bypass WBC.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 §3.5 PD ring; EngineAI pd_stand/default.yaml"
+adr: ADR-055
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+policy_action_pd_is_zoh: true
+not_policy_action_hermite: true
+policy_action_feeds_500hz_pd_after_stash: true
+pd_plant_on_same_tick: true
+pd_plant_gains_are_pd_stand_bringup: true
+not_sonic_tracking_gains: true
+pd_plant_dq_des_is_zero: true
+not_pd_plant_from_decoder_onnx: true
+not_pd_plant_hermite: true
+not_pd_plant_finite_diff_dq: true
+not_pd_tau_onto_decoder_obs: true
+not_policy_action_from_decoder_onnx: true
+not_policy_action_same_tick_decoder_obs: true
+
+command_stream_hz: 500
+policy_hz: 50
+factor_policy_to_stream: 10
+pd_action_dim: 25
+g1_action_dim_forbidden: 29
+gains_source: pd_stand_bringup_not_sonic
+
+note: >
+  Same binary in sim and on the robot. After ADR-054 ZOH of a_t onto
+  PolicyPdHold, this plant evaluates τ = Kp(a_t − q) − Kd q̇ at 500 Hz
+  timestamps. q/dq are hold-last from the 50 Hz HardwareSnapshot unless
+  the caller supplies a 500 Hz proprioception stream. Do not interpolate
+  a 50 Hz snapshot. Do not finite-diff dq. last_action= does not write
+  PD or this plant. DexHand2 stays on its 1 kHz MIT backend. Combined
+  T800+Hand stays PolicyEvalBlocked. This is not a trained decoder ONNX
+  run and not SONIC tracking PD.
