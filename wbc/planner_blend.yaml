@@ -1,0 +1,70 @@
+# Official GEAR-SONIC planner 8-frame cross-fade + replan-timer table.
+# Source: nvlabs planner_onnx.html "Replan Logic" / "Animation Blending"
+# and gear_sonic_deploy g1_deploy_onnx_ref.cpp CurrentFrameAdvancement / Planner().
+# Shared sim/real. Hands bypass WBC. This is NOT a G1 ONNX run.
+# This is NOT the ADR-018 interpolator and NOT a clip library.
+#
+# command_schema loco_mode 2 maps to walk (default 1.0 s), NOT official run (0.1 s).
+# C++ crawling interval applies only to LocomotionMode::CRAWLING (8), not elbow (14).
+# Boxing interval is punches/hooks (11–13, 15–16), not idleBoxing / walkBoxing.
+# Change detection is exact != (C++ float equality). Do not invent a deadband.
+# Idle-mode ADAPTING/RECOVERING readapt is a different C++ path and is not this module.
+
+schema_version: "1.0"
+source: "nvlabs/GR00T-WholeBodyControl planner_onnx.html + g1_deploy_onnx_ref.cpp (T800 dims)"
+adr: ADR-047
+planner_version: V2
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_planner_onnx: true
+not_interpolator_substitute: true
+not_onnx_run: true
+not_idle_readapt: true
+not_wrist_pose_augmentation_sampler: true
+
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+command_stream_hz: 500
+planner_dt_s: 0.1             # official planner_dt_
+blend_num_frames: 8           # C++: about the planner context size
+lookahead_steps_50hz: 2       # gen_frame = current_frame + look-ahead at plan time
+control_hz: 50
+n_dof: 25
+expected_qpos_dim: 32
+g1_qpos_dim_forbidden: 36
+n_modes_v2: 27
+
+# C++ weight: w_new = clamp((f - blend_start) / 8, 0, 1). Frame 0 of the
+# blend region is fully old (0); frame 8 is fully new (1).
+blend_weight: "(f - blend_start_frame) / blend_num_frames"
+
+replan_interval_s:
+  running: 0.1                # LocomotionMode::RUN = 3; every planner tick
+  crawling: 0.2               # CRAWLING = 8 only
+  boxing: 1.0                 # punches / hooks
+  default: 1.0                # walk, squat, styled, elbow crawl, walkBoxing, …
+
+static_modes: [0, 4, 5, 6, 7, 9]   # idle, squat, kneelTwo, kneelOne, lying, idleBoxing
+running_modes: [3]
+crawling_modes: [8]                # not elbowCrawling (14)
+boxing_modes: [11, 12, 13, 15, 16] # leftJab, rightJab, randomPunches, leftHook, rightHook
+
+# Category 1 (always): mode / facing / height changed.
+# Category 2 (non-static only): speed / direction changed, or timer + speed != 0.
+# last_movement_state updates only when need_replan is true (C++).
+
+loco_mode_map:
+  0: 0    # stand → idle (static; timer does not replan)
+  1: 1    # slow_walk → slowWalk (default 1.0 s)
+  2: 2    # fast_walk → walk (default 1.0 s, NOT run 0.1 s)
+
+note: >
+  Control-thread blend of two caller-supplied 50 Hz T800 qpos clips.
+  Official G1 planner_sonic.onnx is refused. ADR-018 interpolators stay
+  the runtime L1a until a T800 planner exists. Combined T800+Hand stays
+  PolicyEvalBlocked. This is not a pad–cardboard number.

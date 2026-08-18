@@ -20,6 +20,7 @@ dependencies = [
 dev = [
   "pytest>=8.0",
   "ruff>=0.6",
+  "opencv-python-headless>=4.8",
 ]
 sim = [
   "mujoco>=3.1",
@@ -40,12 +41,16 @@ include = [
   "sim*",
   "eval*",
   "assets*",
+  "wbc*",
 ]
 
 [tool.setuptools.package-data]
 interface = ["*.yaml"]
 assets = ["**/*.yaml"]
 eval = ["configs/*.yaml"]
+hand = ["*.yaml"]
+wbc = ["*.yaml", "gmr/*.yaml", "gmr/*.json", "ppo/*.yaml"]
+vla = ["*.yaml", "adapters/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

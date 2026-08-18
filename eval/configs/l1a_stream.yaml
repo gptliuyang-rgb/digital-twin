@@ -1,0 +1,14 @@
+# SONIC §3.5 500 Hz command stream. Shared sim/real. Units SI.
+schema_version: "1.0"
+command_stream_hz: 500
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+factor_planner_to_stream: 50
+factor_policy_to_stream: 10
+horizon_s: 1.6
+nav_eval: closed_form_eq8
+note: >
+  ADR-039. Hands bypass the SONIC token and still ride this clock.
+  DexHand2 MIT is 1 kHz, not 500 Hz. grasp_success_rate stays null.
+  Combined T800+Hand stays PolicyEvalBlocked.
