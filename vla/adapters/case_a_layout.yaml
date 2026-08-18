@@ -1,0 +1,38 @@
+# Frozen packing of a Case A VLA action: dual-arm joint angles + DexHand2 q.
+# Convert to command_schema_v1 ONLY via CaseAToCommandSchema.convert(apply_fk=True).
+# PolicyClient / DeployPipeline never call this implicitly.
+#
+# Dims are verified at load against t800_joints.yaml and dexhand2_spec.yaml.
+# Do not edit total_dim by hand.
+
+schema_version: "1.0"
+name: t800_dual_arm_q_plus_hands
+case: A
+fk_frame: pelvis          # JointToWristAdapter root is LINK_BASE (frames.yaml pelvis)
+must_pass_apply_fk: true
+
+packing_order:
+  - name: left_arm_q
+    unit: rad
+    source: assets/engineai/meta/t800_joints.yaml
+    key: arm_joints.left
+  - name: right_arm_q
+    unit: rad
+    source: assets/engineai/meta/t800_joints.yaml
+    key: arm_joints.right
+  - name: left_hand_q
+    unit: rad
+    source: assets/dexhand2/meta/dexhand2_spec.yaml
+    key: joint_order
+  - name: right_hand_q
+    unit: rad
+    source: assets/dexhand2/meta/dexhand2_spec.yaml
+    key: joint_order
+
+# Not in the 50-D vector. Caller must supply HeadNavCommand; zeros are refused.
+required_caller_fields:
+  - pelvis_height_m
+  - nav_cmd_mps
+  - loco_mode
+  - tool_trigger
+  - head_pose_or_head_q_rad

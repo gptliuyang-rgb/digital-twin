@@ -6,16 +6,19 @@ This repository is the **P1 digital-twin layer**: frozen command contracts, offi
 
 Policy client code under `runtime/` and `vla/client/` does not import MuJoCo or Isaac. Only `sim/*_backend` / `hand/backends/mujoco_backend.py` talk to a simulator.
 
+QR scan uses IBVS (`runtime/ibvs.py`) plus real decode. Combined T800+Hand 2 policy eval is refused until the wrist flange SE(3) is CAD-measured — identity is not a substitute.
+
 ## Layout
 
 ```
-interface/     command_schema_v1.yaml, frames.yaml, schema.py
+interface/     command_schema_v1.yaml, command_schema_v1_5point.yaml, frames.yaml, schema.py
 assets/        dexhand2 spec + official ingest; T800 joint table
 hand/          controller, coupling, primitives, backends, calibration
-runtime/       safety filter, temporal ensemble, latency compensation
+runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
+wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a interpolator + Eq. 8 nav spring + 100 Hz operator loop + 500 Hz PD stream + S7 YAML obs gather + encoder motion_* look-ahead (default 10frame_step5 + low-latency 10frame_step1 + v1.1 heading 10frame_step5) + planner ONNX I/O (T800 32-D qpos; G1 36-D refused) + 8-frame blend/replan + idle ADAPTING/RECOVERING + 50 Hz last-frame playback cursor + shared encoder/planner/decoder tick + caller-supplied 25-D last_action, G1-checkpoint guard
 vla/           adapters + policy client (no sim imports)
-sim/           payload, QR scanner, sensor delay/JPEG
-eval/          L0–L2 harnesses
+sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
+eval/          L0–L2 harnesses, 9-cell gain scan, L0 ckpt diagnose
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK
 ```
 
@@ -28,6 +31,40 @@ make test
 ```
 
 `make check-spec` is **supposed to fail** until the P0 `REQUIRED_INPUT` fields in `docs/SPEC_INTAKE.md` are filled. That is intentional.
+
+```bash
+./scripts/bootstrap_resources.sh
+make ingest-official    # writes docs/reports/PHASE_1_baseline.md
+make build-assets       # palmar pad spheres + MIT motors + simplified capsules
+make gmr-tpose         # q=0 T800 vs PM01 overlay + rewrite IK JSON
+make usd-pads           # USDA pad-sphere overlay (right and left if fitted)
+make eval-l2-priv       # privileged pallet drop; grasp_success_rate stays null
+make eval-l3-priv       # Isaac Lab privileged cfg dump; still no grasp-success
+make eval-gain-scan     # 9-cell MIT kp/kv hold; grasp_success_rate stays null
+make eval-l0-diagnose   # classify a ckpt action last-dim (A/B/C); no weights required
+make eval-l1-case-a     # 50-D → 75-D FK; requires --apply-fk; uses t800_kinematics.yaml
+make extract-kinematics # dump official URDF joints + MJCF range= into t800_kinematics.yaml
+make ppo-status         # T800 action_dim 25 vs G1 29; launch blockers
+make ppo-train          # supposed to fail until P0 CoM/flange + Isaac Lab
+make eval-l2-sim2sim    # kinematic identity MPJPE; grasp_success_rate stays null
+make eval-l2-physics-sim2sim  # MuJoCo PD tracking + Table S4 clip joint_jitter ±0.1 rad + pos/ori root jitter + lin_vel/ang_vel walk-clip jitter (negative control, not a height/ori or root_push gate)
+make eval-l2-freebase-stand   # floating-base PD stand; fall is reported, not a SONIC gate
+make eval-l2-freebase-push    # lean vs fall; Table S4 ±X/±Y/±Z one-shot + F=mv/T + angvel + τ=Iω/T + μ_slide + base CoM ipos + qpos ±0.01 rad; air-drop; μd/restitution recorded-only
+make eval-l3-isaac-bind       # Isaac reset/step if Sim python is bound; else unavailable
+make eval-l1a             # 10 Hz interpolator smoke
+make eval-l1a-spring      # SONIC Eq. 8 reverse-6 diagnostic; grasp_success_rate stays null
+make eval-l1a-stream      # SONIC §3.5 500 Hz PD ring; grasp_success_rate stays null
+make eval-l1a-operator    # SONIC §3.5 100 Hz operator loop; grasp_success_rate stays null
+make eval-l1a-gather      # SONIC §S7 YAML obs gather (T800 874-D); grasp_success_rate stays null
+make eval-l1a-encoder     # SONIC encoder 842-D default + 831-D low-latency + 831-D v1.1 heading; no PICO, no G1 ONNX
+make eval-l1a-planner-onnx  # official planner V2 I/O, T800 32-D qpos; G1 planner_sonic.onnx refused
+make eval-l1a-planner-blend  # 8-frame cross-fade + replan timer; G1 ONNX refused
+make eval-l1a-idle-readapt   # idle ADAPTING/RECOVERING last-frame hold; G1 ONNX refused
+make eval-l1a-playback       # 50 Hz current_frame clamp + idle hold after blend; G1 ONNX refused
+make eval-l1a-shared-cursor  # encoder look-ahead + planner context share playback.current_frame; G1 ONNX refused
+make eval-l1a-decoder-tick   # decoder 874-D on the same 50 Hz tick (HardwareHold, not clip qpos); G1 ONNX refused
+make eval-l1a-last-action    # caller-supplied 25-D last_action on that tick; not an invented decoder ONNX vector
+```
 
 ## Facts already taken from official sources
 
