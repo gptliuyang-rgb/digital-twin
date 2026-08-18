@@ -1,0 +1,48 @@
+# SONIC paper §3.5 four-rate stack: operator input at 100 Hz.
+# arXiv:2511.07820v3. Shared sim/real. Hands still bypass WBC.
+# Not Table S4. Not pad–cardboard. Not DexHand2's 1 kHz MIT ring.
+# Not a PICO / CloudXR / Isaac Teleop SDK binding.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 §3.5 Deployment (four concurrent loops)"
+adr: ADR-040
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_pico_sdk: true
+
+# Paper loops (Hz):
+#   kinematic planner  10
+#   policy inference   50
+#   operator input    100   # this module — VR / gamepad / keyboard / network
+#   command stream    500
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+command_stream_hz: 500
+
+# Integer factors only. Rounding a non-divisor is refused.
+factor_operator_to_stream: 5    # 500 / 100
+factor_operator_to_policy: 2    # 100 / 50  (downsample stride)
+factor_operator_to_planner: 10  # 100 / 10  (downsample stride)
+
+# Paper §3.5: switch interfaces by changing the active encoder. VLA is 5–10 Hz
+# and must go through L1a, not this ring.
+sources:
+  allowed: [keyboard, gamepad, vr_3point, vr_5point, network]
+  forbidden: [vla, groot, pi05, policy]
+
+# nav_cmd is hold-last onto the 500 Hz ring. Eq. 8 still consumes one command
+# per spring eval (ADR-038); do not Hermite vx/vy/wz.
+nav_resample: hold_last
+pos_interp: cubic_hermite
+rot_interp: slerp_so3
+hand_interp: linear
+
+note: >
+  Same binary in sim and on the robot. 100 Hz samples sit on a uniform grid.
+  The 500 Hz PD ring upsamples this window (factor 5) with ADR-018 cubic/SLERP
+  for poses and hold-last for nav_cmd. Policy tokens and L1a waypoints are
+  aligned strided subsets (every 2nd / every 10th). DexHand2 stays on its own
+  1 kHz MIT backend. Combined T800+Hand stays PolicyEvalBlocked. This is not
+  SONIC's trained generative planner and not a PICO SDK.

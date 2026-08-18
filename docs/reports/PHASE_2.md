@@ -11,4 +11,5 @@
 ## Blocked
 
 Cannot weld a combined MJCF/USD that pretends the flange transform is known.
-T800 has no wrist pitch/roll in this URDF — see ADR-001.
+T800 Native SDK URDF: **25 revolute**, no wrist pitch/roll (ADR-001).
+T800 Pro URDF: **43 revolute**, **29** excluding the built-in 7-DoF hands we replace (ADR-007).
