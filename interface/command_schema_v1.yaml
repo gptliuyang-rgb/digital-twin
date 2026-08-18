@@ -59,15 +59,17 @@ fields:
     planner_onnx_mode: {0: idle, 1: slowWalk, 2: walk}  # fast_walk is NOT official run (3)
     planner_replan_interval_s: {0: static, 1: 1.0, 2: 1.0}  # walk is not run 0.1 s
 
-  # ---- bypass WBC; go straight to DexHand2 controller ----
+  # ---- bypass WBC; go straight to DexHand2 1 kHz MIT ring (ADR-058) ----
   left_hand_q:
     dim: "${n_active_dof}"
     unit: rad
     order_ref: dexhand2_spec.joint_order
+    mit_ring: hand/mit_ring.yaml  # ZOH onto 1 kHz; not last_action
   right_hand_q:
     dim: "${n_active_dof}"
     unit: rad
     order_ref: dexhand2_spec.joint_order
+    mit_ring: hand/mit_ring.yaml
   left_hand_mode:
     dim: 1
     enum: [0, 1, 2]

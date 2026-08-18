@@ -1,0 +1,61 @@
+# DexHand2 1 kHz MIT command ring. Shared sim/real. Numpy only.
+#
+# Official Wuji Hand 2: τ = kp (qd − q) + kd (dqd − dq) + τ_ff at 1000 Hz × 20.
+# command_schema_v1 left_hand_q / right_hand_q bypass WBC (hand_slice).
+# This module ZOH-holds those 20-D targets for 20 substeps on each 50 Hz
+# tick. It does NOT write into last_action, policy_action, or decoder 874-D.
+# wbc/*.yaml keep not_hand_mit_ring: true.
+#
+# Gains are official MJCF sim_kp / sim_kv, labelled
+# mjcf_gen1_carryover_not_hand2_sysid. hardware_kp / hardware_kd stay
+# REQUIRED_INPUT. command_latency_ms stays REQUIRED_INPUT — do not enable
+# the delay deque until measured. Combined T800+Hand stays PolicyEvalBlocked.
+# grasp_success_rate stays JSON null.
+
+schema_version: "1.0"
+source: "docs.wuji.tech wuji-hand overview MIT hybrid; dexhand2_spec.yaml control_rate_hz / sim_kp / sim_kv"
+adr: ADR-058
+not_dexhand2_contact: true
+not_table_s4: true
+hand_mit_ring: true
+not_wbc_last_action: true
+not_wbc_policy_action: true
+not_decoder_obs: true
+not_concat_t800_plus_hand: true
+hand_q_is_zoh: true
+not_hand_q_hermite: true
+dq_des_is_zero: true
+gains_are_mjcf_gen1_carryover: true
+not_hardware_kp: true
+not_invented_latency: true
+not_force_mode_without_hardware_tau: true
+mit_ring_on_same_tick: true
+mit_ring_is_optional: true
+not_mit_ring_from_decoder_onnx: true
+not_mit_ring_finite_diff_dq: true
+clip_tau_to_sim_forcerange: true
+not_sim_forcerange_as_payload_rating: true
+
+control_hz: 50
+hand_stream_hz: 1000
+factor_policy_to_hand_stream: 20
+mit_n_steps_per_tick: 20
+mit_timestep_s: 0.001
+n_active_dof: 20
+g1_n_dof_forbidden: 29
+t800_n_dof_forbidden: 25
+planner_qpos_dim_forbidden: 32
+t800_plus_hand_dim_forbidden: 45
+command_schema_dim_forbidden: 75
+gains_source: mjcf_gen1_carryover_not_hand2_sysid
+
+note: >
+  On each 50 Hz tick, left_hand_q and right_hand_q are ZOH-held for 20
+  substeps at 1/1000 s. τ uses official MIT form with MJCF gen-1 kp/kv
+  and is clipped to MJCF sim_actuator_forcerange_nm (not a hardware
+  payload rating). q/dq are measured from a HandMitPhysics backend.
+  Do not Hermite. Do not finite-diff dq. Do not invent command latency.
+  Do not write 20-D hand q into T800 last_action (25-D) or concatenate
+  45-D. Force mode stays refused until motor_max_torque_nm is filled.
+  Combined T800+Hand stays PolicyEvalBlocked. This is not a pad–cardboard
+  number and not a decoder ONNX run.

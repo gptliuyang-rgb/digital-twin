@@ -13,9 +13,9 @@ QR scan uses IBVS (`runtime/ibvs.py`) plus real decode. Combined T800+Hand 2 pol
 ```
 interface/     command_schema_v1.yaml, command_schema_v1_5point.yaml, frames.yaml, schema.py
 assets/        dexhand2 spec + official ingest; T800 joint table
-hand/          controller, coupling, primitives, backends, calibration
-runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM
-wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a interpolator + Eq. 8 nav spring + 100 Hz operator loop + 500 Hz PD stream + S7 YAML obs gather + encoder motion_* look-ahead (default 10frame_step5 + low-latency 10frame_step1 + v1.1 heading 10frame_step5) + planner ONNX I/O (T800 32-D qpos; G1 36-D refused) + 8-frame blend/replan + idle ADAPTING/RECOVERING + 50 Hz last-frame playback cursor + shared encoder/planner/decoder tick + caller-supplied 25-D last_action + delayed policy_action a_{t-1} + 500 Hz ZOH of a_t onto PD + 500 Hz joint-PD plant (pd_stand bring-up, not SONIC tracking) + optional 10×2 ms physics substeps of that τ + omit-push_hw closed-loop gather, G1-checkpoint guard
+hand/          controller, coupling, primitives, backends, calibration, 1 kHz MIT ring (ADR-058; bypasses WBC)
+runtime/       safety filter, temporal ensemble, latency, IBVS, task FSM, hand_bypass (command_schema → MIT ring)
+wbc/           T800 SONIC contract, GMR IK export, 3/5-point teleop remap, L1a interpolator + Eq. 8 nav spring + 100 Hz operator loop + 500 Hz PD stream + S7 YAML obs gather + encoder motion_* look-ahead (default 10frame_step5 + low-latency 10frame_step1 + v1.1 heading 10frame_step5) + planner ONNX I/O (T800 32-D qpos; G1 36-D refused) + 8-frame blend/replan + idle ADAPTING/RECOVERING + 50 Hz last-frame playback cursor + shared encoder/planner/decoder tick + caller-supplied 25-D last_action + delayed policy_action a_{t-1} + 500 Hz ZOH of a_t onto PD + 500 Hz joint-PD plant (pd_stand bring-up, not SONIC tracking) + optional 10×2 ms physics substeps of that τ + omit-push_hw closed-loop gather, G1-checkpoint guard. Hands stay off this path (`not_hand_mit_ring`).
 vla/           adapters + policy client (no sim imports)
 sim/           payload, QR scanner, URDF FK, hand-only MuJoCo, privileged L2 pallet drop
 eval/          L0–L2 harnesses, 9-cell gain scan, L0 ckpt diagnose
@@ -69,6 +69,7 @@ make eval-l1a-pd-stream      # ZOH that 25-D a_t onto the 500 Hz PD ring after s
 make eval-l1a-pd-plant       # τ = Kp(a_t − q) − Kd q̇ at 500 Hz; pd_stand bring-up, not SONIC tracking
 make eval-l1a-pd-physics     # 10×2 ms physics substeps of that τ; decoder q stays pre-physics
 make eval-l1a-pd-closedloop  # omit push_hw: next decoder q follows the plant; IMU kept, not invented
+make eval-l1c-mit-ring       # DexHand2 1 kHz MIT ZOH of left/right_hand_q; not last_action; grasp_success_rate stays null
 ```
 
 ## Facts already taken from official sources
