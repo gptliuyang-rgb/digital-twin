@@ -45,6 +45,11 @@ from wbc.shared_cursor import (
     refuse_policy_action_same_tick_into_obs,
     refuse_policy_pd_as_decoder_run,
     refuse_policy_pd_hermite,
+    refuse_policy_pd_physics_as_decoder_run,
+    refuse_policy_pd_physics_finite_diff_dq,
+    refuse_policy_pd_physics_hermite,
+    refuse_policy_pd_physics_invent_imu,
+    refuse_policy_pd_physics_q_onto_this_tick_decoder,
     refuse_policy_pd_plant_as_decoder_run,
     refuse_policy_pd_plant_finite_diff_dq,
     refuse_policy_pd_plant_hermite,
@@ -96,7 +101,7 @@ def _token() -> np.ndarray:
 
 def test_yaml_locks_official_table() -> None:
     cfg = load_shared_cursor_cfg()
-    assert cfg["adr"] == "ADR-055"
+    assert cfg["adr"] == "ADR-056"
     assert cfg["encoder_reads_playback_current_frame"] is True
     assert cfg["planner_context_reads_playback_current_frame"] is True
     assert cfg["decoder_assembles_on_shared_tick"] is True
@@ -118,6 +123,16 @@ def test_yaml_locks_official_table() -> None:
     assert cfg["not_pd_plant_hermite"] is True
     assert cfg["not_pd_plant_finite_diff_dq"] is True
     assert cfg["not_pd_tau_onto_decoder_obs"] is True
+    assert cfg["pd_physics_on_same_tick"] is True
+    assert cfg["pd_physics_is_optional"] is True
+    assert cfg["not_pd_physics_from_decoder_onnx"] is True
+    assert cfg["not_pd_physics_hermite"] is True
+    assert cfg["not_pd_physics_finite_diff_dq"] is True
+    assert cfg["not_pd_physics_q_onto_this_tick_decoder"] is True
+    assert cfg["not_pd_physics_invent_imu"] is True
+    assert cfg["not_pd_physics_from_planner_qpos"] is True
+    assert cfg["pd_physics_n_steps_per_tick"] == 10
+    assert cfg["pd_physics_timestep_s"] == 0.002
     assert cfg["not_decoder_from_planner_qpos"] is True
     assert cfg["not_g1_decoder_onnx"] is True
     assert cfg["not_motion_cursor_mix"] is True
@@ -899,6 +914,16 @@ def test_pd_g1_hands_qpos_refused() -> None:
         refuse_policy_pd_plant_as_decoder_run()
     with pytest.raises(CommandStreamError, match="finite-diff"):
         refuse_policy_pd_plant_finite_diff_dq()
+    with pytest.raises(CommandStreamError, match="ZOH"):
+        refuse_policy_pd_physics_hermite()
+    with pytest.raises(CommandStreamError, match="decoder ONNX"):
+        refuse_policy_pd_physics_as_decoder_run()
+    with pytest.raises(CommandStreamError, match="finite-diff"):
+        refuse_policy_pd_physics_finite_diff_dq()
+    with pytest.raises(CommandStreamError, match="before"):
+        refuse_policy_pd_physics_q_onto_this_tick_decoder()
+    with pytest.raises(CommandStreamError, match="invent IMU"):
+        refuse_policy_pd_physics_invent_imu()
 
 
 def test_tau_does_not_enter_decoder_obs() -> None:
@@ -917,3 +942,113 @@ def test_tau_does_not_enter_decoder_obs() -> None:
     np.testing.assert_allclose(a_hist[-1], 0.0)
     assert not np.allclose(step.pd_tau_nm, 0.0)
     assert step.pd_gains_source == GAINS_SOURCE
+    assert step.pd_physics_n_steps == 0
+
+
+class _IncrementPhysics:
+    """Test double. Not MuJoCo. Increments q[0] by 0.001 each 2 ms substep."""
+
+    n_dof = 25
+    timestep_s = 0.002
+
+    def __init__(self, q0: float = 0.0) -> None:
+        self.q = np.zeros(25)
+        self.q[0] = q0
+        self.dq = np.zeros(25)
+        self.n_applies = 0
+        self.last_tau = np.zeros(25)
+
+    def read_q_dq(self) -> tuple[np.ndarray, np.ndarray]:
+        return self.q.copy(), self.dq.copy()
+
+    def apply_tau_and_step(self, tau_nm: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        self.last_tau = np.asarray(tau_nm, dtype=np.float64).reshape(25).copy()
+        self.q = self.q.copy()
+        self.q[0] += 0.001
+        self.n_applies += 1
+        return self.read_q_dq()
+
+
+def test_optional_physics_ten_substeps_do_not_rewrite_this_tick_decoder() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=2.0, t_s=0.0))
+    physics = _IncrementPhysics(q0=2.0)
+    cur = SharedPlaybackCursor(gather=gather, physics=physics)
+    token = np.zeros(TOKEN_DIM)
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=6.0),
+    )
+    q_hist = decoder_joint_history(step.decoder_obs)
+    np.testing.assert_allclose(q_hist[-1, 0], 2.0)
+    assert step.pd_physics_n_steps == 10
+    assert physics.n_applies == 10
+    np.testing.assert_allclose(step.pd_physics_q[0], 2.01)
+    np.testing.assert_allclose(gather.hw.read().q_hw[0], 2.01)
+    np.testing.assert_allclose(gather.hw.read().omega_imu, 0.0)
+    kp, _kd = pd_stand_kp_kd()
+    np.testing.assert_allclose(step.pd_tau_nm[0], kp[0] * (6.0 - 2.0))
+    assert step.pd_physics_tau_nm[0] != pytest.approx(step.pd_tau_nm[0])
+    a_hist = decoder_last_action_history(step.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1], 0.0)
+
+
+def test_omit_physics_keeps_adr_055() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=2.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=_token(),
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=6.0),
+    )
+    assert step.pd_physics_n_steps == 0
+    np.testing.assert_allclose(step.pd_physics_q, 0.0)
+    np.testing.assert_allclose(gather.hw.read().q_hw[0], 2.0)
+
+
+def test_stash_alone_does_not_write_physics() -> None:
+    physics = _IncrementPhysics()
+    cur = SharedPlaybackCursor(physics=physics)
+    cur.stash_policy_action(_action(a0=7.0))
+    assert physics.n_applies == 0
+    assert cur.last_pd_physics is None
+
+
+def test_same_tick_last_action_does_not_write_physics_q_des() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    physics = _IncrementPhysics(q0=1.0)
+    cur = SharedPlaybackCursor(gather=gather, physics=physics)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=9.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    physics.q[:] = 0.0
+    physics.q[0] = 2.0
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+        last_action=_action(a0=1.5),
+        policy_action=_action(a0=2.5),
+    )
+    np.testing.assert_allclose(step.last_action[0], 1.5)
+    np.testing.assert_allclose(step.pd_q_des[0], 2.5)
+    assert step.pd_physics_n_steps == 10
+    assert physics.n_applies == 20
+

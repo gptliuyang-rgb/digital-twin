@@ -43,8 +43,8 @@ output is still missing — this increment only applies PD to the caller slot.
 - Replacing ADR-018 interpolators with a trained generative planner
 - Filling policy_action from a live policy output (caller must supply it)
 - Closing this τ onto a 500 Hz MuJoCo joint-PD command plant on the
-  shared tick (env already uses the same formula; the cursor does not
-  step physics)
+  shared tick — **done in ADR-056** (`wbc/pd_physics.py`, optional
+  `JointPdPhysics`; `T800MujocoEnv.apply_tau_and_step`)
 - Reference-motion named-clip loop-to-zero (refused on purpose)
 - Mixing `MotionCursor` into `PlannerPlayback` (refused on purpose)
 - PICO / CloudXR / Isaac Teleop SDK

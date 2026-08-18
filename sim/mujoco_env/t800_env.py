@@ -39,6 +39,7 @@ from sim.base_env import BaseEnv
 from sim.urdf_fk import load_t800_kinematics, rpy_to_matrix
 from wbc.dims import load_t800_sonic
 from wbc.foot_frame import urdf_sole_world_m
+from wbc.pd_physics import require_physics_timestep_500hz, require_t800_tau_nm
 from wbc.pd_plant import joint_pd_torque_nm
 from wbc.pd_stand import pd_stand_kp_kd, pd_stand_q_des_rad
 from wbc.ppo.table_s4 import refuse_recorded_only_physical_map
@@ -604,9 +605,40 @@ class T800MujocoEnv(BaseEnv):
         q = self.get_q()
         dq = self.get_dq()
         tau = joint_pd_torque_nm(q, dq, q_des, kp=self.kp, kd=self.kd)
+        self.apply_tau_nm(tau)
+        return tau
+
+    def apply_tau_nm(self, tau_nm: np.ndarray) -> np.ndarray:
+        """Write a T800 25-D torque command. Does not recompute PD.
+
+        Used by ADR-056 to apply PolicyPdPlant τ (pd_stand bring-up) onto
+        this env. Hands are not welded. G1 / qpos / DexHand2 concat refused.
+        """
+        tau = require_t800_tau_nm(tau_nm, n_dof=len(self.joint_order))
         for aid, val in zip(self._act, tau, strict=True):
             self.data.ctrl[aid] = val
         return tau
+
+    @property
+    def n_dof(self) -> int:
+        return len(self.joint_order)
+
+    @property
+    def timestep_s(self) -> float:
+        return float(self.model.opt.timestep)
+
+    def read_q_dq(self) -> tuple[np.ndarray, np.ndarray]:
+        return self.get_q(), self.get_dq()
+
+    def apply_tau_and_step(self, tau_nm: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Write τ, step one 500 Hz tick, return measured q/dq.
+
+        Timestep must be 1/500 s (ADR-056). Do not resample. Do not weld hands.
+        """
+        require_physics_timestep_500hz(self.timestep_s)
+        self.apply_tau_nm(tau_nm)
+        self._mujoco.mj_step(self.model, self.data)
+        return self.get_q(), self.get_dq()
 
     def reset(self) -> dict[str, Any]:
         self._mujoco.mj_resetData(self.model, self.data)

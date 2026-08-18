@@ -22,9 +22,12 @@ stashed and becomes ``last_action`` on the **next** 50 Hz tick
 (ADR-053, official ``a_{t-1}``). After that stash, the same ``a_t`` is
 ZOH-held onto the 500 Hz PD ring (ADR-054) and the joint-PD plant
 evaluates ``τ = Kp(a_t − q) − Kd q̇`` with EngineAI ``pd_stand``
-bring-up gains (ADR-055). Do not invent either from decoder ONNX or
-copy clip qpos. Hands still bypass WBC. ADR-018 interpolators stay
-the runtime L1a.
+bring-up gains (ADR-055). If a ``JointPdPhysics`` backend is attached,
+the same tick applies that τ for 10 physics substeps at 1/500 s
+(ADR-056). q/dq are measured from the backend, not interpolated.
+This tick's decoder 874-D stays pre-physics. IMU is not invented.
+Do not invent policy_action from decoder ONNX or copy clip qpos.
+Hands still bypass WBC. ADR-018 interpolators stay the runtime L1a.
 """
 
 from __future__ import annotations
@@ -55,6 +58,18 @@ from wbc.dims import (
 )
 from wbc.gather import ObsGather, ObsGatherError
 from wbc.motion_ref import MotionCursor, MotionFrame, MotionHold, look_ahead_indices
+from wbc.pd_physics import (
+    PHYSICS_N_STEPS,
+    PHYSICS_TIMESTEP_S,
+    JointPdPhysics,
+    PdPhysicsPeriod,
+    refuse_pd_physics_as_decoder_run,
+    refuse_pd_physics_finite_diff_dq,
+    refuse_pd_physics_hermite,
+    refuse_pd_physics_invent_imu,
+    refuse_pd_physics_q_onto_this_tick_decoder,
+    run_zoh_period,
+)
 from wbc.pd_plant import (
     GAINS_SOURCE,
     PolicyPdPlant,
@@ -124,6 +139,14 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         "not_pd_plant_hermite",
         "not_pd_plant_finite_diff_dq",
         "not_pd_tau_onto_decoder_obs",
+        "pd_physics_on_same_tick",
+        "pd_physics_is_optional",
+        "not_pd_physics_from_decoder_onnx",
+        "not_pd_physics_hermite",
+        "not_pd_physics_finite_diff_dq",
+        "not_pd_physics_q_onto_this_tick_decoder",
+        "not_pd_physics_invent_imu",
+        "not_pd_physics_from_planner_qpos",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -162,6 +185,10 @@ def load_shared_cursor_cfg(path: Path | None = None) -> dict[str, Any]:
         raise SharedCursorError(f"action_dim must stay T800 {n}, got {raw['action_dim']}")
     if int(raw["g1_action_dim_forbidden"]) != G1_N_DOF:
         raise SharedCursorError("g1_action_dim_forbidden must stay 29")
+    if int(raw["pd_physics_n_steps_per_tick"]) != PHYSICS_N_STEPS:
+        raise SharedCursorError("pd_physics_n_steps_per_tick must stay 10")
+    if abs(float(raw["pd_physics_timestep_s"]) - PHYSICS_TIMESTEP_S) > 1e-12:
+        raise SharedCursorError("pd_physics_timestep_s must stay 0.002")
     return raw
 
 
@@ -405,6 +432,31 @@ def refuse_policy_pd_plant_finite_diff_dq() -> None:
     refuse_pd_plant_finite_diff_dq()
 
 
+def refuse_policy_pd_physics_hermite() -> None:
+    """Physics q_des is ZOH. Re-export of pd_physics.refuse_pd_physics_hermite."""
+    refuse_pd_physics_hermite()
+
+
+def refuse_policy_pd_physics_as_decoder_run() -> None:
+    """Physics τ is not a decoder ONNX vector."""
+    refuse_pd_physics_as_decoder_run()
+
+
+def refuse_policy_pd_physics_finite_diff_dq() -> None:
+    """Do not invent 500 Hz dq from a 50 Hz q snapshot."""
+    refuse_pd_physics_finite_diff_dq()
+
+
+def refuse_policy_pd_physics_q_onto_this_tick_decoder() -> None:
+    """Physics q must not rewrite this tick's 874-D."""
+    refuse_pd_physics_q_onto_this_tick_decoder()
+
+
+def refuse_policy_pd_physics_invent_imu() -> None:
+    """Do not fill IMU from physics."""
+    refuse_pd_physics_invent_imu()
+
+
 @dataclass(frozen=True)
 class DecoderControlTick:
     """One 50 Hz control thread sample: playback + decoder 874-D.
@@ -418,6 +470,9 @@ class DecoderControlTick:
     (ADR-054; ``a_t`` this tick, zeros if never pushed).
     ``pd_tau_nm`` is ``Kp(a_t − q) − Kd q̇`` from EngineAI pd_stand
     bring-up (ADR-055). ``dq_des`` is 0. τ does not enter decoder obs.
+    ``pd_physics_*`` is the optional 10-substep plant (ADR-056). n_steps
+    is 0 when no backend is attached. Physics q does not rewrite this
+    tick's decoder obs.
     """
 
     playback: PlaybackTick
@@ -429,6 +484,9 @@ class DecoderControlTick:
     pd_q_des: np.ndarray = field(default_factory=lambda: np.zeros(25))
     pd_tau_nm: np.ndarray = field(default_factory=lambda: np.zeros(25))
     pd_gains_source: str = GAINS_SOURCE
+    pd_physics_n_steps: int = 0
+    pd_physics_q: np.ndarray = field(default_factory=lambda: np.zeros(25))
+    pd_physics_tau_nm: np.ndarray = field(default_factory=lambda: np.zeros(25))
 
 
 @dataclass
@@ -448,9 +506,10 @@ class SharedPlaybackCursor:
     callers stay valid; it is stashed and applied as ``last_action`` on
     the **next** tick (official ``a_{t-1}``). After that stash the same
     ``a_t`` is ZOH-held onto ``pd_hold`` (ADR-054 500 Hz PD) and the
-    joint-PD plant evaluates τ (ADR-055). Do not invent a decoder ONNX
-    vector for either slot. ``last_action=`` does **not** write the PD
-    ring or the plant.
+    joint-PD plant evaluates τ (ADR-055). If ``physics`` is attached,
+    the same tick applies that τ for 10 substeps (ADR-056). Do not
+    invent a decoder ONNX vector for either slot. ``last_action=``
+    does **not** write the PD ring, the plant, or physics.
     """
 
     playback: PlannerPlayback = field(default_factory=PlannerPlayback)
@@ -458,7 +517,10 @@ class SharedPlaybackCursor:
     last_decoder_obs: np.ndarray | None = None
     pd_hold: PolicyPdHold = field(default_factory=PolicyPdHold)
     pd_plant: PolicyPdPlant = field(default_factory=PolicyPdPlant)
+    physics: JointPdPhysics | None = None
+    last_pd_physics: PdPhysicsPeriod | None = None
     _pending_last_action: np.ndarray | None = None
+    _tau_50hz: np.ndarray | None = None
 
     @property
     def current_frame(self) -> int:
@@ -504,6 +566,8 @@ class SharedPlaybackCursor:
             self.stash_policy_action(policy_action)
             self.push_policy_pd(policy_action, t_s=t_s)
         self._maybe_apply_pd_plant()
+        self._tau_50hz = self.pd_plant.read()
+        self._maybe_step_physics(t_s=t_s)
         return tick
 
     def apply_last_action(self, last_action: np.ndarray) -> np.ndarray:
@@ -563,6 +627,46 @@ class SharedPlaybackCursor:
         except ObsGatherError:
             return None
 
+    def step_physics(self, *, t_s: float | None = None) -> PdPhysicsPeriod:
+        """Apply ZOH q_des for 10 measured 500 Hz physics substeps.
+
+        Does not rewrite this tick's decoder obs. Does not run ONNX.
+        Does not invent IMU. ``last_action=`` does not change q_des.
+        After the period, q/dq are pushed into HardwareHold for the
+        *next* gather.
+        """
+        if self.physics is None:
+            raise SharedCursorError("step_physics needs a JointPdPhysics backend")
+        if self.pd_plant.n_dof != int(self.playback.n_dof):
+            raise SharedCursorError(
+                f"pd_plant n_dof {self.pd_plant.n_dof} != playback {self.playback.n_dof}"
+            )
+        if int(self.physics.n_dof) != int(self.playback.n_dof):
+            raise SharedCursorError(
+                f"physics n_dof {self.physics.n_dof} != playback {self.playback.n_dof}"
+            )
+        stamp = 0.0 if t_s is None else float(t_s)
+        period = run_zoh_period(
+            self.pd_plant, self.physics, self.pd_hold.read(), t0_s=stamp
+        )
+        self.last_pd_physics = period
+        if self.gather is not None:
+            try:
+                self.gather.hw.push_joints(
+                    period.q_rad[-1],
+                    period.dq_rad_s[-1],
+                    n_dof=int(self.playback.n_dof),
+                    t_s=float(period.t_s[-1]),
+                )
+            except ObsGatherError:
+                pass
+        return period
+
+    def _maybe_step_physics(self, *, t_s: float | None = None) -> PdPhysicsPeriod | None:
+        if self.physics is None:
+            return None
+        return self.step_physics(t_s=t_s)
+
     def sync(self) -> None:
         if self.gather is not None:
             bind_encoder_hold(self.playback, self.gather.motion)
@@ -608,6 +712,8 @@ class SharedPlaybackCursor:
         ``last_action`` on the next tick. After that stash the same
         ``a_t`` is ZOH-held onto the 500 Hz PD ring and the joint-PD
         plant evaluates τ with pd_stand bring-up gains (not SONIC tracking).
+        If ``physics`` is attached, the same tick applies that τ for 10
+        substeps at 1/500 s. Physics q does not rewrite this tick's decoder.
         """
         playback = self.tick(
             q_motor,
@@ -626,6 +732,8 @@ class SharedPlaybackCursor:
         if self.gather is None:
             raise SharedCursorError("control_tick needs an ObsGather")
         pending = self.pending_policy_action
+        phys = None if self.physics is None else self.last_pd_physics
+        tau_50 = self._tau_50hz if self._tau_50hz is not None else self.pd_plant.read()
         return DecoderControlTick(
             playback=playback,
             decoder_obs=self.last_decoder_obs,
@@ -634,8 +742,11 @@ class SharedPlaybackCursor:
             last_action=self.gather.hw.read().last_action.copy(),
             policy_action=pending,
             pd_q_des=self.pd_hold.read(),
-            pd_tau_nm=self.pd_plant.read(),
+            pd_tau_nm=tau_50,
             pd_gains_source=self.pd_plant.gains_source,
+            pd_physics_n_steps=0 if phys is None else phys.n_steps,
+            pd_physics_q=np.zeros(self.playback.n_dof) if phys is None else phys.q_rad[-1].copy(),
+            pd_physics_tau_nm=np.zeros(self.playback.n_dof) if phys is None else phys.tau_nm[-1].copy(),
         )
 
     def assemble_encoder(self, mode: str | None = None) -> np.ndarray:

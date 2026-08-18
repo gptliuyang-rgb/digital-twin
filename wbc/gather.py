@@ -508,6 +508,39 @@ class HardwareHold:
             last_action=a,
         )
 
+    def push_joints(
+        self,
+        q_hw: np.ndarray,
+        dq_hw: np.ndarray,
+        *,
+        n_dof: int = 25,
+        t_s: float | None = None,
+    ) -> None:
+        """Overwrite q/dq after a 500 Hz physics period. Does not invent IMU.
+
+        Call *after* this tick's decoder assemble (ADR-056). Keeps omega/quat
+        and last_action from the previous snapshot. Measured IMU latency
+        stays REQUIRED_INPUT.
+        """
+        if self._snap is None:
+            raise ObsGatherError("hardware hold is empty; push a snapshot first")
+        q = remap_identity(q_hw, n_dof)
+        dq = remap_identity(dq_hw, n_dof)
+        if not np.isfinite(q).all() or not np.isfinite(dq).all():
+            raise ObsGatherError("q/dq contain NaN/Inf")
+        prev = self._snap
+        stamp = float(prev.t_s if t_s is None else t_s)
+        if not np.isfinite(stamp):
+            raise ObsGatherError("t_s must be finite")
+        self._snap = HardwareSnapshot(
+            t_s=stamp,
+            q_hw=q,
+            dq_hw=dq,
+            omega_imu=np.asarray(prev.omega_imu, dtype=np.float64).copy(),
+            imu_quat_wxyz=np.asarray(prev.imu_quat_wxyz, dtype=np.float64).copy(),
+            last_action=np.asarray(prev.last_action, dtype=np.float64).copy(),
+        )
+
     def read(self) -> HardwareSnapshot:
         if self._snap is None:
             raise ObsGatherError("hardware hold is empty; push a snapshot first")
@@ -686,6 +719,17 @@ class ObsGather:
 
     def push_hw(self, snap: HardwareSnapshot) -> None:
         self.hw.push(snap)
+
+    def push_joints(
+        self,
+        q_hw: np.ndarray,
+        dq_hw: np.ndarray,
+        *,
+        n_dof: int = 25,
+        t_s: float | None = None,
+    ) -> None:
+        """Post-physics q/dq into HardwareHold. Does not invent IMU."""
+        self.hw.push_joints(q_hw, dq_hw, n_dof=n_dof, t_s=t_s)
 
     def push_motion(self, frames, *, cursor: int = 0) -> None:
         self.motion.push_sequence(frames, cursor=cursor)

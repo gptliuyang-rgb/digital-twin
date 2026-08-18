@@ -18,6 +18,9 @@
 #                                    onto the 500 Hz PD ring AFTER stash (ADR-054)
 #   PolicyPdPlant.tau              ← Kp(a_t − q) − Kd q̇ at 500 Hz (ADR-055)
 #                                    pd_stand bring-up, dq_des = 0, not SONIC tracking
+#   JointPdPhysics                 ← optional 10 × 2 ms substeps of that τ
+#                                    (ADR-056). q/dq measured, not interpolated.
+#                                    This tick's decoder 874-D stays pre-physics.
 #
 # Encoder last-frame-repeats past the clip end (ADR-042).
 # Planner context does NOT last-frame-repeat (ADR-046); short windows raise.
@@ -27,14 +30,16 @@
 # previous policy output (PPO/decoder). policy_action is this tick's
 # 25-D output; it is stashed and becomes last_action on the next tick.
 # After that stash the same a_t is ZOH-held as PD q_des. The joint-PD
-# plant then evaluates τ. Do not Hermite it. Do not invent either from
-# decoder ONNX or copy clip qpos. Hands bypass WBC. Official G1
-# planner_sonic.onnx / encoder ONNX / decoder ONNX refused. ADR-018
+# plant then evaluates τ. If a JointPdPhysics backend is attached, the
+# same tick applies that τ for 10 physics substeps at 1/500 s (ADR-056).
+# Omit the backend to keep ADR-055. Do not Hermite it. Do not invent
+# either from decoder ONNX or copy clip qpos. Hands bypass WBC. Official
+# G1 planner_sonic.onnx / encoder ONNX / decoder ONNX refused. ADR-018
 # interpolators stay the runtime L1a.
 
 schema_version: "1.0"
 source: "nvlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp CurrentFrameAdvancement + encoder motion_* + planner context + S7 decoder gather (T800 dims)"
-adr: ADR-055
+adr: ADR-056
 not_dexhand2_contact: true
 not_table_s4: true
 not_hand_mit_ring: true
@@ -71,6 +76,16 @@ not_pd_plant_from_decoder_onnx: true
 not_pd_plant_hermite: true
 not_pd_plant_finite_diff_dq: true
 not_pd_tau_onto_decoder_obs: true
+pd_physics_on_same_tick: true
+pd_physics_is_optional: true
+not_pd_physics_from_decoder_onnx: true
+not_pd_physics_hermite: true
+not_pd_physics_finite_diff_dq: true
+not_pd_physics_q_onto_this_tick_decoder: true
+not_pd_physics_invent_imu: true
+not_pd_physics_from_planner_qpos: true
+pd_physics_n_steps_per_tick: 10
+pd_physics_timestep_s: 0.002
 
 control_hz: 50
 n_dof: 25
@@ -100,8 +115,10 @@ note: >
   is this tick's output and must not enter this tick's decoder obs.
   After stash, the same a_t is ZOH-held onto the 500 Hz PD ring (ADR-054)
   and the joint-PD plant evaluates τ = Kp(a_t − q) − Kd q̇ with EngineAI
-  pd_stand bring-up gains (ADR-055, not SONIC tracking). last_action=
-  does not write PD. Token_state stays an external 64-D.
+  pd_stand bring-up gains (ADR-055, not SONIC tracking). If a physics
+  backend is attached, the same tick applies that τ for 10 × 2 ms
+  substeps (ADR-056). last_action= does not write PD or physics.
+  Token_state stays an external 64-D.
   MotionCursor remains a sibling over motion_lib and must not be stored
   inside PlannerPlayback. Combined T800+Hand stays PolicyEvalBlocked.
   This is not a pad–cardboard number and not a G1 decoder ONNX run.
