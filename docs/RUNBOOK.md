@@ -48,6 +48,7 @@ make eval-l1a-shared-cursor  # encoder + planner context share playback.current_
 make eval-l1a-decoder-tick   # decoder 874-D on the same 50 Hz tick (HardwareHold); does not run ONNX
 make eval-l1a-last-action    # caller-supplied 25-D last_action on that tick; does not invent ONNX
 make eval-l1a-policy-action  # delay this tick's 25-D policy_action into next-tick last_action; does not invent ONNX
+make eval-l1a-pd-stream      # ZOH a_t onto the 500 Hz PD ring after stash; not Hermite / not ONNX
 make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null

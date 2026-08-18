@@ -14,6 +14,8 @@
 #   HardwareHold.last_action       ← previous 25-D policy output
 #                                    (ADR-052 same-tick last_action=, or
 #                                     ADR-053 delayed policy_action from t-1)
+#   PolicyPdHold.q_des             ← this tick's 25-D policy_action, ZOH
+#                                    onto the 500 Hz PD ring AFTER stash (ADR-054)
 #
 # Encoder last-frame-repeats past the clip end (ADR-042).
 # Planner context does NOT last-frame-repeat (ADR-046); short windows raise.
@@ -22,13 +24,14 @@
 # do not invent it from ONNX. last_action is a caller-supplied 25-D
 # previous policy output (PPO/decoder). policy_action is this tick's
 # 25-D output; it is stashed and becomes last_action on the next tick.
-# Do not invent either from decoder ONNX or copy clip qpos. Hands bypass WBC.
-# Official G1 planner_sonic.onnx / encoder ONNX / decoder ONNX refused.
-# ADR-018 interpolators stay the runtime L1a.
+# After that stash the same a_t is ZOH-held as PD q_des. Do not Hermite
+# it. Do not invent either from decoder ONNX or copy clip qpos. Hands
+# bypass WBC. Official G1 planner_sonic.onnx / encoder ONNX / decoder
+# ONNX refused. ADR-018 interpolators stay the runtime L1a.
 
 schema_version: "1.0"
 source: "nvlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp CurrentFrameAdvancement + encoder motion_* + planner context + S7 decoder gather (T800 dims)"
-adr: ADR-053
+adr: ADR-054
 not_dexhand2_contact: true
 not_table_s4: true
 not_hand_mit_ring: true
@@ -54,6 +57,9 @@ not_last_action_from_planner_qpos: true
 policy_action_feeds_next_tick_last_action: true
 not_policy_action_same_tick_decoder_obs: true
 not_policy_action_from_decoder_onnx: true
+policy_action_feeds_500hz_pd_after_stash: true
+policy_action_pd_is_zoh: true
+not_policy_action_hermite: true
 
 control_hz: 50
 n_dof: 25
@@ -81,7 +87,8 @@ note: >
   tick (ADR-053 official a_{t-1}), or keep the hold if none is stashed
   (startup zeros are padding, not an invented ONNX vector). policy_action
   is this tick's output and must not enter this tick's decoder obs.
-  Token_state stays an external 64-D. MotionCursor remains a
-  sibling over motion_lib and must not be stored inside PlannerPlayback.
-  Combined T800+Hand stays PolicyEvalBlocked. This is not a pad–cardboard
-  number and not a G1 decoder ONNX run.
+  After stash, the same a_t is ZOH-held onto the 500 Hz PD ring (ADR-054).
+  last_action= does not write PD. Token_state stays an external 64-D.
+  MotionCursor remains a sibling over motion_lib and must not be stored
+  inside PlannerPlayback. Combined T800+Hand stays PolicyEvalBlocked.
+  This is not a pad–cardboard number and not a G1 decoder ONNX run.

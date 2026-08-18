@@ -41,10 +41,13 @@ from wbc.shared_cursor import (
     refuse_motion_cursor_in_playback,
     refuse_policy_action_from_decoder_onnx,
     refuse_policy_action_same_tick_into_obs,
+    refuse_policy_pd_as_decoder_run,
+    refuse_policy_pd_hermite,
     refuse_run_shared_cursor_onnx,
     sample_planner_context_from_playback,
     validate_t800_last_action,
 )
+from wbc.stream import CommandStreamError
 
 
 def _row(*, q0: float = 0.0, x_m: float = 0.0) -> np.ndarray:
@@ -88,7 +91,7 @@ def _token() -> np.ndarray:
 
 def test_yaml_locks_official_table() -> None:
     cfg = load_shared_cursor_cfg()
-    assert cfg["adr"] == "ADR-053"
+    assert cfg["adr"] == "ADR-054"
     assert cfg["encoder_reads_playback_current_frame"] is True
     assert cfg["planner_context_reads_playback_current_frame"] is True
     assert cfg["decoder_assembles_on_shared_tick"] is True
@@ -99,6 +102,9 @@ def test_yaml_locks_official_table() -> None:
     assert cfg["policy_action_feeds_next_tick_last_action"] is True
     assert cfg["not_policy_action_same_tick_decoder_obs"] is True
     assert cfg["not_policy_action_from_decoder_onnx"] is True
+    assert cfg["policy_action_feeds_500hz_pd_after_stash"] is True
+    assert cfg["policy_action_pd_is_zoh"] is True
+    assert cfg["not_policy_action_hermite"] is True
     assert cfg["not_decoder_from_planner_qpos"] is True
     assert cfg["not_g1_decoder_onnx"] is True
     assert cfg["not_motion_cursor_mix"] is True
@@ -693,3 +699,173 @@ def test_policy_action_g1_hands_qpos_onnx_refused() -> None:
         refuse_policy_action_from_decoder_onnx()
     with pytest.raises(SharedCursorError, match="next"):
         refuse_policy_action_same_tick_into_obs()
+    with pytest.raises(CommandStreamError, match="ZOH"):
+        refuse_policy_pd_hermite()
+    with pytest.raises(CommandStreamError, match="decoder ONNX"):
+        refuse_policy_pd_as_decoder_run()
+
+
+def test_policy_action_is_zoh_held_on_pd_after_stash() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=7.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = _token()
+    first = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=3.5),
+    )
+    np.testing.assert_allclose(first.last_action, 0.0)
+    np.testing.assert_allclose(first.pd_q_des[0], 3.5)
+    a_hist = decoder_last_action_history(first.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1], 0.0)
+    period = cur.pd_hold.zoh_period(t0_s=0.0)
+    assert period.n_steps == 10
+    assert period.hold == "zoh"
+    np.testing.assert_allclose(period.q_des_rad[:, 0], 3.5)
+    gather.push_hw(_hw(q0=8.0, t_s=0.02))
+    second = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+        policy_action=_action(a0=4.5),
+    )
+    np.testing.assert_allclose(second.last_action[0], 3.5)
+    np.testing.assert_allclose(second.pd_q_des[0], 4.5)
+    a_hist = decoder_last_action_history(second.decoder_obs)
+    np.testing.assert_allclose(a_hist[-1, 0], 3.5)
+
+
+def test_ten_ticks_pd_holds_latest_a_t_not_decoder_history() -> None:
+    gather = ObsGather()
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    last = None
+    for i in range(10):
+        gather.push_hw(_hw(q0=float(i), t_s=i / 50.0))
+        last = cur.control_tick(
+            _motor(),
+            locomotion_mode=0,
+            token=token,
+            new_qpos=_clip(n=16) if i == 0 else None,
+            t_s=i / 50.0,
+            policy_action=_action(a0=10.0 + i),
+        )
+    assert last is not None
+    a_hist = decoder_last_action_history(last.decoder_obs)
+    expected_a = np.concatenate(([0.0], np.arange(10.0, 19.0)))
+    np.testing.assert_allclose(a_hist[:, 0], expected_a)
+    np.testing.assert_allclose(last.pd_q_des[0], 19.0)
+    np.testing.assert_allclose(cur.pd_hold.read()[0], 19.0)
+
+
+def test_omit_policy_action_keeps_pd_hold() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=6.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    held = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+    )
+    np.testing.assert_allclose(held.last_action[0], 6.0)
+    np.testing.assert_allclose(held.pd_q_des[0], 6.0)
+
+
+def test_play_false_still_pushes_pd_after_stash() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=1.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    paused = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        play=False,
+        t_s=0.02,
+        policy_action=_action(a0=8.0),
+    )
+    assert paused.current_frame == 1
+    np.testing.assert_allclose(paused.last_action[0], 1.0)
+    np.testing.assert_allclose(paused.pd_q_des[0], 8.0)
+
+
+def test_tick_without_token_still_pushes_pd_after_stash() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw())
+    cur = SharedPlaybackCursor(gather=gather)
+    cur.tick(
+        _motor(),
+        locomotion_mode=0,
+        new_qpos=_clip(n=16),
+        policy_action=_action(a0=4.0),
+        t_s=0.0,
+    )
+    np.testing.assert_allclose(gather.hw.read().last_action, 0.0)
+    np.testing.assert_allclose(cur.pd_hold.read()[0], 4.0)
+
+
+def test_same_tick_last_action_does_not_write_pd() -> None:
+    gather = ObsGather()
+    gather.push_hw(_hw(q0=1.0, t_s=0.0))
+    cur = SharedPlaybackCursor(gather=gather)
+    token = np.zeros(TOKEN_DIM)
+    cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        new_qpos=_clip(n=16),
+        t_s=0.0,
+        policy_action=_action(a0=9.0),
+    )
+    gather.push_hw(_hw(q0=2.0, t_s=0.02))
+    step = cur.control_tick(
+        _motor(),
+        locomotion_mode=0,
+        token=token,
+        t_s=0.02,
+        last_action=_action(a0=1.5),
+        policy_action=_action(a0=2.5),
+    )
+    np.testing.assert_allclose(step.last_action[0], 1.5)
+    np.testing.assert_allclose(step.pd_q_des[0], 2.5)
+
+
+def test_stash_alone_does_not_write_pd() -> None:
+    cur = SharedPlaybackCursor()
+    cur.stash_policy_action(_action(a0=7.0))
+    np.testing.assert_allclose(cur.pd_hold.read(), 0.0)
+    np.testing.assert_allclose(cur.pending_policy_action[0], 7.0)
+
+
+def test_pd_g1_hands_qpos_refused() -> None:
+    with pytest.raises(G1CheckpointIncompatible):
+        SharedPlaybackCursor().push_policy_pd(np.zeros(G1_N_DOF))
+    with pytest.raises(CommandStreamError, match="planner qpos"):
+        SharedPlaybackCursor().push_policy_pd(np.zeros(32))
+    with pytest.raises(CommandStreamError, match="DexHand2"):
+        SharedPlaybackCursor().push_policy_pd(np.zeros(45))
