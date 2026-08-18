@@ -58,6 +58,7 @@ make eval-l1a-operator    # SONIC §3.5 100 Hz operator loop; grasp_success_rate
 make eval-l1a-gather      # SONIC §S7 YAML obs gather (T800 874-D); grasp_success_rate stays null
 make eval-l1a-encoder     # SONIC encoder 842-D default + 831-D low-latency + 831-D v1.1 heading; no PICO, no G1 ONNX
 make eval-l1a-planner-onnx  # official planner V2 I/O, T800 32-D qpos; G1 planner_sonic.onnx refused
+make eval-l1a-planner-blend  # 8-frame cross-fade + replan timer; G1 ONNX refused
 ```
 
 ## Facts already taken from official sources

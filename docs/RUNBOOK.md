@@ -41,6 +41,7 @@ make eval-l1a-operator  # SONIC §3.5 100 Hz operator loop; grasp_success_rate s
 make eval-l1a-gather    # SONIC §S7 YAML decoder gather (874-D)
 make eval-l1a-encoder   # SONIC encoder 842-D default + 831-D low-latency step1 + 831-D v1.1 heading step5; no PICO / G1 ONNX
 make eval-l1a-planner-onnx  # official planner V2 I/O, T800 32-D qpos; G1 36-D / planner_sonic.onnx refused
+make eval-l1a-planner-blend  # 8-frame cross-fade + replan timer; does not run ONNX
 make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null

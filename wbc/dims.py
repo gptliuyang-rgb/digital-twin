@@ -61,6 +61,19 @@ PLANNER_N_INPUTS_V2 = 11
 PLANNER_N_OUTPUTS = 2
 PLANNER_N_MODES_V2 = 27
 PLANNER_MAX_OUT_FRAMES = PLANNER_MAX_TOKENS * PLANNER_TOKEN_FRAMES  # 64
+# Official C++ CurrentFrameAdvancement / Planner() (g1_deploy_onnx_ref.cpp).
+# 8-frame cross-fade; 10 Hz replan timer. Not a G1 ONNX run. Not ADR-018.
+PLANNER_BLEND_FRAMES = 8
+PLANNER_DT_S = 0.1  # 10 Hz planner thread
+PLANNER_REPLAN_INTERVAL_RUNNING_S = 0.1
+PLANNER_REPLAN_INTERVAL_CRAWLING_S = 0.2
+PLANNER_REPLAN_INTERVAL_BOXING_S = 1.0
+PLANNER_REPLAN_INTERVAL_DEFAULT_S = 1.0
+# Docs: Idle, Squat, Kneel, Lying, Idle Boxing. Indices match LocomotionMode.
+PLANNER_STATIC_MODES = frozenset({0, 4, 5, 6, 7, 9})
+PLANNER_RUNNING_MODE = 3  # official run. command_schema loco_mode 2 is walk, not this.
+PLANNER_CRAWLING_MODE = 8  # C++ LocomotionMode::CRAWLING only; elbow (14) is default 1.0 s
+PLANNER_BOXING_MODES = frozenset({11, 12, 13, 15, 16})  # punches/hooks, not idle/walk boxing
 
 
 def planner_qpos_dim(n_dof: int) -> int:

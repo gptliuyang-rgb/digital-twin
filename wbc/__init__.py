@@ -43,6 +43,14 @@ from wbc.operator import (
     operator_to_stream,
 )
 from wbc.planner import KinematicPlanner
+from wbc.planner_blend import (
+    PLANNER_BLEND_YAML,
+    PlannerBlendError,
+    PlannerReplanClock,
+    cross_fade_qpos,
+    load_planner_blend_cfg,
+    refuse_run_blend_onnx,
+)
 from wbc.planner_onnx import (
     PLANNER_ONNX_YAML,
     PlannerOnnxBlocked,
@@ -93,13 +101,19 @@ __all__ = [
     "t800_encoder_onnx_dim_low_latency",
     "t800_encoder_onnx_dim_v1_1",
     "t800_planner_qpos_dim",
+    "PLANNER_BLEND_YAML",
     "PLANNER_ONNX_YAML",
+    "PlannerBlendError",
     "PlannerOnnxBlocked",
     "PlannerOnnxError",
+    "PlannerReplanClock",
     "command_to_planner_inputs",
+    "cross_fade_qpos",
+    "load_planner_blend_cfg",
     "load_planner_onnx_cfg",
     "pack_context",
     "refuse_g1_planner_onnx",
+    "refuse_run_blend_onnx",
     "refuse_run_planner_onnx",
     "resample_qpos_30_to_50",
     "GATHER_LOW_LATENCY_YAML",

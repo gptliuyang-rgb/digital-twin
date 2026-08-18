@@ -362,4 +362,12 @@
 - **Decision:** (B). `wbc/planner_onnx.py` is shared sim/real (no MuJoCo/Isaac/PICO/onnxruntime). ADR-018 interpolators stay the runtime L1a. Token_state / encoder layouts are unchanged. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`.
 - **Consequences:** `make eval-l1a-planner-onnx` dumps the 11-tensor pack. Official G1 planner remains unloadable. Do not treat the interpolator as the trained planner. PPO / GMR-on-BONES-SEED / combined weld remain blocked on flange SE(3) and wrist CoM.
 
+## ADR-047 — Planner 8-frame cross-fade and replan timer, not a G1 ONNX run
+
+- **Status:** accepted
+- **Context:** Official planner_onnx.html and `g1_deploy_onnx_ref.cpp` blend successive 50 Hz planner clips over 8 frames and gate TensorRT calls with a 10 Hz replan table. ADR-046 packed T800 32-D I/O and the 30→50 resample but left that control-thread logic recorded-only. Loading `planner_sonic.onnx` is still G1 36-D. Inventing a 4-frame fade, a 0.2 s elbow-crawl interval, or mapping `command_schema` loco_mode 2 onto official run (0.1 s) would not match C++. Idle ADAPTING/RECOVERING is a different path (`kAdaptTrigger`). DexHand2 still bypasses WBC. Table S4 and pad–cardboard are unrelated.
+- **Options:** (A) leave blend/replan recorded-only until a T800 planner exists; (B) implement the C++ formulas on caller-supplied 50 Hz T800 qpos: `w_new = clamp((f - blend_start) / 8, 0, 1)`, `blend_start = max(0, gen_frame - current_frame)`, linear joints/root xyz, SLERP quat, `current_frame` reset to 0; replan category 1 = mode/facing/height, category 2 = non-static speed/direction/timer with speed ≠ 0; intervals run 0.1 s / crawl **mode 8 only** 0.2 s / punches-hooks 1.0 s / else 1.0 s; refuse G1 36-D / ONNX run / interpolator substitute / idle-readapt mix; (C) run HuggingFace `planner_sonic.onnx` and treat fast_walk as run.
+- **Decision:** (B). `wbc/planner_blend.py` is shared sim/real (no MuJoCo/Isaac/PICO/onnxruntime). ADR-018 interpolators stay the runtime L1a. `grasp_success_rate` stays JSON `null`. Combined T800+Hand stays `PolicyEvalBlocked`.
+- **Consequences:** `make eval-l1a-planner-blend` dumps the weight ramp and interval table. `command_schema` loco_mode 2 keeps the **walk** 1.0 s timer, not run. Elbow crawling (14) stays on the default 1.0 s timer because that is what C++ does. Do not treat this blend as a trained planner.
+
 

@@ -50,3 +50,5 @@ block GMR-on-BONES-SEED and the combined weld.
 - Live actor T-pose (q=0 overlay remains)
 - GMR on a tiny BONES-SEED clip (blocked on flange/CoM)
 - Diagnose a real GR00T / π0.5 dump once provided
+
+8-frame cross-fade / replan timer is ADR-047 (`docs/reports/PHASE_PLANNER_BLEND.md`).
