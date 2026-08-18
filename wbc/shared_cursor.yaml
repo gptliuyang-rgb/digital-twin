@@ -1,0 +1,53 @@
+# PlannerPlayback owns current_frame. Encoder look-ahead and planner
+# context sampling read that same integer. Shared sim/real.
+# Source: NVlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp
+#   CurrentFrameAdvancement (planner-active) + encoder motion_* look-ahead
+#   + planner context_mujoco_qpos (4 frames @ 30 Hz from 50 Hz).
+#
+# This is NOT MotionCursor mixed into PlannerPlayback (ADR-049 refusal).
+# MotionCursor stays the encoder look-ahead sibling over a motion_lib.
+# This module only binds:
+#   MotionHold.cursor              ← playback.current_frame
+#   sample_context_from_50hz(...)  ← playback.current_frame
+#
+# Encoder last-frame-repeats past the clip end (ADR-042).
+# Planner context does NOT last-frame-repeat (ADR-046); short windows raise.
+# Hands bypass WBC. Official G1 planner_sonic.onnx / encoder ONNX refused.
+# ADR-018 interpolators stay the runtime L1a.
+
+schema_version: "1.0"
+source: "nvlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp CurrentFrameAdvancement + encoder motion_* + planner context (T800 dims)"
+adr: ADR-050
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_planner_onnx: true
+not_g1_encoder_onnx: true
+not_interpolator_substitute: true
+not_onnx_run: true
+not_reference_motion_loop: true
+not_motion_cursor_mix: true
+not_wrist_pose_augmentation_sampler: true
+encoder_reads_playback_current_frame: true
+planner_context_reads_playback_current_frame: true
+
+control_hz: 50
+n_dof: 25
+expected_qpos_dim: 32
+g1_qpos_dim_forbidden: 36
+g1_n_dof_forbidden: 29
+idle_mode: 0
+lookahead_steps_50hz: 2
+encoder_look_ahead_n_frames: 10
+encoder_look_ahead_step: 5
+planner_context_frames: 4
+
+note: >
+  After each 50 Hz PlannerPlayback.tick, encoder MotionHold.cursor and
+  planner context sampling read playback.current_frame. They are not
+  independent clocks. MotionCursor remains a sibling over motion_lib
+  and must not be stored inside PlannerPlayback. Combined T800+Hand
+  stays PolicyEvalBlocked. This is not a pad–cardboard number.

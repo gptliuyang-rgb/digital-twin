@@ -142,6 +142,26 @@ class MotionHold:
         self._frames: list[MotionFrame] = []
         self._cursor = 0
 
+    @property
+    def cursor(self) -> int:
+        return int(self._cursor)
+
+    @property
+    def n_frames(self) -> int:
+        return len(self._frames)
+
+    def clear(self) -> None:
+        """Drop the hold. Assemble then raises; does not invent a stand clip."""
+        self._frames = []
+        self._cursor = 0
+
+    def set_cursor(self, frame_index: int) -> None:
+        if not self._frames:
+            raise MotionRefError("motion hold is empty; cannot set cursor")
+        if frame_index < 0 or frame_index >= len(self._frames):
+            raise MotionRefError(f"cursor {frame_index} out of range 0..{len(self._frames) - 1}")
+        self._cursor = int(frame_index)
+
     def push_sequence(self, frames: list[MotionFrame], *, cursor: int = 0) -> None:
         if not frames:
             raise MotionRefError("empty motion sequence; do not invent a clip")

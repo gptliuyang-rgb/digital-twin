@@ -61,6 +61,7 @@ make eval-l1a-planner-onnx  # official planner V2 I/O, T800 32-D qpos; G1 planne
 make eval-l1a-planner-blend  # 8-frame cross-fade + replan timer; G1 ONNX refused
 make eval-l1a-idle-readapt   # idle ADAPTING/RECOVERING last-frame hold; G1 ONNX refused
 make eval-l1a-playback       # 50 Hz current_frame clamp + idle hold after blend; G1 ONNX refused
+make eval-l1a-shared-cursor  # encoder look-ahead + planner context share playback.current_frame; G1 ONNX refused
 ```
 
 ## Facts already taken from official sources

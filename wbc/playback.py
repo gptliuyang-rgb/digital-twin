@@ -16,7 +16,9 @@ tick:
    ``current_frame = new_frame``.
 
 Named-clip loop-to-zero is the *reference-motion* branch and is refused.
-Hands still bypass WBC.
+Hands still bypass WBC. ADR-050 readers (encoder look-ahead, planner
+context) consume ``current_frame`` from this object; they do not own it.
+``MotionCursor`` stays a sibling over motion_lib.
 """
 
 from __future__ import annotations
