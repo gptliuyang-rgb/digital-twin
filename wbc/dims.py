@@ -82,6 +82,9 @@ IDLE_READAPT_ADAPT_STOP_RAD = 0.05
 IDLE_READAPT_RECOVER_TRIGGER_RAD = 0.045
 IDLE_READAPT_BLEND_KEEP = 0.98
 IDLE_READAPT_BLEND_TO = 0.02
+# 50 Hz planner playback cursor (g1_deploy_onnx_ref.cpp CurrentFrameAdvancement).
+# Clamp-to-last, then idle readapt. Not a clip loop. Not a G1 ONNX run.
+PLAYBACK_CONTROL_HZ = PLANNER_CONTROL_HZ
 
 
 def planner_qpos_dim(n_dof: int) -> int:
