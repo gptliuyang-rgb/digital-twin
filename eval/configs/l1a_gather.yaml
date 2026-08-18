@@ -1,0 +1,14 @@
+# SONIC §S7 observation gathering. Shared sim/real. Units SI.
+schema_version: "1.0"
+policy_hz: 50
+planner_hz: 10
+operator_input_hz: 100
+command_stream_hz: 500
+n_dof: 25
+expected_total_dim: 874
+g1_total_dim_forbidden: 994
+sensor_delay_ticks: 0
+note: >
+  ADR-041. Hands bypass the SONIC token. DexHand2 MIT is 1 kHz, not 50 Hz.
+  grasp_success_rate stays null. Combined T800+Hand stays PolicyEvalBlocked.
+  Do not invent IMU or camera latency.

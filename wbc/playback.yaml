@@ -1,0 +1,52 @@
+# Official GEAR-SONIC 50 Hz planner playback cursor.
+# Source: NVlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp
+#   CurrentFrameAdvancement() — planner-active branch only.
+# Shared sim/real. Hands bypass WBC. This is NOT a G1 ONNX run.
+# This is NOT the ADR-018 interpolator and NOT a clip library.
+#
+# C++ order at the end of each 50 Hz control tick:
+#   1) If a new 50 Hz planner clip is available, ADR-047 8-frame blend.
+#      On success: current_frame = 0 and idle_readapt_stored_ = false.
+#      new_anim_length <= 0 sits the assign out (frame / stored unchanged).
+#   2) If timesteps > 0 and operator_state.play:
+#        new_frame = current_frame + 1
+#        if new_frame >= timesteps: clamp to last, then ADR-048 idle
+#        readapt IFF locomotion_mode == IDLE (0).
+#        current_frame = new_frame
+#   play == false: do not advance, do not readapt.
+#
+# Planner path ALWAYS clamps. Named-clip loop-to-zero (reference-motion
+# mode) is a different C++ branch and is refused here.
+# command_schema loco_mode 0 is idle. loco_mode 1/2 never enter readapt.
+# Squat / kneel / lying / idleBoxing do not enter (C++ checks IDLE only).
+
+schema_version: "1.0"
+source: "nvlabs/GR00T-WholeBodyControl g1_deploy_onnx_ref.cpp CurrentFrameAdvancement (T800 dims)"
+adr: ADR-049
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_planner_onnx: true
+not_interpolator_substitute: true
+not_onnx_run: true
+not_reference_motion_loop: true
+not_wrist_pose_augmentation_sampler: true
+
+control_hz: 50
+n_dof: 25
+expected_qpos_dim: 32
+g1_qpos_dim_forbidden: 36
+g1_n_dof_forbidden: 29
+idle_mode: 0
+lookahead_steps_50hz: 2       # gen_frame default = current_frame + 2 at assign time
+blend_num_frames: 8
+
+note: >
+  Control-thread cursor over caller-supplied 50 Hz T800 qpos.
+  Official G1 planner_sonic.onnx is refused. ADR-047 blend and ADR-048
+  idle hold stay the callees. ADR-018 interpolators stay the runtime L1a
+  until a T800 planner exists. Combined T800+Hand stays PolicyEvalBlocked.
+  This is not a pad–cardboard number.

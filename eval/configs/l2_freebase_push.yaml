@@ -1,0 +1,167 @@
+# Free-base T800 Table S4 planar root-push sweep + sustained force +
+# angular-velocity sweep + sustained torque + linear-z sweep +
+# WBC floor static-friction extrema + base CoM ipos extrema +
+# default joint-pos offset extrema + air-drop.
+# Not a SONIC gate (ADR-026 / ADR-027 / ADR-028 / ADR-029 / ADR-030 / ADR-031 /
+# ADR-032 / ADR-033).
+# Velocities are Table S4 root_push extrema. One-shot qvel is ADR-027/029/030.
+# Sustained force is F = m v / T; sustained torque is τ = I ω / T for
+# duration extrema 1 s and 3 s (same impulse, not pad–cardboard).
+# Friction extrema are Table S4 physical.static_friction as MuJoCo sliding
+# on the WBC floor + foot geoms (ADR-031). CoM extrema are Table S4
+# physical.base_com_offset_m as additive body_ipos[LINK_BASE] (ADR-032).
+# Joint-pos extrema are Table S4 physical.default_joint_pos_offset_rad as a
+# uniform additive reset-qpos / PD-target offset on the 25 actuated hinges
+# (ADR-033). Restitution is not mapped to solref.
+# Grasp-success stays JSON null.
+# Planar sweep stays ±X/±Y at 0.5 m/s. Z (±0.2 m/s) is a separate vertical
+# diagnostic. Friction, CoM, and joint-pos are not mixed into push_sweep.
+
+schema_version: "1.0"
+physics: mujoco
+pinned_base: false
+hold_s: 3.0
+settle_s: 3.0          # inject after the leaned hold, not at t=0.5 s while still upright
+post_push_s: 2.0
+airdrop_s: 0.4
+fall:
+  pelvis_z_m: 0.40
+  tilt_rad: 0.8
+lean:
+  tilt_rad: 0.20   # diagnostic band; official 3 s hold ~0.72 rad is leaned, not fallen
+push:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push"
+  kind: one_shot_qvel
+  name: "+y"
+  lin_vel_mps: [0.0, 0.5, 0.0]   # +Y kept as the ADR-026 compatibility case
+  not_sustained_force: true
+  not_dexhand2_contact: true
+sustained:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push duration_s"
+  kind: sustained_force
+  force_formula: "F = m * v / T"
+  name: "+y_T1.0s"
+  durations_s: [1.0, 3.0]        # Table S4 extrema; do not invent a third T
+  not_one_shot_qvel: true
+  not_dexhand2_contact: true
+angvel:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push ang_vel"
+  kind: one_shot_qvel
+  name: "+yaw"
+  ang_vel_rad_s: [0.0, 0.0, 0.78]  # +yaw kept as the ADR-029 compatibility case
+  not_sustained_torque: true
+  not_dexhand2_contact: true
+sustained_torque:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push duration_s"
+  kind: sustained_torque
+  torque_formula: "tau = I @ omega / T"
+  name: "+yaw_T1.0s"
+  durations_s: [1.0, 3.0]
+  not_one_shot_qvel: true
+  not_dexhand2_contact: true
+sweep:
+  axes: [x, y]                   # Table S4 |x|=|y|=0.5 m/s; z is ADR-030, not here
+  use_table_s4_extrema: true
+  exclude_z: true                # planar list must stay 4 cases (ADR-027)
+vertical:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push lin_vel z"
+  kind: one_shot_qvel
+  name: "+z"
+  lin_vel_mps: [0.0, 0.0, 0.2]   # +Z kept as the ADR-030 compatibility case
+  not_sustained_force: true
+  not_dexhand2_contact: true
+  not_planar_0_5: true           # Table S4 |z|=0.2 m/s, not the planar 0.5 m/s
+vertical_force:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 root_push duration_s"
+  kind: sustained_force
+  force_formula: "F = m * v / T"
+  name: "+z_T1.0s"
+  durations_s: [1.0, 3.0]
+  not_one_shot_qvel: true
+  not_dexhand2_contact: true
+vertical_sweep:
+  axes: [z]                      # Table S4 |z|=0.2 m/s
+  use_table_s4_extrema: true
+  z_range_mps: [-0.2, 0.2]
+friction:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.static_friction"
+  kind: wbc_floor_slide_friction
+  name: mu_s_0.3                 # low extremum kept as the ADR-031 compatibility case
+  mu_slide: 0.3
+  mujoco_channel: geom_friction[0]
+  dynamic_friction_not_mapped: true
+  restitution_not_mapped: true
+  not_dexhand2_contact: true
+  not_pad_cardboard: true
+friction_sweep:
+  use_table_s4_extrema: true
+  static_friction: [0.3, 1.6]    # Table S4 physical.static_friction; not pad–cardboard
+  not_mixed_into_push_sweep: true
+com_offset:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.base_com_offset_m"
+  kind: wbc_base_com_ipos_offset
+  name: com_+x                   # +X 0.075 m kept as the ADR-032 compatibility case
+  offset_m: [0.075, 0.0, 0.0]
+  mujoco_channel: body_ipos[LINK_BASE]
+  additive_to_compiled_ipos: true
+  not_dexhand2_contact: true
+  not_pad_cardboard: true
+  not_wrist_com: true
+com_sweep:
+  use_table_s4_extrema: true
+  base_com_offset_m:
+    x: [-0.075, 0.075]
+    y: [-0.1, 0.1]
+    z: [-0.1, 0.1]
+  not_mixed_into_push_sweep: true
+joint_offset:
+  source: "He et al., SONIC, arXiv:2511.07820v3 Table S4 physical.default_joint_pos_offset_rad"
+  kind: wbc_default_joint_pos_offset
+  name: qpos_+0.01               # +0.01 rad kept as the ADR-033 compatibility case
+  offset_rad: 0.01
+  mujoco_channel: actuated_hinge_qpos
+  additive_to_default_q_des: true
+  freejoint_unchanged: true
+  not_per_joint_corner_grid: true
+  restitution_not_mapped: true
+  not_dexhand2_contact: true
+  not_pad_cardboard: true
+joint_sweep:
+  use_table_s4_extrema: true
+  default_joint_pos_offset_rad: [-0.01, 0.01]  # Table S4; uniform on 25 hinges
+  not_mixed_into_push_sweep: true
+recorded_only_physical:
+  fields: [dynamic_friction, restitution]
+  dynamic_friction: [0.3, 1.2]
+  restitution: [0.0, 0.5]
+  mujoco_channel: null
+  not_mapped_to_solref: true
+  not_mapped_to_geom_friction_spin_roll: true
+  not_dexhand2_contact: true
+  not_pad_cardboard: true
+angvel_sweep:
+  axes: [roll, pitch, yaw]       # roll/pitch ±0.52 rad/s, yaw ±0.78 rad/s
+  use_table_s4_extrema: true
+airdrop:
+  add_floor: false
+  min_drop_m: 0.20   # freejoint proof vs pinned LINK_BASE z=1.03 m; not a stand rating
+gates:
+  grasp_success_rate: null
+  combined_robot: PolicyEvalBlocked
+  not_a_sonic_gate: true
+  local_tracking_success: false
+note: >
+  Official serial_t800.xml has a freejoint and no floor plane. The hold/push
+  cases add the official collision-default floor (WBC floor, not pad–cardboard).
+  Air-drop leaves the plane off so gravity must move the freejoint.
+  Sustained force uses the loaded MJCF subtree mass; sustained torque uses the
+  freejoint angular block of mj_fullM at the inject pose. Neither is a datasheet guess.
+  Vertical ±Z 0.2 m/s uses the same mass and F = m v / T; it is not mixed into planar.
+  Friction extrema retune geom_friction[0] on the eval floor and foot geoms only.
+  MuJoCo has no separate dynamic coefficient; restitution is not mapped to solref
+  (ADR-037). recorded_only_physical is [dynamic_friction, restitution].
+  CoM extrema add Table S4 base_com_offset_m to compiled body_ipos[LINK_BASE].
+  That is T800 pelvis inertial offset, not DexHand2 com_in_wrist_frame_m.
+  Joint-pos extrema add Table S4 default_joint_pos_offset_rad to the 25
+  actuated-hinge reset qpos and PD target. Freejoint is unchanged.
+  Restitution is not mapped to solref.
