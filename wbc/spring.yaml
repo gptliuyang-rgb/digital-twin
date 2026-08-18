@@ -1,0 +1,31 @@
+# SONIC paper §3.3 root-trajectory spring. arXiv:2511.07820v3.
+# Filters command_schema_v1 nav_cmd (vx, vy, wz) into a pelvis xy + heading
+# keyframe for L1a. Hands still bypass WBC. Not Table S4. Not pad–cardboard.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 §3.3 Root trajectory spring model"
+equation: 8
+applies_to: l1a_nav_root
+not_dexhand2_contact: true
+not_table_s4: true
+
+# Paper: "Damping coefficients of 5 ln(2) and 20 ln(2) are used for
+# position and heading respectively." Code multiplies these by ln(2).
+position_damping_ln2_multiplier: 5
+heading_damping_ln2_multiplier: 20
+
+# Paper: expected target after 1.0 s from desired velocity; keyframe is x(1.0).
+target_horizon_s: 1.0
+
+# Paper: navigation commands 0.0–6.0 m/s, any heading 0–360°.
+# Clamp is planar speed hypot(vx, vy), not a per-axis box and not wz.
+max_nav_speed_mps: 6.0
+
+channels:
+  - pelvis_x
+  - pelvis_y
+  - projected_heading
+
+note: >
+  Same binary in sim and on the robot. The spring does not invent DexHand2
+  friction, stiffness, or wrist CoM. Combined T800+Hand stays PolicyEvalBlocked.

@@ -1,0 +1,11 @@
+# L1a decoder 874-D on the shared 50 Hz tick. Not a trained decoder. Not G1 ONNX.
+schema_version: "1.0"
+adr: ADR-051
+source: wbc/shared_cursor.yaml
+not_g1_decoder_onnx: true
+not_onnx_run: true
+not_decoder_from_planner_qpos: true
+decoder_history_is_hardware_not_clip: true
+not_invented_clip: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked

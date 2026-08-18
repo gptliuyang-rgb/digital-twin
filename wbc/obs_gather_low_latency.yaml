@@ -1,0 +1,112 @@
+# SONIC low-latency encoder gather. T800 analogue of nvidia/GEAR-SONIC
+# low_latency/observation_config.yaml. Shared sim/real. Hands bypass WBC.
+# Decoder / policy obs_dict stays the ADR-041 874-D grouped history.
+# Not Table S4. Not pad–cardboard. Not DexHand2's 1 kHz MIT ring.
+# Not a PICO / CloudXR / Isaac Teleop SDK. Not invented IMU/camera latency.
+# Not G1 low_latency/model_encoder.onnx (1247-D).
+
+schema_version: "1.0"
+source: "nvidia/GEAR-SONIC low_latency/observation_config.yaml (T800 dims, no SMPL/wrists)"
+adr: ADR-044
+encoder_variant: low_latency
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_encoder_onnx: true
+not_smpl_encoder: true
+not_4frame_smpl: true
+
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+command_stream_hz: 500
+
+n_dof: 25                    # T800 revolute. 29 is G1 and is refused.
+token_dim: 64
+history_frames: 10
+history_step: 1              # control ticks at 50 Hz
+ring_capacity: 32
+joint_remap: identity
+sensor_delay_ticks: 0
+csv_enabled: false
+
+# Decoder is unchanged (ADR-041): 64 + 30 + 250 + 250 + 250 + 30 = 874
+expected_total_dim: 874
+g1_total_dim_forbidden: 994
+
+# Official low_latency YAML: g1/teleop future refs are 10frame_step1.
+# SMPL/wrist 4frame_step1 is refused (needs smpl_joint.csv + G1 wrists).
+# Official list omits motion_root_z_*. T800 831 / G1 1247 (forbidden).
+# Look-ahead indices at cursor 0 / step 1 are [0, 1, …, 9] (0.18 s).
+n_lower_body_dof: 12
+n_wrist_dof: 0
+encoder_motion_window_dim: 560   # 10*(25+25+6), no z; G1 analogue 640 forbidden
+expected_encoder_dim: 831
+g1_encoder_dim_forbidden: 650    # default G1 motion window; still refused
+g1_encoder_onnx_dim_forbidden: 1247
+default_encoder_mode: t800
+
+encoder:
+  dimension: 64
+  use_fp16: false
+  # Official low_latency encoder_observations order, T800 dims, SMPL +
+  # wrist channels omitted (refused). Unused mode slots are zero-filled.
+  encoder_observations:
+    - name: encoder_mode_4
+      enabled: true
+    - name: motion_joint_positions_10frame_step1
+      enabled: true
+    - name: motion_joint_velocities_10frame_step1
+      enabled: true
+    - name: motion_anchor_orientation_10frame_step1
+      enabled: true
+    - name: motion_anchor_orientation
+      enabled: true
+    - name: motion_joint_positions_lowerbody_10frame_step1
+      enabled: true
+    - name: motion_joint_velocities_lowerbody_10frame_step1
+      enabled: true
+    - name: vr_3point_local_target
+      enabled: true
+    - name: vr_3point_local_orn_target
+      enabled: true
+  encoder_modes:
+    - name: t800
+      mode_id: 0
+      required_observations:
+        - encoder_mode_4
+        - motion_joint_positions_10frame_step1
+        - motion_joint_velocities_10frame_step1
+        - motion_anchor_orientation_10frame_step1
+    - name: teleop
+      mode_id: 1
+      required_observations:
+        - encoder_mode_4
+        - motion_joint_positions_lowerbody_10frame_step1
+        - motion_joint_velocities_lowerbody_10frame_step1
+        - vr_3point_local_target
+        - vr_3point_local_orn_target
+        - motion_anchor_orientation
+
+observations:
+  - name: token_state
+    enabled: true
+  - name: his_base_angular_velocity_10frame_step1
+    enabled: true
+  - name: his_body_joint_positions_10frame_step1
+    enabled: true
+  - name: his_body_joint_velocities_10frame_step1
+    enabled: true
+  - name: his_last_actions_10frame_step1
+    enabled: true
+  - name: his_gravity_dir_10frame_step1
+    enabled: true
+
+note: >
+  Matching observation config for a future T800 low-latency encoder ONNX.
+  Official G1 low_latency/model_encoder.onnx (1247-D) is refused. SMPL
+  4-frame lookahead is not packed. Combined T800+Hand stays
+  PolicyEvalBlocked. This is not a measured IMU noise / latency model.
