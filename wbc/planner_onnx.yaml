@@ -1,0 +1,149 @@
+# Official GEAR-SONIC kinematic planner ONNX contract, T800 dims.
+# Source: https://nvlabs.github.io/GR00T-WholeBodyControl/references/planner_onnx.html
+# Shared sim/real. Hands bypass WBC. This is NOT the ADR-018 interpolator.
+#
+# Official G1 context_mujoco_qpos is [1, 4, 36] = 3 pos + 4 quat wxyz + 29 hinges.
+# T800 analogue is [1, 4, 32] = 3 + 4 + 25. planner_sonic.onnx (36-D) is refused.
+# Native output is 30 Hz; the C++ stack resamples to 50 Hz. Tokens 6–16 (K=11),
+# 4 frames/token, max 64 padded 30 Hz frames. V2 = 11 inputs / 27 modes.
+#
+# command_schema loco_mode {0,1,2} maps to official {idle, slowWalk, walk}.
+# fast_walk is NOT official run (3). wz is Eq. 8 heading rate, not facing_direction.
+# pelvis_height does not auto-fill the ONNX height channel (walk/idle disable it).
+#
+# Not Table S4. Not pad–cardboard. Not DexHand2's 1 kHz MIT ring.
+# Not a PICO / CloudXR / Isaac Teleop SDK. Not an invented clip library.
+# Not G1 planner_sonic.onnx. Not a trained T800 planner.
+
+schema_version: "1.0"
+source: "nvlabs/GR00T-WholeBodyControl references/planner_onnx.html (T800 dims)"
+adr: ADR-046
+planner_version: V2
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_planner_onnx: true
+not_interpolator_substitute: true
+not_wrist_pose_augmentation_sampler: true
+
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+command_stream_hz: 500
+native_hz: 30                 # official ONNX output rate
+control_hz: 50                # resample target (SONIC policy ring)
+
+n_dof: 25                     # T800 revolute. 29 is G1 and is refused.
+qpos_root_dim: 7              # xyz + quat wxyz (MuJoCo)
+expected_qpos_dim: 32         # 7 + 25. G1 36 forbidden.
+g1_qpos_dim_forbidden: 36
+context_frames: 4
+context_shape: [1, 4, 32]
+g1_context_shape_forbidden: [1, 4, 36]
+token_frames: 4
+min_tokens: 6
+max_tokens: 16
+allowed_k: 11                 # max_tokens - min_tokens + 1
+max_out_frames: 64            # 16 * 4 padded 30 Hz frames
+lookahead_steps_50hz: 2
+n_inputs_v2: 11
+n_outputs: 2
+n_modes_v2: 27
+zero_dir_eps: 1.0e-5          # official near-zero movement fallback
+height_disabled: -1.0         # official: < 0 disables height control
+target_vel_use_mode_default: -1.0
+
+# command_schema_v1 loco_mode → official planner mode index.
+# 2 = walk, not run (3). Boxing / squat / kneel are not in command_schema.
+loco_mode_map:
+  0: 0    # stand → idle
+  1: 1    # slow_walk → slowWalk
+  2: 2    # fast_walk → walk (NOT run)
+
+official_modes:
+  0: idle
+  1: slowWalk
+  2: walk
+  3: run
+  4: squat
+  5: kneelTwoLeg
+  6: kneelOneLeg
+  7: lyingFacedown
+  8: handCrawling
+  9: idleBoxing
+  10: walkBoxing
+  11: leftJab
+  12: rightJab
+  13: randomPunches
+  14: elbowCrawling
+  15: leftHook
+  16: rightHook
+  17: happy
+  18: stealth
+  19: injured
+  20: careful
+  21: objectCarrying
+  22: crouch
+  23: happyDance
+  24: zombie
+  25: point
+  26: scared
+
+height_modes: [4, 5, 6, 7]    # official: require height_m >= 0
+command_schema_loco_modes: [0, 1, 2]
+
+primary_inputs:
+  - name: context_mujoco_qpos
+    shape: [1, 4, 32]
+    dtype: float32
+  - name: target_vel
+    shape: [1]
+    dtype: float32
+  - name: mode
+    shape: [1]
+    dtype: int64
+  - name: movement_direction
+    shape: [1, 3]
+    dtype: float32
+  - name: facing_direction
+    shape: [1, 3]
+    dtype: float32
+  - name: height
+    shape: [1]
+    dtype: float32
+
+advanced_inputs:
+  - name: random_seed
+    shape: [1]
+    dtype: int64
+  - name: has_specific_target
+    shape: [1, 1]
+    dtype: int64
+  - name: specific_target_positions
+    shape: [1, 4, 3]
+    dtype: float32
+  - name: specific_target_headings
+    shape: [1, 4]
+    dtype: float32
+  - name: allowed_pred_num_tokens
+    shape: [1, 11]
+    dtype: int64
+
+outputs:
+  - name: mujoco_qpos
+    shape: [1, N, 32]
+    dtype: float32
+    note: slice [:, :num_pred_frames, :]; N is the padded buffer
+  - name: num_pred_frames
+    shape: scalar
+    dtype: int64
+    note: equals num_pred_tokens * 4
+
+note: >
+  Matching I/O for a future T800 planner ONNX. Official G1 planner_sonic.onnx
+  (36-D qpos) is refused. ADR-018 cubic/SLERP interpolator stays the runtime
+  L1a until a T800 planner is trained. Combined T800+Hand stays
+  PolicyEvalBlocked. This is not a clip library and not a pad–cardboard number.

@@ -1,0 +1,16 @@
+# L1 Case A fixture. These head/nav values are NOT from a ckpt.
+# Label is recorded in the report so they cannot be mistaken for measured pelvis/nav.
+
+gates:
+  wrist_finite: true
+  hand_limits: true
+  convert_requires_apply_fk: true
+
+head_nav_fixture:
+  label: synthetic_l1_fixture_not_from_ckpt
+  pelvis_height_m: 0.55   # m, midpoint of command_schema range [0.30, 0.80]
+  nav_cmd_mps: [0.0, 0.0, 0.0]  # m/s, m/s, rad/s
+  loco_mode: 0
+  tool_trigger: 0
+  head_pos_m: [0.0, 0.0, 0.45]  # m, relative to pelvis; fixture only
+  head_rot6d: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
