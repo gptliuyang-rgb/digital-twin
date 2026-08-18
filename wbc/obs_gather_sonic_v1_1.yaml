@@ -1,0 +1,127 @@
+# SONIC v1.1 encoder gather. T800 analogue of nvidia/GEAR-SONIC
+# sonic_v1_1/observation_config.yaml. Shared sim/real. Hands bypass WBC.
+# Decoder / policy obs_dict stays the ADR-041 874-D grouped history.
+#
+# Official header: Encoder input 1751 / Decoder 994 / Token 64 on G1.
+# G1/teleop references use 10 frames at step5. SMPL and wrist references
+# use 10 frames at step1 (refused on T800). Root orientations are
+# normalized by robot heading. This is NOT the low-latency checkpoint.
+#
+# Wrist-pose augmentation is a training-time data transform on the
+# official G1 recipe. This repo does not invent a sampler.
+#
+# Not Table S4. Not pad–cardboard. Not DexHand2's 1 kHz MIT ring.
+# Not a PICO / CloudXR / Isaac Teleop SDK. Not invented IMU/camera latency.
+# Not G1 sonic_v1_1/model_encoder.onnx (1751-D).
+
+schema_version: "1.0"
+source: "nvidia/GEAR-SONIC sonic_v1_1/observation_config.yaml (T800 dims, no SMPL/wrists)"
+adr: ADR-045
+encoder_variant: sonic_v1_1
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+not_invented_latency: true
+not_pico_sdk: true
+not_invented_clip: true
+not_g1_encoder_onnx: true
+not_smpl_encoder: true
+not_4frame_smpl: true
+not_low_latency: true
+not_wrist_pose_augmentation_sampler: true
+
+planner_hz: 10
+policy_hz: 50
+operator_input_hz: 100
+command_stream_hz: 500
+
+n_dof: 25                    # T800 revolute. 29 is G1 and is refused.
+token_dim: 64
+history_frames: 10
+history_step: 1              # control ticks at 50 Hz
+ring_capacity: 32
+joint_remap: identity
+sensor_delay_ticks: 0
+csv_enabled: false
+
+# Decoder is unchanged (ADR-041): 64 + 30 + 250 + 250 + 250 + 30 = 874
+expected_total_dim: 874
+g1_total_dim_forbidden: 994
+
+# Official sonic_v1_1 YAML: g1/teleop future refs are 10frame_step5 with
+# motion_anchor_orientation_heading_* (yaw-only left multiply). Official
+# list omits motion_root_z_*. SMPL/wrist 10frame_step1 is refused.
+# T800 831 / G1 1751 (forbidden). Same integer as low-latency 831, different
+# names (step5 + heading). Look-ahead indices at cursor 0 / step 5 are
+# [0, 5, …, 45] (0.9 s).
+n_lower_body_dof: 12
+n_wrist_dof: 0
+encoder_motion_window_dim: 560   # 10*(25+25+6), no z; G1 analogue 640 forbidden
+expected_encoder_dim: 831
+g1_encoder_dim_forbidden: 650    # default G1 motion window; still refused
+g1_encoder_onnx_dim_forbidden: 1751
+default_encoder_mode: t800
+
+encoder:
+  dimension: 64
+  use_fp16: false
+  # Official sonic_v1_1 encoder_observations order, T800 dims, SMPL +
+  # wrist channels omitted (refused). Unused mode slots are zero-filled.
+  encoder_observations:
+    - name: encoder_mode_4
+      enabled: true
+    - name: motion_joint_positions_10frame_step5
+      enabled: true
+    - name: motion_joint_velocities_10frame_step5
+      enabled: true
+    - name: motion_anchor_orientation_heading_10frame_step5
+      enabled: true
+    - name: motion_anchor_orientation_heading
+      enabled: true
+    - name: motion_joint_positions_lowerbody_10frame_step5
+      enabled: true
+    - name: motion_joint_velocities_lowerbody_10frame_step5
+      enabled: true
+    - name: vr_3point_local_target
+      enabled: true
+    - name: vr_3point_local_orn_target
+      enabled: true
+  encoder_modes:
+    - name: t800
+      mode_id: 0
+      required_observations:
+        - encoder_mode_4
+        - motion_joint_positions_10frame_step5
+        - motion_joint_velocities_10frame_step5
+        - motion_anchor_orientation_heading_10frame_step5
+    - name: teleop
+      mode_id: 1
+      required_observations:
+        - encoder_mode_4
+        - motion_joint_positions_lowerbody_10frame_step5
+        - motion_joint_velocities_lowerbody_10frame_step5
+        - vr_3point_local_target
+        - vr_3point_local_orn_target
+        - motion_anchor_orientation_heading
+
+observations:
+  - name: token_state
+    enabled: true
+  - name: his_base_angular_velocity_10frame_step1
+    enabled: true
+  - name: his_body_joint_positions_10frame_step1
+    enabled: true
+  - name: his_body_joint_velocities_10frame_step1
+    enabled: true
+  - name: his_last_actions_10frame_step1
+    enabled: true
+  - name: his_gravity_dir_10frame_step1
+    enabled: true
+
+note: >
+  Matching observation config for a future T800 SONIC v1.1 encoder ONNX.
+  Official G1 sonic_v1_1/model_encoder.onnx (1751-D) is refused. Heading
+  ori is R_z(yaw_robot).T @ R_ref, not the default full R_robot.T @ R_ref.
+  Do not pair this 831-D vector with a low-latency step1 ONNX. Combined
+  T800+Hand stays PolicyEvalBlocked. This is not a measured IMU noise /
+  latency model and not a wrist-pose augmentation sampler.

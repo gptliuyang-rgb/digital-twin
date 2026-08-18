@@ -1,0 +1,18 @@
+# L1a delayed 25-D policy_action → next-tick last_action.
+# Not a trained decoder. Not G1 ONNX. Not planner clip qpos.
+schema_version: "1.0"
+adr: ADR-053
+source: wbc/shared_cursor.yaml
+not_g1_decoder_onnx: true
+not_onnx_run: true
+not_decoder_from_planner_qpos: true
+not_last_action_from_decoder_onnx: true
+not_last_action_from_planner_qpos: true
+not_policy_action_from_decoder_onnx: true
+not_policy_action_same_tick_decoder_obs: true
+policy_action_feeds_next_tick_last_action: true
+last_action_is_caller_supplied_policy: true
+decoder_history_is_hardware_not_clip: true
+not_invented_clip: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked
