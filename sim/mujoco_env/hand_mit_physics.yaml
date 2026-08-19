@@ -1,0 +1,57 @@
+# DexHand2 1 kHz MuJoCo HandMitPhysics backend. Lives in sim/, not wbc/.
+#
+# ADR-058 owns the numpy MIT ring (ZOH q_des, MJCF gen-1 kp/kv).
+# This file is the MuJoCo plant that ring steps: 20-D, dt = 1/1000 s,
+# motor actuators, no T800 weld. Official <position> XML is refused
+# until gen_derived converts it to <motor>. Fixture inertias are
+# placeholders, not CAD. hardware_kp / command_latency_ms stay
+# REQUIRED_INPUT. grasp_success_rate stays JSON null.
+
+schema_version: "1.0"
+source: "hand/mit_ring.yaml HandMitPhysics protocol; official MJCF motor conversion"
+adr: ADR-059
+not_dexhand2_contact: true
+not_table_s4: true
+hand_mit_ring: true
+hand_mit_physics: true
+not_wbc_last_action: true
+not_wbc_policy_action: true
+not_decoder_obs: true
+not_concat_t800_plus_hand: true
+not_t800_weld: true
+hand_q_is_zoh: true
+not_hand_q_hermite: true
+dq_des_is_zero: true
+gains_are_mjcf_gen1_carryover: true
+not_hardware_kp: true
+not_invented_latency: true
+not_force_mode_without_hardware_tau: true
+not_mit_ring_from_decoder_onnx: true
+not_mit_ring_finite_diff_dq: true
+clip_tau_to_sim_forcerange: true
+not_sim_forcerange_as_payload_rating: true
+not_official_position_actuators: true
+not_body_500hz_dt: true
+fixture_inertias_are_placeholders: true
+fixture_zero_gravity_not_cad: true
+
+control_hz: 50
+hand_stream_hz: 1000
+mit_n_steps_per_tick: 20
+mit_timestep_s: 0.001
+n_active_dof: 20
+g1_n_dof_forbidden: 29
+t800_n_dof_forbidden: 25
+planner_qpos_dim_forbidden: 32
+t800_plus_hand_dim_forbidden: 45
+command_schema_dim_forbidden: 75
+body_500hz_timestep_s_forbidden: 0.002
+gains_source: mjcf_gen1_carryover_not_hand2_sysid
+
+note: >
+  HandMitMujocoEnv implements HandMitPhysics. Fixture XML is 20 independent
+  motor hinges at 1 ms, gravity off, no contact. Official derived *_mit.xml
+  is optional when wuji-description is cloned. Do not weld T800. Do not
+  write ctrl onto <position> actuators. Do not resample onto 0.002 s.
+  Combined T800+Hand stays PolicyEvalBlocked. This is not a pad–cardboard
+  number and not a decoder ONNX run.

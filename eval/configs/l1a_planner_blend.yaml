@@ -1,0 +1,9 @@
+# L1a planner 8-frame blend + replan timer dump. Not a trained planner. Not G1 ONNX.
+schema_version: "1.0"
+adr: ADR-047
+source: wbc/planner_blend.yaml
+not_g1_planner_onnx: true
+not_onnx_run: true
+not_interpolator_substitute: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked
