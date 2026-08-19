@@ -49,6 +49,7 @@ interface = ["*.yaml"]
 assets = ["**/*.yaml"]
 eval = ["configs/*.yaml"]
 hand = ["*.yaml"]
+sim = ["**/*.yaml"]
 wbc = ["*.yaml", "gmr/*.yaml", "gmr/*.json", "ppo/*.yaml"]
 vla = ["*.yaml", "adapters/*.yaml"]
 

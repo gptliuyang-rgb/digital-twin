@@ -53,6 +53,7 @@ make eval-l1a-pd-plant       # 500 Hz τ = Kp(a_t − q) − Kd q̇; pd_stand br
 make eval-l1a-pd-physics     # 10×2 ms physics substeps of that τ; decoder q stays pre-physics
 make eval-l1a-pd-closedloop  # omit push_hw: next decoder q follows the plant; IMU kept, not invented
 make eval-l1c-mit-ring       # DexHand2 1 kHz MIT ZOH; bypasses WBC last_action; grasp_success_rate stays null
+make eval-l1c-mit-physics    # same ring on a 1 kHz MuJoCo fixture plant; no T800 weld; unavailable without mujoco
 make eval-l1-case-a     # Case A FK (must pass --apply-fk); labelled head/nav fixture
 make eval-l2            # refuses success rates while uncalibrated; records 9-cell gain scan + weld gate
 make eval-l2-sim2sim    # kinematic MPJPE on T800 tracked bodies; grasp_success_rate stays null
