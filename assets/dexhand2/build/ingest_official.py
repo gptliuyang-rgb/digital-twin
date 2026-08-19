@@ -68,6 +68,13 @@ def urdf_mass_sum(path: Path) -> float:
     return sum(float(x) for x in re.findall(r'<mass value="([^"]+)"', text))
 
 
+def mjcf_inertial_mass_sum(path: Path) -> float:
+    """Skeleton CAD mass from MJCF ``<inertial mass=>``. Not product 0.745 kg."""
+    from assets.dexhand2.build.gen_derived import parse_inertial_mass_kg
+
+    return parse_inertial_mass_kg(path.read_text(encoding="utf-8"))
+
+
 def file_sha256(path: Path) -> str:
     h = hashlib.sha256()
     h.update(path.read_bytes())

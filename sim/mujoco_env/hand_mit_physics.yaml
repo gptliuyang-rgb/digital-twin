@@ -3,13 +3,13 @@
 # ADR-058 owns the numpy MIT ring (ZOH q_des, MJCF gen-1 kp/kv).
 # This file is the MuJoCo plant that ring steps: 20-D, dt = 1/1000 s,
 # motor actuators, no T800 weld. Official <position> XML is refused
-# until gen_derived converts it to <motor>. Fixture inertias are
-# placeholders, not CAD. hardware_kp / command_latency_ms stay
-# REQUIRED_INPUT. grasp_success_rate stays JSON null.
+# until ADR-060 rewrites it to a mesh-free <motor> plant that keeps CAD
+# inertias. Fixture inertias are placeholders, not CAD. hardware_kp /
+# command_latency_ms stay REQUIRED_INPUT. grasp_success_rate stays JSON null.
 
 schema_version: "1.0"
 source: "hand/mit_ring.yaml HandMitPhysics protocol; official MJCF motor conversion"
-adr: ADR-059
+adr: ADR-060
 not_dexhand2_contact: true
 not_table_s4: true
 hand_mit_ring: true
@@ -32,8 +32,12 @@ clip_tau_to_sim_forcerange: true
 not_sim_forcerange_as_payload_rating: true
 not_official_position_actuators: true
 not_body_500hz_dt: true
+not_official_002s_dt: true
 fixture_inertias_are_placeholders: true
 fixture_zero_gravity_not_cad: true
+not_treat_fixture_as_cad: true
+official_inertias_from_skeleton_mjcf: true
+not_soft_body_in_inertia_plant: true
 
 control_hz: 50
 hand_stream_hz: 1000
@@ -50,8 +54,10 @@ gains_source: mjcf_gen1_carryover_not_hand2_sysid
 
 note: >
   HandMitMujocoEnv implements HandMitPhysics. Fixture XML is 20 independent
-  motor hinges at 1 ms, gravity off, no contact. Official derived *_mit.xml
-  is optional when wuji-description is cloned. Do not weld T800. Do not
-  write ctrl onto <position> actuators. Do not resample onto 0.002 s.
-  Combined T800+Hand stays PolicyEvalBlocked. This is not a pad–cardboard
-  number and not a decoder ONNX run.
+  motor hinges at 1 ms, gravity off, no contact (placeholders, not CAD).
+  source=official_inertia (auto when wuji-description is cloned) rewrites
+  official MJCF: <position>→<motor>, strip meshes/contact, timestep 0.001,
+  gravity off, CAD inertias kept. Do not load unconverted official XML
+  (position + 0.002 s). Do not weld T800. Combined T800+Hand stays
+  PolicyEvalBlocked. Soft-body CoM stays REQUIRED_INPUT. This is not a
+  pad–cardboard number and not a decoder ONNX run.

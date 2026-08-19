@@ -9,6 +9,8 @@ from assets.dexhand2.build.gen_derived import (
     DERIVED,
     FITTED_YAML,
     generate,
+    parse_inertial_mass_kg,
+    to_meshfree_mit,
     write_fitted_yaml,
 )
 from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM, ingest, parse_collision_audit
@@ -73,6 +75,23 @@ def test_simplified_capsule_budget() -> None:
     assert report["n_pad_spheres"] == 15
     assert audit["n_colliding_geoms"] <= 60
     assert audit["n_pad_spheres"] == 15
+
+
+@pytest.mark.skipif(not _has_official(), reason="wuji-description not cloned")
+def test_meshfree_mit_keeps_cad_inertias_drops_position_and_meshes() -> None:
+    src = DEFAULT_UPSTREAM / "hand2/hand2_beta1/body/mjcf/right.xml"
+    raw = src.read_text(encoding="utf-8")
+    assert 'timestep="0.002"' in raw
+    xml = to_meshfree_mit(raw)
+    assert xml.count("<motor ") == 20
+    assert "<position " not in xml
+    assert 'timestep="0.001"' in xml
+    assert 'timestep="0.002"' not in xml
+    assert 'type="mesh"' not in xml
+    from interface.schema import load_hand_spec
+
+    spec = load_hand_spec()
+    assert abs(parse_inertial_mass_kg(xml) - spec.skeleton_mass_kg) < 1e-3
 
 
 def test_flex_box_splits_when_large() -> None:

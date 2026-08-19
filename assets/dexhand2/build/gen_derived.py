@@ -218,6 +218,75 @@ def convert_position_actuators_to_motor(mjcf_text: str) -> str:
     return new
 
 
+OFFICIAL_MJCF_TIMESTEP_S = 0.002  # Hand 2 XML. Forbidden on the 1 kHz MIT ring.
+
+
+def parse_inertial_mass_kg(mjcf_text: str) -> float:
+    """Sum of ``<inertial mass=`` tags. Skeleton CAD, not product mass."""
+    masses = re.findall(r"<inertial\b[^>]*\bmass=\"([^\"]+)\"", mjcf_text)
+    if not masses:
+        raise ValueError("no <inertial mass=> tags")
+    return float(sum(float(m) for m in masses))
+
+
+def to_meshfree_mit(mjcf_text: str) -> str:
+    """Official skeleton → 1 kHz ``<motor>`` plant. Keep CAD inertias.
+
+    Official Hand 2 MJCF is ``timestep=0.002`` with ``<position>`` actuators
+    (gen-1 kp/kv baked in) and mesh collision. The MIT ring owns gains at
+    1/1000 s and is not a pad–cardboard eval, so this rewrite:
+
+    * converts 20 ``<position>`` → ``<motor gear=1>``
+    * strips ``<asset>`` meshes and mesh geoms (no STL / no LFS)
+    * strips ``<contact>`` excludes (no colliding geoms remain)
+    * rewrites option to ``timestep=0.001`` ``gravity=0 0 0``
+
+    Does **not** invent inertias, does **not** weld T800, does **not** load
+    the unconverted official XML.
+    """
+    if "<position " not in mjcf_text:
+        raise ValueError("expected official <position> actuators to convert")
+    if f'timestep="{OFFICIAL_MJCF_TIMESTEP_S:g}"' not in mjcf_text and 'timestep="0.002"' not in mjcf_text:
+        raise ValueError(
+            "expected official timestep=0.002 so the rewrite to 0.001 is explicit. "
+            "Do not guess another dt."
+        )
+    text = convert_position_actuators_to_motor(mjcf_text)
+    text = re.sub(r"\s+meshdir=\"[^\"]+\"", "", text)
+    text = re.sub(r"\n  <asset>.*?</asset>\n", "\n", text, flags=re.DOTALL)
+    text = re.sub(r"\n\s*<geom type=\"mesh\"[^/]*/>", "", text)
+    text = re.sub(r"\n  <contact>.*?</contact>\n", "\n", text, flags=re.DOTALL)
+    text, n_opt = re.subn(
+        r"<option [^/]*/>",
+        '<option timestep="0.001" gravity="0 0 0" integrator="RK4" jacobian="sparse"/>',
+        text,
+        count=1,
+    )
+    if n_opt != 1:
+        raise ValueError(f"expected one <option> to rewrite, got {n_opt}")
+    n_motors = text.count("<motor ")
+    if n_motors != 20:
+        raise ValueError(f"expected 20 <motor> after conversion, got {n_motors}")
+    if "<position " in text:
+        raise ValueError("position actuators remain after conversion")
+    if 'timestep="0.002"' in text:
+        raise ValueError("official 0.002 s timestep remains; MIT ring is 0.001 s")
+    if 'type="mesh"' in text:
+        raise ValueError("mesh geoms remain; this plant is mesh-free")
+    text = re.sub(
+        r'(<mujoco model=")([^"]+)(">)',
+        r"\1\2-mit-meshfree-not-contact\3",
+        text,
+        count=1,
+    )
+    header = (
+        "<!-- GENERATED mesh-free MIT plant from official Hand 2 MJCF. "
+        "CAD inertias kept. Meshes/contact stripped. timestep 0.001 gravity off. "
+        "Not a pad-cardboard model. Official file is untouched. -->\n"
+    )
+    return header + text
+
+
 def disable_non_wrist_mesh_collision(mjcf_text: str, prefix: str) -> str:
     """Simplified variant: only wrist hull + primitives collide."""
 

@@ -15,14 +15,19 @@ from hand.mit_ring import (
     require_hand_q,
     run_mit_period,
 )
-from interface.schema import CommandVector
+from interface.schema import CommandVector, load_hand_spec
 from runtime.hand_bypass import require_wbc_action_untouched, run_bimanual_period
 from sim.mujoco_env.hand_mit_physics import (
     fixture_mjcf,
     load_hand_mit_physics_cfg,
+    official_inertia_mjcf,
+    official_mjcf_present,
+    plant_mass_kg,
     refuse_body_500hz_dt,
     refuse_combined_robot,
+    refuse_official_002s_dt,
     refuse_official_position_actuators,
+    refuse_treat_fixture_as_cad,
     resolve_source,
 )
 from wbc.stream import load_stream_cfg
@@ -30,13 +35,17 @@ from wbc.stream import load_stream_cfg
 
 def test_yaml_locks_hand_mit_physics() -> None:
     cfg = load_hand_mit_physics_cfg()
-    assert cfg["adr"] == "ADR-059"
+    assert cfg["adr"] == "ADR-060"
     assert cfg["hand_mit_physics"] is True
     assert cfg["not_t800_weld"] is True
     assert cfg["not_official_position_actuators"] is True
     assert cfg["not_body_500hz_dt"] is True
+    assert cfg["not_official_002s_dt"] is True
     assert cfg["not_hardware_kp"] is True
     assert cfg["not_invented_latency"] is True
+    assert cfg["not_treat_fixture_as_cad"] is True
+    assert cfg["official_inertias_from_skeleton_mjcf"] is True
+    assert cfg["not_soft_body_in_inertia_plant"] is True
     assert cfg["mit_timestep_s"] == HAND_TIMESTEP_S == 0.001
     assert cfg["n_active_dof"] == 20
     assert cfg["gains_source"] == GAINS_SOURCE
@@ -63,6 +72,10 @@ def test_official_position_and_500hz_refused() -> None:
         refuse_official_position_actuators()
     with pytest.raises(MitRingError, match="1/1000"):
         refuse_body_500hz_dt()
+    with pytest.raises(MitRingError, match="1/1000"):
+        refuse_official_002s_dt()
+    with pytest.raises(MitRingError, match="placeholders"):
+        refuse_treat_fixture_as_cad()
     with pytest.raises(MitRingError, match="T800 WBC"):
         require_hand_q(np.zeros(25), name="tau")
 
@@ -79,14 +92,14 @@ def test_fixture_xml_has_20_motors_and_1ms() -> None:
     assert "t800" not in xml.lower()
 
 
-def test_auto_source_is_fixture_without_upstream() -> None:
-    assert resolve_source("auto") in {"fixture", "official_mit", "official_position"}
-    if resolve_source("auto") == "official_position":
-        with pytest.raises(MitRingError, match="<position>"):
-            pytest.importorskip("mujoco")
-            from sim.mujoco_env.hand_mit_physics import HandMitMujocoEnv
-
-            HandMitMujocoEnv(source="official_position")
+def test_auto_source_never_loads_position_xml() -> None:
+    src = resolve_source("auto")
+    assert src in {"fixture", "official_inertia"}
+    assert src != "official_position"
+    if official_mjcf_present():
+        assert src == "official_inertia"
+    else:
+        assert src == "fixture"
 
 
 def test_fixture_timestep_is_1khz() -> None:
@@ -173,3 +186,69 @@ def test_bimanual_period_two_fixtures() -> None:
     assert period.right.q_rad[-1, 0] != pytest.approx(0.0, abs=1e-6)
     with pytest.raises(MitRingError, match="T800 25"):
         require_wbc_action_untouched(np.zeros(45))
+
+
+def test_official_inertia_xml_is_motor_1khz_meshfree() -> None:
+    if not official_mjcf_present():
+        pytest.skip("wuji-description not cloned")
+    xml = official_inertia_mjcf(side="right")
+    assert xml.count("<motor ") == 20
+    assert "<position " not in xml
+    assert 'timestep="0.001"' in xml
+    assert 'gravity="0 0 0"' in xml
+    assert 'timestep="0.002"' not in xml
+    assert 'type="mesh"' not in xml
+    assert "<asset>" not in xml
+    assert "<contact>" not in xml
+    assert "r_THJ0" in xml
+    assert "r_LFJ3" in xml
+    assert "LINK_BASE" not in xml
+    from assets.dexhand2.build.gen_derived import parse_inertial_mass_kg
+
+    mass = parse_inertial_mass_kg(xml)
+    spec = load_hand_spec()
+    assert abs(mass - spec.skeleton_mass_kg) < 1e-3
+
+
+def test_official_position_source_still_refused() -> None:
+    pytest.importorskip("mujoco")
+    from sim.mujoco_env.hand_mit_physics import HandMitMujocoEnv
+
+    with pytest.raises(MitRingError, match="<position>"):
+        HandMitMujocoEnv(source="official_position")
+
+
+@pytest.mark.skipif(not official_mjcf_present(), reason="wuji-description not cloned")
+def test_mit_period_on_official_inertia_tracks_and_differs_from_fixture() -> None:
+    pytest.importorskip("mujoco")
+    from sim.mujoco_env.hand_mit_physics import HandMitMujocoEnv
+
+    spec = load_hand_spec()
+    official = HandMitMujocoEnv(source="official_inertia")
+    official.reset()
+    assert official.source == "official_inertia"
+    assert official.xml_note == "official_inertia_meshfree_mit_1khz"
+    assert official.timestep_s == pytest.approx(HAND_TIMESTEP_S)
+    assert abs(plant_mass_kg(official.model) - spec.skeleton_mass_kg) < 1e-3
+
+    fixture = HandMitMujocoEnv(source="fixture")
+    fixture.reset()
+    assert plant_mass_kg(fixture.model) < 0.3
+
+    plant = HandMitPlant.from_spec()
+    q_des = np.zeros(20)
+    q_des[0] = 0.5
+    last_o = None
+    last_f = None
+    for i in range(10):
+        last_o = run_mit_period(plant, official, q_des, t0_s=i / 50.0, side="right")
+        last_f = run_mit_period(plant, fixture, q_des, t0_s=i / 50.0, side="right")
+    assert last_o is not None and last_f is not None
+    assert last_o.n_steps == HAND_N_STEPS
+    assert last_o.q_rad[-1, 0] > 0.05
+    assert last_o.q_rad[-1, 0] < 0.6
+    assert last_f.q_rad[-1, 0] > 0.1
+    # Placeholder vs CAD inertias must not produce the same q trajectory.
+    assert not np.allclose(last_o.q_rad[-1], last_f.q_rad[-1], atol=1e-6)
+    with pytest.raises(MitRingError, match="placeholders"):
+        refuse_treat_fixture_as_cad()

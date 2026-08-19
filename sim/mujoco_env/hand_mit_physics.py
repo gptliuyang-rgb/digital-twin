@@ -3,14 +3,16 @@
 ADR-058 owns the numpy MIT ring (shared sim/real, no MuJoCo import).
 This module is the optional physics backend that ring steps: 20-D τ,
 ``dt = 1/1000`` s, motor actuators. Official Hand 2 MJCF ships
-``<position>`` actuators (gen-1 kp/kv baked in). Those are refused here
-until ``gen_derived`` converts them to ``<motor>`` so the MIT law owns
-the gains.
+``<position>`` actuators (gen-1 kp/kv baked in) at ``timestep=0.002``.
+Those are refused here. ADR-060 rewrites the official skeleton into a
+mesh-free ``<motor>`` plant that keeps CAD inertias, strips meshes and
+contact, and sets ``dt = 0.001`` so the MIT law owns the gains.
 
 Fixture XML is a CI stand-in (placeholder mass, gravity off, no contact).
-It is **not** CAD and **not** a pad–cardboard model. Combined T800+Hand
-stays ``PolicyEvalBlocked``. ``grasp_success_rate`` stays JSON null.
-``hardware_kp`` / ``command_latency_ms`` stay REQUIRED_INPUT.
+It is **not** CAD. Combined T800+Hand stays ``PolicyEvalBlocked``.
+``grasp_success_rate`` stays JSON null. ``hardware_kp`` /
+``command_latency_ms`` stay REQUIRED_INPUT. Soft-body mass is not in
+this plant (``com_in_wrist_frame_m`` still REQUIRED_INPUT).
 """
 
 from __future__ import annotations
@@ -71,8 +73,12 @@ def load_hand_mit_physics_cfg(path: Path | None = None) -> dict[str, Any]:
         "not_sim_forcerange_as_payload_rating",
         "not_official_position_actuators",
         "not_body_500hz_dt",
+        "not_official_002s_dt",
         "fixture_inertias_are_placeholders",
         "fixture_zero_gravity_not_cad",
+        "not_treat_fixture_as_cad",
+        "official_inertias_from_skeleton_mjcf",
+        "not_soft_body_in_inertia_plant",
     )
     for key in flags:
         if raw.get(key) is not True:
@@ -100,8 +106,9 @@ def refuse_combined_robot() -> None:
 def refuse_official_position_actuators() -> None:
     raise MitRingError(
         "official Hand 2 MJCF uses <position> actuators (gen-1 kp/kv baked in). "
-        "HandMitMujocoEnv writes MIT τ onto <motor> ctrl. Run "
-        "`make build-assets` and load the derived *_mit.xml, or use source='fixture'."
+        "HandMitMujocoEnv writes MIT τ onto <motor> ctrl. Use source="
+        "'official_inertia' (mesh-free CAD inertias) or source='fixture'. "
+        "Do not load the unconverted official XML."
     )
 
 
@@ -109,19 +116,56 @@ def refuse_body_500hz_dt() -> None:
     require_hand_timestep_1khz(0.002)
 
 
-def resolve_source(source: str) -> str:
-    if source == "auto":
-        from assets.dexhand2.build.gen_derived import DERIVED
+def refuse_official_002s_dt() -> None:
+    """Official Hand 2 MJCF option timestep is 0.002 s. MIT ring is 0.001 s."""
+    require_hand_timestep_1khz(0.002)
 
-        mit = DERIVED / "right_with_pad_spheres_mit.xml"
-        if mit.is_file():
-            return "official_mit"
+
+def refuse_treat_fixture_as_cad() -> None:
+    raise MitRingError(
+        "fixture inertias are placeholders (0.01 kg / 1e-6 kg·m²). "
+        "Do not treat them as CAD. Use source='official_inertia' after cloning "
+        "wuji-description (ADR-060). Soft-body CoM stays REQUIRED_INPUT."
+    )
+
+
+def resolve_source(source: str) -> str:
+    """Never auto-select official_position (would raise on clone)."""
+    if source == "auto":
         if official_mjcf("right").is_file():
-            return "official_position"
+            return "official_inertia"
         return "fixture"
-    if source in ("official_mit", "official_position", "fixture"):
+    if source in ("official_mit", "official_position", "official_inertia", "fixture"):
         return source
     raise ValueError(f"unknown Hand 2 mjcf source {source!r}")
+
+
+def official_inertia_mjcf(*, side: str = "right") -> str:
+    """Mesh-free MIT XML with official skeleton inertias. Official file untouched."""
+    from assets.dexhand2.build.gen_derived import to_meshfree_mit
+
+    src = official_mjcf(side)
+    if not src.is_file():
+        raise MitRingError(
+            f"official Hand 2 MJCF not cloned at {src}. "
+            "Run scripts/bootstrap_resources.sh, or use source='fixture'."
+        )
+    text = src.read_text(encoding="utf-8")
+    if "<position " not in text:
+        raise MitRingError(f"{src} has no <position> actuators to convert")
+    if 'timestep="0.002"' not in text:
+        raise MitRingError(
+            f"{src} is not the official timestep=0.002 XML; refusing to guess dt."
+        )
+    return to_meshfree_mit(text)
+
+
+def plant_mass_kg(model: Any) -> float:
+    """Sum of body masses excluding worldbody (index 0)."""
+    masses = getattr(model, "body_mass", None)
+    if masses is None:
+        raise MitRingError("MjModel has no body_mass")
+    return float(sum(float(m) for m in masses[1:]))
 
 
 def fixture_mjcf(*, side: str = "right") -> str:
@@ -198,6 +242,11 @@ class HandMitMujocoEnv(BaseEnv):
             refuse_official_position_actuators()
         self.model, self.data, self.xml_note = self._compile()
         require_hand_timestep_1khz(float(self.model.opt.timestep))
+        if abs(float(self.model.opt.gravity[2])) > 1e-9:
+            raise MitRingError(
+                "HandMitMujocoEnv gravity must stay off on this plant. "
+                "Do not treat this as a pad–cardboard or free-fall eval."
+            )
         self._index()
         self._require_motor_actuators()
         self.plant = HandMitPlant.from_spec(self.spec)
@@ -210,7 +259,12 @@ class HandMitMujocoEnv(BaseEnv):
             path = resolve_hand_xml(self.side, derived=True, simplified=False)
             model = mujoco.MjModel.from_xml_path(path.as_posix())
             model.opt.timestep = HAND_TIMESTEP_S
+            model.opt.gravity[:] = 0.0
             note = path.name
+        elif self.source == "official_inertia":
+            xml = official_inertia_mjcf(side=self.side)
+            model = mujoco.MjModel.from_xml_string(xml)
+            note = "official_inertia_meshfree_mit_1khz"
         else:
             xml = fixture_mjcf(side=self.side)
             model = mujoco.MjModel.from_xml_string(xml)
