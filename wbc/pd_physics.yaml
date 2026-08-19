@@ -1,0 +1,70 @@
+# Close ADR-055 τ onto a 500 Hz joint-PD command plant *inside* a
+# physics backend on the same 50 Hz tick. Shared sim/real contract is
+# numpy-only: wbc/ does not import MuJoCo. The backend lives in sim/.
+#
+# Official C++: decoder a_t → 500 Hz PD ring → τ = Kp(a_t − q) − Kd q̇
+# applied at 500 Hz until the next 50 Hz gather. This module runs those
+# 10 substeps. q/dq come from the physics plant (measured), not from
+# interpolating the 50 Hz HardwareSnapshot and not from finite-diff.
+# This tick's decoder 874-D stays pre-physics. IMU is not invented.
+# Omit push_hw after the first tick to close the loop: next gather q/dq
+# come from the previous period (ADR-057). IMU stays on the last full
+# HardwareSnapshot. Measured IMU latency stays REQUIRED_INPUT.
+#
+# Gains stay EngineAI pd_stand bring-up (ADR-022 / ADR-055), NOT SONIC
+# tracking. Do not Hermite. Do not treat τ as a decoder ONNX run.
+# Hands bypass WBC. Combined T800+Hand stays PolicyEvalBlocked.
+
+schema_version: "1.0"
+source: "He et al., SONIC, arXiv:2511.07820v3 §3.5 PD ring; EngineAI pd_stand/default.yaml"
+adr: ADR-057
+not_dexhand2_contact: true
+not_table_s4: true
+not_hand_mit_ring: true
+policy_action_pd_is_zoh: true
+not_policy_action_hermite: true
+policy_action_feeds_500hz_pd_after_stash: true
+pd_plant_on_same_tick: true
+pd_plant_gains_are_pd_stand_bringup: true
+not_sonic_tracking_gains: true
+pd_plant_dq_des_is_zero: true
+not_pd_plant_from_decoder_onnx: true
+not_pd_plant_hermite: true
+not_pd_plant_finite_diff_dq: true
+not_pd_tau_onto_decoder_obs: true
+pd_physics_on_same_tick: true
+pd_physics_is_optional: true
+not_pd_physics_from_decoder_onnx: true
+not_pd_physics_hermite: true
+not_pd_physics_finite_diff_dq: true
+not_pd_physics_q_onto_this_tick_decoder: true
+not_pd_physics_invent_imu: true
+not_pd_physics_from_planner_qpos: true
+not_policy_action_from_decoder_onnx: true
+not_policy_action_same_tick_decoder_obs: true
+pd_physics_feeds_next_tick_decoder_q: true
+omit_push_hw_keeps_imu: true
+
+command_stream_hz: 500
+policy_hz: 50
+factor_policy_to_stream: 10
+pd_physics_n_steps_per_tick: 10
+pd_physics_timestep_s: 0.002
+pd_action_dim: 25
+g1_action_dim_forbidden: 29
+gains_source: pd_stand_bringup_not_sonic
+
+note: >
+  After ADR-055 evaluates τ from the 50 Hz HardwareSnapshot, this
+  increment applies the same PD (pd_stand bring-up, dq_des = 0) for 10
+  physics substeps at 1/500 s. q/dq are read from the backend each
+  substep. last_action= does not write PD or physics. stash_policy_action()
+  alone does not write PD or physics. This tick's decoder obs is assembled
+  before physics. Joints may be pushed into HardwareHold after the period
+  for the *next* gather; IMU is left as the previous snapshot. Omit the
+  backend to keep ADR-055. Omit push_hw after the first tick to close
+  the loop (ADR-057): decoder q follows the plant; IMU is kept, not
+  invented from body rates. Passing push_hw every tick still overrides
+  the plant (ADR-056 eval). DexHand2 stays on its 1 kHz MIT backend.
+  Combined T800+Hand stays PolicyEvalBlocked. This is not a trained
+  decoder ONNX run and not SONIC tracking PD.

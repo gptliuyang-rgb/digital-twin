@@ -1,0 +1,15 @@
+# L1c DexHand2 MIT 1 kHz ring dump. No contact eval. No grasp-success number.
+schema_version: "1.0"
+adr: ADR-058
+source: hand/mit_ring.yaml
+n_ticks: 10
+policy_hz: 50
+hand_stream_hz: 1000
+q_des0_rad: 0.5
+increment_q0_per_substep_rad: 0.001
+gains_source: mjcf_gen1_carryover_not_hand2_sysid
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked
+not_wbc_last_action: true
+not_invented_latency: true
+not_hardware_kp: true

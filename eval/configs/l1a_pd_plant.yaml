@@ -1,0 +1,29 @@
+# L1a 500 Hz joint-PD plant on ZOH-held 25-D policy_action.
+# pd_stand bring-up gains, not SONIC tracking. Not a decoder ONNX run.
+schema_version: "1.0"
+adr: ADR-055
+source: wbc/pd_plant.yaml
+command_stream_hz: 500
+policy_hz: 50
+factor_policy_to_stream: 10
+pd_action_dim: 25
+g1_action_dim_forbidden: 29
+gains_source: pd_stand_bringup_not_sonic
+pd_plant_on_same_tick: true
+pd_plant_gains_are_pd_stand_bringup: true
+not_sonic_tracking_gains: true
+pd_plant_dq_des_is_zero: true
+not_pd_plant_from_decoder_onnx: true
+not_pd_plant_hermite: true
+not_pd_plant_finite_diff_dq: true
+not_pd_tau_onto_decoder_obs: true
+policy_action_pd_is_zoh: true
+not_policy_action_hermite: true
+policy_action_feeds_500hz_pd_after_stash: true
+policy_action_feeds_next_tick_last_action: true
+decoder_history_is_hardware_not_clip: true
+not_g1_decoder_onnx: true
+not_onnx_run: true
+not_invented_clip: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked

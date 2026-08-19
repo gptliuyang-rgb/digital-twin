@@ -1,0 +1,22 @@
+# L1a 25-D policy_action ZOH onto the 500 Hz PD ring after stash.
+# Not a trained decoder. Not G1 ONNX. Not command_schema Hermite.
+schema_version: "1.0"
+adr: ADR-054
+source: wbc/stream.yaml
+command_stream_hz: 500
+policy_hz: 50
+factor_policy_to_stream: 10
+pd_action_dim: 25
+g1_action_dim_forbidden: 29
+not_g1_decoder_onnx: true
+not_onnx_run: true
+not_policy_action_from_decoder_onnx: true
+not_policy_action_same_tick_decoder_obs: true
+not_policy_action_hermite: true
+policy_action_pd_is_zoh: true
+policy_action_feeds_500hz_pd_after_stash: true
+policy_action_feeds_next_tick_last_action: true
+decoder_history_is_hardware_not_clip: true
+not_invented_clip: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked

@@ -1,0 +1,10 @@
+# L1a idle ADAPTING/RECOVERING dump. Not a trained planner. Not G1 ONNX.
+schema_version: "1.0"
+adr: ADR-048
+source: wbc/idle_readapt.yaml
+not_g1_planner_onnx: true
+not_onnx_run: true
+not_planner_blend: true
+not_recover_stop: true
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked

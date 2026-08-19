@@ -5,11 +5,14 @@ from pathlib import Path
 
 from interface.schema import REPO_ROOT
 
-FORBIDDEN = ("mujoco", "isaacsim", "omni", "isaaclab")
+FORBIDDEN = ("mujoco", "isaacsim", "omni", "isaaclab", "pico", "cloudxr", "isaacteleop")
 SCAN = [
     REPO_ROOT / "hand" / "controller.py",
+    REPO_ROOT / "hand" / "mit.py",
+    REPO_ROOT / "hand" / "mit_ring.py",
     REPO_ROOT / "runtime",
     REPO_ROOT / "vla" / "client",
+    REPO_ROOT / "wbc",
 ]
 
 

@@ -68,10 +68,56 @@ def urdf_mass_sum(path: Path) -> float:
     return sum(float(x) for x in re.findall(r'<mass value="([^"]+)"', text))
 
 
+def mjcf_inertial_mass_sum(path: Path) -> float:
+    """Skeleton CAD mass from MJCF ``<inertial mass=>``. Not product 0.745 kg."""
+    from assets.dexhand2.build.gen_derived import parse_inertial_mass_kg
+
+    return parse_inertial_mass_kg(path.read_text(encoding="utf-8"))
+
+
 def file_sha256(path: Path) -> str:
     h = hashlib.sha256()
     h.update(path.read_bytes())
     return h.hexdigest()
+
+
+def parse_collision_audit(path: Path) -> dict:
+    text = path.read_text(encoding="utf-8")
+    n_visual = len(re.findall(r'group="1"', text))
+    n_collision_mesh = len(re.findall(r'<geom type="mesh"[^>]*group="2"', text))
+    n_collision_mesh += len(re.findall(r'<geom type="mesh"[^>]*mesh="[^"]+"\s*group="2"', text))
+    # Official collision geoms are mesh + group="2" without contype=0.
+    collision_geoms = re.findall(r"<geom [^>]+>", text)
+    n_colliding = 0
+    n_pad_spheres = 0
+    n_capsules = 0
+    for tag in collision_geoms:
+        if 'contype="0"' in tag:
+            continue
+        if "group=\"1\"" in tag:
+            continue
+        n_colliding += 1
+        if 'type="sphere"' in tag and "_pad_" in tag:
+            n_pad_spheres += 1
+        if 'type="capsule"' in tag:
+            n_capsules += 1
+    n_exclude = len(re.findall(r"<exclude ", text))
+    n_tip_stl = 0
+    # meshdir relative to mjcf file
+    meshdir_m = re.search(r'meshdir="([^"]+)"', text)
+    if meshdir_m:
+        mesh_dir = (path.parent / meshdir_m.group(1)).resolve()
+        n_tip_stl = len(list(mesh_dir.glob("*_tip.STL"))) if mesh_dir.is_dir() else 0
+    return {
+        "n_visual_geoms_group1": n_visual,
+        "n_collision_mesh_group2": n_collision_mesh,
+        "n_colliding_geoms": n_colliding,
+        "n_pad_spheres": n_pad_spheres,
+        "n_capsules": n_capsules,
+        "n_contact_excludes": n_exclude,
+        "n_tip_stl": n_tip_stl,
+        "tip_stl_used_as_collision": False,
+    }
 
 
 def ingest(root: Path | None = None) -> dict:
@@ -104,6 +150,13 @@ def ingest(root: Path | None = None) -> dict:
     mass = urdf_mass_sum(official_urdf("right", root=root))
     if abs(mass - spec.skeleton_mass_kg) > 1e-4:
         mismatches.append(f"mass {mass} != spec skeleton {spec.skeleton_mass_kg}")
+    audit = parse_collision_audit(mjcf_r)
+    if audit["n_contact_excludes"] != 10:
+        mismatches.append(f"expected 10 contact excludes, got {audit['n_contact_excludes']}")
+    if audit["n_tip_stl"] < 5:
+        mismatches.append(f"expected ≥5 tip STLs, got {audit['n_tip_stl']}")
+    if len(sites) != 5:
+        mismatches.append(f"expected 5 fingertip sites, got {len(sites)}")
     return {
         "mjcf": str(mjcf_r),
         "n_joints": len(joints),
@@ -111,14 +164,70 @@ def ingest(root: Path | None = None) -> dict:
         "sites": sites,
         "skeleton_mass_kg": mass,
         "sha256": file_sha256(mjcf_r),
+        "collision": audit,
         "mismatches": mismatches,
         "ok": not mismatches,
+        "official_gaps": [
+            "fingertip_soft_pad_not_in_collision",
+            "sim_gains_carried_from_gen1",
+            "collision_is_per_link_convex_hull",
+        ],
     }
+
+
+def write_baseline_markdown(report: dict, path: Path | None = None) -> Path:
+    path = path or (REPO_ROOT / "docs" / "reports" / "PHASE_1_baseline.md")
+    src = report["mjcf"]
+    try:
+        src = str(Path(src).resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        pass
+    coll = report["collision"]
+    sites = "\n".join(f"- `{s['name']}` pos_m={s['pos']}" for s in report["sites"])
+    body = f"""# PHASE 1 baseline — official Wuji Hand 2 Beta 1 (right)
+
+Source: `{src}`
+SHA256: `{report['sha256']}`
+
+## Counts
+
+| Item | Value |
+|---|---|
+| Actuators | {report['n_actuators']} |
+| Joints | {report['n_joints']} |
+| Fingertip sites | {len(report['sites'])} |
+| Skeleton mass (URDF sum) | {report['skeleton_mass_kg']} kg |
+| Contact excludes | {coll['n_contact_excludes']} |
+| Tip STL files on disk | {coll['n_tip_stl']} |
+| Pad spheres in official MJCF | {coll['n_pad_spheres']} |
+
+## Fingertip sites
+
+{sites}
+
+## Official gaps (unchanged by ingest)
+
+- Tip STLs are **not** collision geometry (`tip_stl_used_as_collision={coll['tip_stl_used_as_collision']}`).
+- Collision geoms are per-link convex hulls.
+- Drive kp/kv are gen-1 carry-over.
+
+Ingest ok: **{report['ok']}**. Mismatches: {report['mismatches'] or 'none'}.
+"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
 
 
 def main() -> None:
     report = ingest()
-    print(json.dumps(report, indent=2))
+    md = write_baseline_markdown(report)
+    print(
+        json.dumps(
+            {k: report[k] for k in ("ok", "n_actuators", "skeleton_mass_kg", "collision", "mismatches")},
+            indent=2,
+        )
+    )
+    print(f"wrote {md}")
     if not report["ok"]:
         raise SystemExit(1)
 

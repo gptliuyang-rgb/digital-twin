@@ -1,0 +1,21 @@
+# L1c DexHand2 MIT 1 kHz MuJoCo plant dump. No contact eval. No grasp-success number.
+schema_version: "1.0"
+adr: ADR-060
+source: sim/mujoco_env/hand_mit_physics.yaml
+n_ticks: 10
+policy_hz: 50
+hand_stream_hz: 1000
+q_des0_rad: 0.5
+env_source: auto
+gains_source: mjcf_gen1_carryover_not_hand2_sysid
+grasp_success_rate: null
+combined_robot: PolicyEvalBlocked
+not_t800_weld: true
+not_official_position_actuators: true
+not_official_002s_dt: true
+not_invented_latency: true
+not_hardware_kp: true
+fixture_inertias_are_placeholders: true
+not_treat_fixture_as_cad: true
+official_inertias_from_skeleton_mjcf: true
+not_soft_body_in_inertia_plant: true

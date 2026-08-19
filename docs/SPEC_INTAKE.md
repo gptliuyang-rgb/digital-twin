@@ -23,8 +23,8 @@ Priority:
 | `com_in_wrist_frame_m` | Product mass 0.745 kg vs URDF skeleton 0.6207 kg. Soft-body CoM is unknown. WBC will be wrong if you hang 1.49 kg of hands on the wrists with a skeleton CoM. | Hang the physical hand from the wrist flange, measure. | Use URDF skeleton CoM and **add** a 0.1243 kg point mass at an unknown offset — still mark REQUIRED. Do not train SONIC until measured. |
 | `t800_wrist_to_hand_mount.{pos,quat}` | SONIC tracks `LINK_WRIST_END_*` (T800) or `LINK_WRIST_ROLL_*` (T800 Pro). A constant SE(3) bias here is a constant VLA error. | Assemble Hand 2 mount STEP against T800 wrist flange CAD | Identity transform **only** for kinematic bring-up; forbidden for policy eval. |
 | `controller_safety.max_delta_q_rad` / `velocity_limit_rad_s` | Safety filter is shared sim/real. Wrong limits either clip every command or pass through dangerous jumps. | From firmware / SDK effort+rate limits, then 50% margin | Soft-clip to `joint_limits_rad` only; log that rate limits are unset. |
-| `fingertip_geometry_radius_m` | Sphere-pad collision is the whole point of the derived asset. | Fit `*_tip.STL` or caliper the pad | Fit the official `*_tip.STL` (scripted). That is geometry of the mesh, not the live soft pad. |
-| `hardware_has_tactile` | Beta 1 has no tactile; Beta 2 does. Wrong assumption changes the observation spec. | Ask FAE / look at the unit | Assume Beta 1 (`has_tactile: false`) until contradicted. |
+| `fingertip_geometry_radius_m` | Live soft-pad radius. Official Beta 1 pad hardness is unlocked. | Caliper the pad on the unit / E2 | Derived MJCF uses palmar-pulp spheres from the **distal skeleton STL** (`fitted_pad_spheres.yaml`). That is **not** this field. Do not copy those radii here. |
+| whether YOUR unit is Beta 2 | Beta 1: no tactile. Beta 2: thumb 40 taxels, others 34, each 3-axis force + temperature; needs fw v2.1.0 + SDK ≥ 2026.7.21 | Ask FAE / `hand.hw_version()` | Assume Beta 1 (`has_tactile: false`) until contradicted. |
 
 P0 count in the table: 10 line-items (friction is one physical experiment producing two coefficients).
 
@@ -37,6 +37,7 @@ P0 count in the table: 10 line-items (friction is one physical experiment produc
 | `motor_max_velocity_rad_s` | Rate limit for safety filter | FAE / datasheet |
 | `gear_ratio` | Direct-drive ⇒ likely 1, but usage constraints forbid assuming load curves | FAE. Do not fill 1.0 yourself. |
 | `nid` vs `sdk_index` | State frames are variable-length and keyed by `nid` | Dump one `joint_states` frame on hardware |
+| GMR T-pose quat offsets + human_scale | `wbc/gmr/body_map.yaml` copies PM01 offsets; scale is 1.0 | Run GMR T-pose alignment on T800 MJCF; replace `uncalibrated_*` tags |
 | `tcp_frame` / `gun_tcp_frame` offsets | Grasp and scan poses | CAD of scanner + grasp definition |
 
 ## P2
@@ -47,6 +48,7 @@ P0 count in the table: 10 line-items (friction is one physical experiment produc
 | Camera `calib_real.yaml` | Visual sim2real | Kalibr / manufacturer |
 | `human_to_hand_scale` | Retargeting | Official `wuji-retargeting` default, then measure |
 | T800 vs T800 Pro | T800 URDF has **no wrist pitch/roll** (25 revolute DoF). T800 Pro has wrist + built-in 7DoF hands we will replace. | Team decision. Record in `docs/DECISIONS.md`. |
+| Hand 2 status-LED firmware | Logo lamp needs fw **v2.2.0+** and a lamp-equipped batch. Not a control parameter. | Read `info.firmware_version` on the unit. |
 
 ## Already answered (do not re-ask)
 
