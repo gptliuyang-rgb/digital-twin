@@ -39,6 +39,24 @@ make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline 
 make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (needs display)
 ```
 
+### Industrial viewer tips
+
+While contact is uncalibrated, the pipeline uses **kinematic demo assists** so the carton
+follows the wrists during carry/stack and the scan gun mocap aims at `box_0_qr` — not
+validated grasps (ADR-004/006).
+
+```bash
+make assemble
+python3 scripts/view_industrial_twin.py --steps-per-phase 100 --real-time --sync-every 8
+```
+
+- On **Wayland**, GLFW may warn about window position; run the viewer once per session.
+  A second back-to-back run can segfault on EGL teardown — quit fully before re-launching.
+- Headless VMs: `sudo apt install xvfb` then
+  `xvfb-run -a python3 scripts/view_industrial_twin.py --steps-per-phase 80` (no window).
+- If pytest picks up ROS plugins: `unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH ROS_DISTRO`
+  and/or `python -m pytest tests -p no:launch_testing`.
+
 `make eval-l2` still sets `status: blocked_uncalibrated` and never writes a computed `grasp_success_rate`.
 
 ## What this repo will not do yet
