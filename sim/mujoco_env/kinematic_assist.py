@@ -61,6 +61,11 @@ def mat_to_quat_wxyz(R: np.ndarray) -> np.ndarray:
     return np.array([(m[1, 0] - m[0, 1]) / s, (m[0, 2] + m[2, 0]) / s, (m[1, 2] + m[2, 1]) / s, 0.25 * s])
 
 
+def hold_free_body(model, data, body_name: str, pos: np.ndarray, quat_wxyz: np.ndarray | None = None) -> None:
+    q = quat_wxyz if quat_wxyz is not None else np.array([1.0, 0.0, 0.0, 0.0])
+    set_free_body_pose(model, data, body_name, pos, q)
+
+
 def follow_box_between_wrists(model, data, box_name: str = "box_0", z_offset_m: float = -0.06) -> None:
     lp, _ = body_pos_mat(model, data, "l_wrist")
     rp, _ = body_pos_mat(model, data, "r_wrist")
@@ -121,8 +126,10 @@ def attach_gun_to_right_wrist(model, data, gun_body: str = "scan_gun") -> None:
     set_mocap_pose(model, data, gun_body, handle, mat_to_quat_wxyz(Rg))
 
 
-def aim_gun_at_site(model, data, gun_body: str, site_name: str, *, standoff_m: float = 0.16) -> None:
-    """Place mocap scan gun so gun_tcp sits at standoff from a QR site (demo-only)."""
+def snap_gun_tcp_for_geometry(
+    model, data, gun_body: str, site_name: str, *, standoff_m: float = 0.16
+) -> None:
+    """Metric-only: place gun_tcp at QR standoff (may detach visually — ADR-004 gate)."""
     import mujoco
 
     mujoco.mj_forward(model, data)
@@ -131,7 +138,6 @@ def aim_gun_at_site(model, data, gun_body: str, site_name: str, *, standoff_m: f
     tcp_target = qr + np.array([-standoff_m, 0.0, 0.0], dtype=np.float64)
     look = qr - tcp_target
     look /= np.linalg.norm(look) + 1e-9
-    # MuJoCo gun mesh/barrel extends along local -Z; build R with -Z = look.
     z = -look
     up = np.array([0.0, 0.0, 1.0])
     x = np.cross(up, z)
@@ -145,6 +151,44 @@ def aim_gun_at_site(model, data, gun_body: str, site_name: str, *, standoff_m: f
     Rg = np.column_stack([x, y, z])
     gun_sid = int(model.site("gun_tcp").id)
     tcp_local = model.site_pos[gun_sid].copy()
-    body_id = int(model.body(gun_body).id)
     grip = tcp_target - Rg @ tcp_local
+    set_mocap_pose(model, data, gun_body, grip, mat_to_quat_wxyz(Rg))
+
+
+def aim_gun_at_site(model, data, gun_body: str, site_name: str, *, standoff_m: float = 0.16) -> None:
+    """Orient mocap gun toward QR while staying near the right wrist (visual continuity)."""
+    import mujoco
+
+    attach_gun_to_right_wrist(model, data, gun_body)
+    mujoco.mj_forward(model, data)
+    sid = int(model.site(site_name).id)
+    qr = data.site_xpos[sid].copy()
+    tcp_id = int(model.site("gun_tcp").id)
+    tcp = data.site_xpos[tcp_id].copy()
+    delta = qr - tcp
+    dist = float(np.linalg.norm(delta))
+    if dist < 1e-4:
+        return
+    # Small mocap nudge only — keep the grip visually in/right-near the hand.
+    mid = int(model.body(gun_body).mocapid[0])
+    nudge = np.clip(dist - standoff_m, -0.04, 0.04) * (delta / dist)
+    data.mocap_pos[mid] = data.mocap_pos[mid] + 0.35 * nudge
+    # Re-aim barrel toward QR.
+    tcp_target = qr + np.array([-standoff_m, 0.0, 0.0], dtype=np.float64)
+    look = qr - tcp_target
+    look /= np.linalg.norm(look) + 1e-9
+    z = -look
+    up = np.array([0.0, 0.0, 1.0])
+    x = np.cross(up, z)
+    xn = np.linalg.norm(x)
+    if xn < 1e-6:
+        up = np.array([0.0, 1.0, 0.0])
+        x = np.cross(up, z)
+        xn = np.linalg.norm(x)
+    x /= xn
+    y = np.cross(z, x)
+    Rg = np.column_stack([x, y, z])
+    gun_sid = int(model.site("gun_tcp").id)
+    tcp_local = model.site_pos[gun_sid].copy()
+    grip = data.mocap_pos[mid].copy() - Rg @ tcp_local + (tcp - data.mocap_pos[mid]) * 0.15
     set_mocap_pose(model, data, gun_body, grip, mat_to_quat_wxyz(Rg))

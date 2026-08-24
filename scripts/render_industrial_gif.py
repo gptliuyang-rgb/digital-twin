@@ -63,18 +63,22 @@ def render_gif(
     phase_labels: list[str] = []
     step_i = 0
 
+    def _capture() -> None:
+        _configure_camera(env.model, env.data, renderer)
+        frames.append(Image.fromarray(renderer.render()))
+
     def on_phase(name: str, _env, _result) -> None:
         phase_labels.append(name)
         print(f"[phase] {name}", flush=True)
+        if name != "done":  # skip metric-only snap frame
+            _capture()
 
     def on_step(_env, _result) -> None:
         nonlocal step_i
         step_i += 1
         if step_i % frame_stride != 0:
             return
-        _configure_camera(env.model, env.data, renderer)
-        rgb = renderer.render()
-        frames.append(Image.fromarray(rgb))
+        _capture()
 
     result = run_industrial_pipeline(
         env,
@@ -122,8 +126,8 @@ def main() -> int:
     parser.add_argument(
         "--frame-stride",
         type=int,
-        default=40,
-        help="Capture one frame every N sim steps (~25 fps at 1 kHz when stride=40)",
+        default=25,
+        help="Capture one frame every N sim steps (~40 fps at 1 kHz when stride=25)",
     )
     parser.add_argument("--width", type=int, default=960)
     parser.add_argument("--height", type=int, default=540)

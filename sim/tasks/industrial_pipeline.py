@@ -20,6 +20,7 @@ from sim.mujoco_env.kinematic_assist import (
     aim_gun_at_site,
     attach_gun_to_right_wrist,
     follow_box_between_wrists,
+    hold_free_body,
     lerp_free_body_toward,
     place_box_on_pallet,
     stack_center_on_pallet,
@@ -73,8 +74,8 @@ def _scan_wrist_target(env: CombinedMujocoEnv) -> np.ndarray | None:
     if not _has_site(env, "box_0_qr"):
         return None
     qr = env.site_xpos("box_0_qr")
-    # QR sticker faces +X on the box; stand the wrist off to -X / slightly above.
-    return qr + np.array([-0.10, 0.0, 0.05], dtype=np.float64)
+    # Stand off to the robot's right-front so the right wrist can reach with gun in hand.
+    return qr + np.array([-0.08, -0.12, 0.0], dtype=np.float64)
 
 
 def run_industrial_pipeline(
@@ -106,6 +107,8 @@ def run_industrial_pipeline(
     pallet = env.xpos("pallet") if _has_body(env, "pallet") else np.array([0.38, 0.0, 0.07])
     gun_table = env.xpos("scan_gun") if _has_body(env, "scan_gun") else np.array([0.34, -0.28, 0.87])
     stack_pos = stack_center_on_pallet(pallet, pallet_h, box_hz)
+    box_hold_pos = box.copy()
+    box_hold_quat = np.array([1.0, 0.0, 0.0, 0.0])
 
     targets: dict[str, tuple[np.ndarray | None, np.ndarray | None]] = {}
 
@@ -121,6 +124,7 @@ def run_industrial_pipeline(
         left_q: np.ndarray,
         right_q: np.ndarray,
         box_follow: bool = False,
+        box_hold: bool = False,
         box_lerp_to: np.ndarray | None = None,
         box_on_pallet: bool = False,
         gun_follow: bool = False,
@@ -148,6 +152,8 @@ def run_industrial_pipeline(
                     pallet_height_m=pallet_h,
                     box_half_z_m=box_hz,
                 )
+            elif box_hold and _has_body(env, "box_0"):
+                hold_free_body(env.model, env.data, "box_0", box_hold_pos, box_hold_quat)
             elif box_lerp_to is not None and _has_body(env, "box_0"):
                 lerp_free_body_toward(env.model, env.data, "box_0", box_lerp_to, alpha=0.10)
             elif box_follow and _has_body(env, "box_0"):
@@ -156,7 +162,14 @@ def run_industrial_pipeline(
                 aim_gun_at_site(env.model, env.data, "scan_gun", "box_0_qr")
             elif gun_follow and _has_body(env, "scan_gun"):
                 attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
-            if box_follow or box_lerp_to is not None or box_on_pallet or gun_follow or gun_aim_qr:
+            if (
+                box_follow
+                or box_hold
+                or box_lerp_to is not None
+                or box_on_pallet
+                or gun_follow
+                or gun_aim_qr
+            ):
                 mujoco.mj_forward(env.model, env.data)
             body_q = env.data.qpos.copy()
             env.step_mit(left_q, right_q, body_q_des=body_q, kp_scale=step_kp)
@@ -199,14 +212,14 @@ def run_industrial_pipeline(
     targets["scan"] = (None, scan0 if scan0 is not None else stack_pos + np.array([-0.12, 0.0, 0.08]))
 
     _phase("approach_box")
-    _tick("approach_box", steps_per_phase, left_q=q_open, right_q=q_open)
+    _tick("approach_box", steps_per_phase, left_q=q_open, right_q=q_open, box_hold=True)
 
     _phase("grasp")
     for i in range(steps_per_phase):
         t = (i + 1) / steps_per_phase
         lq = _lerp_q(q_open, q_power, t)
         rq = _lerp_q(q_open, q_power, t)
-        _tick("grasp", 1, left_q=lq, right_q=rq)
+        _tick("grasp", 1, left_q=lq, right_q=rq, box_follow=True)
 
     _phase("lift")
     _tick("lift", steps_per_phase, left_q=q_power, right_q=q_power, box_follow=True)
@@ -217,7 +230,7 @@ def run_industrial_pipeline(
         steps_per_phase,
         left_q=q_power,
         right_q=q_power,
-        box_lerp_to=stack_pos + np.array([0.0, 0.0, 0.12]),
+        box_follow=True,
     )
 
     _phase("stack")
@@ -268,11 +281,15 @@ def run_industrial_pipeline(
         left_q=q_open,
         right_q=q_gun,
         box_on_pallet=True,
-        gun_aim_qr=True,
+        gun_follow=True,
         dynamic_scan=True,
     )
 
     if _has_site(env, "gun_tcp") and _has_site(env, "box_0_qr"):
+        from sim.mujoco_env.kinematic_assist import snap_gun_tcp_for_geometry
+
+        snap_gun_tcp_for_geometry(env.model, env.data, "scan_gun", "box_0_qr")
+        mujoco.mj_forward(env.model, env.data)
         gun_pos = env.site_xpos("gun_tcp")
         qr_pos = env.site_xpos("box_0_qr")
         gun_z = _site_z(env, "gun_tcp")

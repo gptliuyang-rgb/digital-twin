@@ -60,6 +60,15 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
     full = spec.box_size_m
     hx, hy, hz = (full[0] / 2, full[1] / 2, full[2] / 2)
     z0 = spec.table_height_m + hz
+    pick_table_z = spec.table_height_m - 0.04
+    world.append(
+        ET.fromstring(
+            f'<body name="pick_table" pos="0.30 0.03 {pick_table_z}">'
+            f'<geom name="pick_table_geom" type="box" size="0.32 0.42 0.04" '
+            f'rgba="0.45 0.32 0.18 1" friction="{friction}" solref="{solref}"/>'
+            "</body>"
+        )
+    )
     for i in range(spec.n_boxes):
         y = -0.12 if i == 0 else 0.18
         x = 0.30
