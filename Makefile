@@ -40,12 +40,15 @@ eval-l2:
 	$(PYTHON) -m eval.l2_mujoco_closedloop --config eval/configs/l2_mujoco.yaml
 
 calibrate-synthetic:
-	$(PYTHON) scripts/run_e1_e2_pipeline.py
+	$(PYTHON) scripts/run_e1_e2_pipeline.py --both-skins --fit-tip-radius
+
+calibrate-synthetic-l2:
+	$(PYTHON) scripts/run_e1_e2_pipeline.py --both-skins --fit-tip-radius --with-l2
 
 eval-l2-overlay:
 	$(PYTHON) -m eval.l2_mujoco_closedloop \
 		--spec hand/calibration/results/synthetic_batch_v1.0/generated/overlay.yaml \
-		--out eval/report/generated/l2_overlay.json --skip-physics
+		--out eval/report/generated/l2_overlay.json
 
 scan-gun-mesh:
 	$(PYTHON) -m assets.objects.scan_gun.generate

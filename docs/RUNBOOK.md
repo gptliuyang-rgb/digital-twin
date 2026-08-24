@@ -31,41 +31,68 @@ Re-run E1 and E2 (`hand/calibration/PROTOCOL.md`). Store under
 
 ### E1/E2 pipeline (synthetic dry-run first)
 
-Live `dexhand2_spec.yaml` stays `REQUIRED_INPUT` until a human accepts a hardware
-fragment. The dry-run proves CSV → fit → overlay → pad `friction`/`solref` →
-MuJoCo replay:
+Live `dexhand2_spec.yaml` stays `REQUIRED_INPUT` until a **human accepts** a hardware
+fragment. The dry-run proves the full chain end-to-end:
 
-```bash
-make calibrate-synthetic
-# writes hand/calibration/results/synthetic_batch_v1.0/generated/{fragment,overlay,validate_sim.json}
-# does not patch assets/dexhand2/meta/dexhand2_spec.yaml
+```
+CSV → fit μ/k → fingertip radius (from STL) → proposed solref
+  → overlay spec  →  pad friction/solref in derived MJCF
+  → MuJoCo Coulomb pull (E1) + pad indent (E2) replay
+  → L2 micro episode with calibrated contact (relative, no grasp_success_rate)
 ```
 
-Hardware sheets (same commands, real CSVs):
+```bash
+# Dry-run: synthetic sheets, both skin states, real STL tip radius
+make calibrate-synthetic          # CSV → fragment → overlay → validate_sim
+make calibrate-synthetic-l2       # same + MuJoCo micro episode via overlay
+
+# Output (gitignored, do not commit):
+#  hand/calibration/results/synthetic_batch_v1.0/generated/
+#    fragment.yaml          — fit numbers + STL radius
+#    overlay.yaml           — merged spec (live spec unchanged)
+#    validate_sim.json      — e1_ok/e2_ok/ok/human_must_accept_solref
+#    e1_e2_summary.json     — skin_on vs skin_off comparison
+#    l2_overlay.json        — micro metrics (with --with-l2 / calibrate-synthetic-l2)
+```
+
+Interpreting the skin comparison (synthetic reference):
+
+| field | skin_on | skin_off | Δ |
+|---|---|---|---|
+| μ_s | ~0.75 | ~0.58 | −22% (skin adds friction) |
+| k (N/m) | ~2500 | ~3800 | +50% (skin softens pad) |
+| solref_s | ~0.022 | ~0.018 | −18% |
+
+These are synthetic ground-truth deltas. Hardware will differ. **Re-run if pad/skin batch changes.**
+
+Hardware sheets (after collecting real CSVs):
 
 ```bash
-python3 -m hand.calibration.fit_params \
-  --e1 hand/calibration/results/<batch>/skin_on/e1.csv \
-  --e2 hand/calibration/results/<batch>/skin_on/e2.csv \
-  --out hand/calibration/results/<batch>/generated/fragment.yaml
+# One-shot with --both-skins and STL radius:
+python3 scripts/run_e1_e2_pipeline.py \
+  --e1  hand/calibration/results/<batch>/skin_on/e1.csv \
+  --e2  hand/calibration/results/<batch>/skin_on/e2.csv \
+  --e1-off hand/calibration/results/<batch>/skin_off/e1.csv \
+  --e2-off hand/calibration/results/<batch>/skin_off/e2.csv \
+  --both-skins --fit-tip-radius --with-l2 \
+  --out-dir hand/calibration/results/<batch>/generated
+
+# Review generated/e1_e2_summary.json and generated/validate_sim.json.
+# After human accepts solref:
 python3 scripts/apply_calibration_fragment.py \
   --fragment hand/calibration/results/<batch>/generated/fragment.yaml \
-  --out hand/calibration/results/<batch>/generated/overlay.yaml
-python3 -m hand.calibration.validate_sim \
-  --spec hand/calibration/results/<batch>/generated/overlay.yaml \
-  --out hand/calibration/results/<batch>/generated/validate_sim.json
-# After a human accepts solref: apply_calibration_fragment.py --commit-live
+  --out assets/dexhand2/meta/dexhand2_spec.yaml \
+  --commit-live
 make build-assets
 ```
 
 `make eval-l2` still uses the live spec (`blocked_uncalibrated`) until contact
-fields are filled. Overlay L2 (relative metrics only, still no
-`grasp_success_rate`):
+fields are filled. Overlay L2 — relative metrics only, still no `grasp_success_rate`:
 
 ```bash
-python3 -m eval.l2_mujoco_closedloop \
-  --spec hand/calibration/results/synthetic_batch_v1.0/generated/overlay.yaml \
-  --out eval/report/generated/l2_overlay.json
+make eval-l2-overlay
+# → eval/report/generated/l2_overlay.json
+#   status: ready, physics: ran_calibrated_contact, l2_2_calibrated_micro
 ```
 
 ## Eval

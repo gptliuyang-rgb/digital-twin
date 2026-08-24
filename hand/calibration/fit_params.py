@@ -1,4 +1,8 @@
-"""Fit μ and stiffness from E1/E2 CSV. Writes a spec fragment, does not silently patch the live spec."""
+"""Fit μ and stiffness from E1/E2 CSV. Writes a spec fragment, does not silently patch the live spec.
+
+Also exposes ``fit_fingertip_radius`` to read the geometry radius from official *_tip.STL files
+so that ``fingertip_geometry_radius_m`` is filled from real mesh data, not guessed.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +18,28 @@ from hand.calibration.contact_mujoco import (
     DEFAULT_PAD_M_EFF_KG,
     solref_timeconst_from_stiffness,
 )
+
+
+def fit_fingertip_radius(mesh_dir: Path | None = None) -> float | None:
+    """Return mean pad-sphere radius (m) across all *_tip.STL in mesh_dir, or None if missing."""
+    try:
+        from assets.dexhand2.build.gen_derived import fit_pad_spheres, read_stl_vertices
+        from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM
+    except ImportError:
+        return None
+
+    root = mesh_dir or DEFAULT_UPSTREAM / "hand2/hand2_beta1/body/meshes/right"
+    stls = sorted(root.glob("*_tip.STL"))
+    if not stls:
+        return None
+    radii = []
+    for stl in stls:
+        try:
+            spheres = fit_pad_spheres(read_stl_vertices(stl), n_spheres=1)
+            radii.append(spheres[0][1])
+        except Exception:  # noqa: BLE001
+            continue
+    return float(sum(radii) / len(radii)) if radii else None
 
 
 def _mean(xs: list[float]) -> float:
@@ -115,6 +141,11 @@ def main() -> None:
     parser.add_argument("--e2", default="")
     parser.add_argument("--out", default="hand/calibration/results/fragment.yaml")
     parser.add_argument("--m-eff-kg", type=float, default=DEFAULT_PAD_M_EFF_KG)
+    parser.add_argument(
+        "--fit-tip-radius",
+        action="store_true",
+        help="Fit fingertip_geometry_radius_m from official *_tip.STL files",
+    )
     args = parser.parse_args()
     fragment: dict = {
         "source": "fit_params.py",
@@ -126,6 +157,10 @@ def main() -> None:
     if args.e2:
         fragment.update(fit_e2(Path(args.e2), m_eff_kg=args.m_eff_kg))
         fragment["human_must_accept_solref"] = True
+    if args.fit_tip_radius:
+        r = fit_fingertip_radius()
+        if r is not None:
+            fragment["fingertip_geometry_radius_m"] = round(r, 6)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(yaml.safe_dump(fragment, sort_keys=False), encoding="utf-8")
