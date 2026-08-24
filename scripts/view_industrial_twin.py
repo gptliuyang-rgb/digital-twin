@@ -20,6 +20,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="MuJoCo viewer for T800 + DexHand2 industrial pipeline")
     parser.add_argument("--steps-per-phase", type=int, default=100, help="Physics steps per FSM phase")
     parser.add_argument("--real-time", action="store_true", help="Sleep to match 1 kHz sim timestep")
+    parser.add_argument("--sync-every", type=int, default=4, help="Update viewer every N sim steps")
     parser.add_argument("--loop", action="store_true", help="Restart pipeline when it finishes")
     args = parser.parse_args()
 
@@ -43,10 +44,14 @@ def main() -> int:
             phase["name"] = name
             print(f"[phase] {name}", flush=True)
 
+        step_i = {"n": 0}
+
         def on_step(_env, _result) -> None:
-            if not viewer.is_running():
-                raise KeyboardInterrupt
-            viewer.sync()
+            step_i["n"] += 1
+            if step_i["n"] % max(1, args.sync_every) == 0:
+                if not viewer.is_running():
+                    raise KeyboardInterrupt
+                viewer.sync()
             if args.real_time:
                 time.sleep(dt)
 
@@ -74,7 +79,7 @@ def main() -> int:
 
     with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
         # Pull camera back so pallet + robot are visible.
-        viewer.cam.lookat[:] = [0.55, 0.0, 0.95]
+        viewer.cam.lookat[:] = [0.38, 0.0, 0.95]
         viewer.cam.distance = 3.2
         viewer.cam.elevation = -18
         viewer.cam.azimuth = 135

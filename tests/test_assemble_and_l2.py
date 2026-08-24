@@ -113,12 +113,16 @@ def test_industrial_pipeline_walks_phases() -> None:
     from sim.tasks.industrial_pipeline import PHASES, run_industrial_pipeline
 
     env = CombinedMujocoEnv(scene="industrial")
-    result = run_industrial_pipeline(env, steps_per_phase=8)
+    result = run_industrial_pipeline(env, steps_per_phase=40)
     assert result.policy_eval_forbidden
+    assert result.kinematic_assist
     assert result.finite
     assert "done" in result.phases
     assert result.phases[0] == PHASES[0]
     assert result.n_steps > 0
+    assert result.scan_geometry_ok
+    assert result.scan_distance_m is not None
+    assert 0.05 <= result.scan_distance_m <= 0.35
     # Industrial scene bodies exist
     env.model.body("box_0")
     env.model.body("scan_gun")

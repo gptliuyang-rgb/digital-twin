@@ -18,7 +18,7 @@ class SceneSpec:
     solref_timeconst_s: float = 0.010
     n_boxes: int = 2
     box_size_m: tuple[float, float, float] = (0.28, 0.22, 0.18)
-    box_mass_kg: float = 5.0
+    box_mass_kg: float = 2.0
     table_height_m: float = 0.85
     # SCAN_PLACEHOLDER: gun barrel length until CAD of the scanner exists.
     gun_length_m: float = 0.12
@@ -47,9 +47,11 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
         )
     )
     px, py, pz = EURO_PALLET_M
+    # Pallet top ≈ table height so the standing T800 can reach stacked cartons.
+    pallet_z = spec.table_height_m - pz / 2.0
     world.append(
         ET.fromstring(
-            f'<body name="pallet" pos="0.70 0 {pz / 2}">'
+            f'<body name="pallet" pos="0.38 0 {pallet_z}">'
             f'<geom name="pallet_geom" type="box" size="{px / 2} {py / 2} {pz / 2}" '
             f'rgba="0.55 0.35 0.15 1" friction="{friction}" solref="{solref}"/>'
             "</body>"
@@ -60,29 +62,46 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
     z0 = spec.table_height_m + hz
     for i in range(spec.n_boxes):
         y = -0.12 if i == 0 else 0.18
-        x = 0.48
+        x = 0.30
         inertial = _box_inertial(spec.box_mass_kg, full)
         qr_pos = f"{hx + 0.001} 0 0"
-        world.append(
-            ET.fromstring(
+        if i == 0:
+            # Workpiece: free body for pick / carry / stack demo.
+            body_xml = (
                 f'<body name="box_{i}" pos="{x} {y} {z0}">'
                 f"{inertial}"
                 "<freejoint/>"
                 f'<geom name="box_{i}_geom" type="box" size="{hx} {hy} {hz}" '
                 f'rgba="0.82 0.64 0.35 1" friction="{friction}" solref="{solref}" condim="4"/>'
-                f'<site name="box_{i}_qr" pos="{qr_pos}" size="0.02" rgba="0 0 0 1"/>'
+                f'<site name="box_{i}_qr" pos="{qr_pos}" size="0.015" rgba="0.05 0.05 0.05 1"/>'
+                f'<geom name="box_{i}_qr_marker" type="box" size="0.04 0.04 0.002" '
+                f'pos="{qr_pos}" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0"/>'
                 "</body>"
             )
-        )
+        else:
+            # Static prop on the table (no freejoint — avoids physics blow-ups).
+            body_xml = (
+                f'<body name="box_{i}" pos="{x} {y} {z0}">'
+                f"{inertial}"
+                f'<geom name="box_{i}_geom" type="box" size="{hx} {hy} {hz}" '
+                f'rgba="0.72 0.54 0.30 1" friction="{friction}" solref="{solref}" condim="4"/>'
+                f'<site name="box_{i}_qr" pos="{qr_pos}" size="0.015" rgba="0.05 0.05 0.05 1"/>'
+                f'<geom name="box_{i}_qr_marker" type="box" size="0.04 0.04 0.002" '
+                f'pos="{qr_pos}" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0"/>'
+                "</body>"
+            )
+        world.append(ET.fromstring(body_xml))
     gun_l = spec.gun_length_m
+    table_gun = f"0.34 -0.28 {spec.table_height_m + 0.02}"
     world.append(
         ET.fromstring(
-            f'<body name="scan_gun" pos="0.40 -0.35 {spec.table_height_m + 0.04}">'
+            f'<body name="scan_gun" mocap="true" pos="{table_gun}">'
             '<inertial pos="0 0 0" mass="0.18" diaginertia="0.0002 0.0002 0.00005"/>'
-            "<freejoint/>"
             f'<geom name="scan_gun_body" type="capsule" fromto="0 0 0 0 0 {-gun_l}" '
-            f'size="0.018" rgba="0.1 0.1 0.12 1" friction="{friction}"/>'
-            f'<site name="gun_tcp" pos="0 0 {-gun_l}" size="0.008" rgba="0 1 0 1"/>'
+            f'size="0.022" rgba="0.85 0.15 0.1 1" contype="0" conaffinity="0"/>'
+            f'<geom name="scan_gun_grip" type="sphere" pos="0 0 0" size="0.025" '
+            f'rgba="0.2 0.2 0.25 1" contype="0" conaffinity="0"/>'
+            f'<site name="gun_tcp" pos="0 0 {-gun_l}" size="0.012" rgba="0 1 0 1"/>'
             f'<camera name="gun_cam" pos="0 0 {-gun_l}" xyaxes="0 -1 0 0 0 1" fovy="60"/>'
             "</body>"
         )

@@ -79,8 +79,8 @@ class CombinedMujocoEnv(BaseEnv):
         right_q: np.ndarray,
         *,
         body_q_des: np.ndarray | None = None,
-        body_kp: float = 40.0,
-        body_kd: float = 2.0,
+        body_kp: float = 12.0,
+        body_kd: float = 4.0,
         kp_scale: float = 1.0,
         kd_scale: float = 1.0,
     ) -> dict[str, Any]:
