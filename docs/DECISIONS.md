@@ -43,3 +43,12 @@
 - **Decision:** `kinematic_bringup_identity` welds `{l,r}_mount` onto `LINK_WRIST_END_*` with identity SE(3). Combined MJCF/URDF are generated under `assets/combined/generated/` (gitignored). Official Hand 2 and T800 files are never overwritten. Hand `<position>` actuators are converted to MIT `<motor>` plants in the derived combined model only.
 - **Forbidden:** publishing SONIC/VLA/sim2real numbers, or a `grasp_success_rate`, from this weld or from the uncalibrated μ/solref scan. Replace the weld with CAD SE(3) before any policy-eval claim.
 - **Consequences:** Box-handling palm orientation is the T800 elbow-yaw dummy frame (ADR-001). The scripted industrial FSM is a digital-twin playback, not a trained policy.
+
+## ADR-007 — Industrial demo is kinematic playback until E1/E2
+
+- **Status:** accepted for simulation-only digital twin
+- **Context:** Uncalibrated hand–object contact (ADR-004) cannot support a believable physics grasp; floating prop slabs also read as unfinished set dressing.
+- **Decision:** The scripted industrial FSM (`sim/tasks/industrial_pipeline.py`) plays back with `mj_forward` + IK + explicit carton/gun assists. Scene benches are grounded (legs to floor). The scan gun is a **placeholder pistol mesh** (grip/housing/barrel), not vendor CAD.
+- **Forbidden:** treating lift/carry/scan visuals as contact-validated sim2real evidence or publishing `grasp_success_rate`.
+- **Consequences:** Demo answers “does the twin look like the cell?” not “does the hand pick?”. Replace assists with E1/E2 friction/stiffness and a real scanner mesh when available.
+

@@ -79,10 +79,10 @@ def main() -> int:
 
     with mujoco.viewer.launch_passive(env.model, env.data) as viewer:
         # Pull camera back so pallet + robot are visible.
-        viewer.cam.lookat[:] = [0.28, 0.0, 1.0]
-        viewer.cam.distance = 2.5
-        viewer.cam.elevation = -22
-        viewer.cam.azimuth = 150
+        viewer.cam.lookat[:] = [0.30, 0.0, 0.55]
+        viewer.cam.distance = 2.9
+        viewer.cam.elevation = -8
+        viewer.cam.azimuth = 135
 
         while viewer.is_running():
             env.reset()

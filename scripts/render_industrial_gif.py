@@ -18,10 +18,10 @@ def _configure_camera(model, data, renderer) -> None:
 
     cam = mujoco.MjvCamera()
     cam.type = mujoco.mjtCamera.mjCAMERA_FREE
-    cam.lookat[:] = [0.28, 0.0, 1.0]
-    cam.distance = 2.5
-    cam.elevation = -22.0
-    cam.azimuth = 150.0
+    cam.lookat[:] = [0.30, 0.0, 0.55]
+    cam.distance = 2.9
+    cam.elevation = -8.0
+    cam.azimuth = 135.0
     renderer.update_scene(data, camera=cam)
 
 
@@ -64,7 +64,7 @@ def render_gif(
     frames: list[Image.Image] = []
     phase_labels: list[str] = []
     step_i = 0
-    current_phase = {"name": "init"}
+    current_phase = {"name": "approach_box"}
 
     def _capture(label: str | None = None) -> None:
         _configure_camera(env.model, env.data, renderer)

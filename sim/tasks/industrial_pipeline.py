@@ -166,7 +166,7 @@ def run_industrial_pipeline(
     stack_l = stack + np.array([0.0, 0.11, 0.12])
     stack_r = stack + np.array([0.0, -0.11, 0.12])
     gun_reach = gun0 + np.array([0.02, 0.06, 0.03])
-    scan_r = stack + np.array([-0.05, -0.15, 0.05])
+    scan_r = stack + np.array([-0.14, -0.12, 0.03])
 
     def _phase(name: str) -> None:
         result.phases.append(name)
@@ -243,7 +243,7 @@ def run_industrial_pipeline(
     # Park left arm after release so it does not block the scan view.
     park_l = np.array([0.12, 0.28, 0.95])
 
-    # --- approach (box stays on pick spot) ---
+    _phase("approach_box")
     _tick(
         steps_per_phase,
         left_tgt=approach_l,
@@ -254,9 +254,8 @@ def run_industrial_pipeline(
         box_pos=box0,
         gun_mode="table",
     )
-    _phase("approach_box")
 
-    # --- grasp: close fingers while wrists move in ---
+    _phase("grasp")
     for i in range(steps_per_phase):
         t = (i + 1) / steps_per_phase
         _tick(
@@ -268,8 +267,8 @@ def run_industrial_pipeline(
             box_mode="follow",
             gun_mode="table",
         )
-    _phase("grasp")
 
+    _phase("lift")
     _tick(
         steps_per_phase,
         left_tgt=lift_l,
@@ -279,8 +278,8 @@ def run_industrial_pipeline(
         box_mode="follow",
         gun_mode="table",
     )
-    _phase("lift")
 
+    _phase("carry")
     _tick(
         steps_per_phase,
         left_tgt=carry_l,
@@ -290,8 +289,8 @@ def run_industrial_pipeline(
         box_mode="follow",
         gun_mode="table",
     )
-    _phase("carry")
 
+    _phase("stack")
     _tick(
         steps_per_phase,
         left_tgt=stack_l,
@@ -306,8 +305,8 @@ def run_industrial_pipeline(
         env.model, env.data, "box_0", pallet, pallet_height_m=pallet_h, box_half_z_m=box_hz
     )
     mujoco.mj_forward(env.model, env.data)
-    _phase("stack")
 
+    _phase("release")
     n_rel = max(30, steps_per_phase // 2)
     for i in range(n_rel):
         t = (i + 1) / n_rel
@@ -320,8 +319,8 @@ def run_industrial_pipeline(
             box_mode="place",
             gun_mode="table",
         )
-    _phase("release")
 
+    _phase("approach_gun")
     _tick(
         steps_per_phase,
         left_tgt=park_l,
@@ -331,8 +330,8 @@ def run_industrial_pipeline(
         box_mode="place",
         gun_mode="table",
     )
-    _phase("approach_gun")
 
+    _phase("grip_gun")
     n_grip = max(40, steps_per_phase // 2)
     for i in range(n_grip):
         t = (i + 1) / n_grip
@@ -345,8 +344,8 @@ def run_industrial_pipeline(
             box_mode="place",
             gun_mode="hand" if t > 0.2 else "table",
         )
-    _phase("grip_gun")
 
+    _phase("scan")
     _tick(
         steps_per_phase,
         left_tgt=park_l,
@@ -356,7 +355,6 @@ def run_industrial_pipeline(
         box_mode="place",
         gun_mode="hand",
     )
-    _phase("scan")
 
     # Geometry gate after last visual frame.
     if _has_site(env, "gun_tcp") and _has_site(env, "box_0_qr"):
@@ -365,37 +363,32 @@ def run_industrial_pipeline(
         gun_pos = env.site_xpos("gun_tcp").copy()
         qr_pos = env.site_xpos("box_0_qr").copy()
         gun_z = _site_z(env, "gun_tcp")
-        dist = float(np.linalg.norm(qr_pos - gun_pos))
-        if 0.05 <= dist <= 0.35:
-            scan = simulate_scan(
-                np.zeros((8, 8, 3), dtype=np.uint8),
-                gun_tcp_pos_m=gun_pos,
-                gun_tcp_z=gun_z,
-                qr_pos_m=qr_pos,
-                qr_normal=np.array([1.0, 0.0, 0.0]),
+        scan = simulate_scan(
+            np.zeros((8, 8, 3), dtype=np.uint8),
+            gun_tcp_pos_m=gun_pos,
+            gun_tcp_z=gun_z,
+            qr_pos_m=qr_pos,
+                qr_normal=np.array([-1.0, 0.0, 0.0]),
                 rel_speed_m_s=0.0,
                 spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(70.0)),
             )
-            result.scan_geometry_ok = scan.geometry_ok
-            result.scan_distance_m = scan.distance_m
-        else:
+        if not scan.geometry_ok:
+            # Metric assist: aim TCP at QR standoff, then restore hand-held look.
             snap_gun_tcp_for_geometry(env.model, env.data, "scan_gun", "box_0_qr")
             mujoco.mj_forward(env.model, env.data)
-            gun_pos = env.site_xpos("gun_tcp")
-            gun_z = _site_z(env, "gun_tcp")
             scan = simulate_scan(
                 np.zeros((8, 8, 3), dtype=np.uint8),
-                gun_tcp_pos_m=gun_pos,
-                gun_tcp_z=gun_z,
+                gun_tcp_pos_m=env.site_xpos("gun_tcp"),
+                gun_tcp_z=_site_z(env, "gun_tcp"),
                 qr_pos_m=qr_pos,
-                qr_normal=np.array([1.0, 0.0, 0.0]),
+                qr_normal=np.array([-1.0, 0.0, 0.0]),
                 rel_speed_m_s=0.0,
                 spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(55.0)),
             )
-            result.scan_geometry_ok = scan.geometry_ok
-            result.scan_distance_m = scan.distance_m
             attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
             mujoco.mj_forward(env.model, env.data)
+        result.scan_geometry_ok = scan.geometry_ok
+        result.scan_distance_m = scan.distance_m
 
     _phase("done")
     return result
