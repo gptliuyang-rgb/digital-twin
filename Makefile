@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble
 
 PYTHON ?= python3
 
@@ -18,7 +18,11 @@ ingest-official:
 	$(PYTHON) -m assets.dexhand2.build.ingest_official
 
 build-assets:
-	$(PYTHON) -m assets.dexhand2.build.gen_derived
+	$(PYTHON) -m assets.dexhand2.build.gen_derived --side right
+	$(PYTHON) -m assets.dexhand2.build.gen_derived --side left
+
+assemble:
+	$(PYTHON) -m assets.combined.assemble --check-compile
 
 eval-l0:
 	$(PYTHON) -m eval.l0_offline_replay --config eval/configs/l0_offline.yaml

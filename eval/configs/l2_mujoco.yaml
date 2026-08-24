@@ -1,9 +1,12 @@
 n_envs: 256
 episodes_per_config: 50
 uncalibrated: true
+industrial_steps_per_phase: 40
 note: >
   Contact parameters are REQUIRED_INPUT. Do not treat grasp_success_rate as a
-  sim2real prediction until Phase 5 calibration is filled.
+  sim2real prediction until Phase 5 calibration is filled. L2 now runs an
+  uncalibrated μ/stiffness scan and a scripted industrial pipeline when MuJoCo
+  is installed; those numbers are relative only.
 randomize:
   box_mass: [2.0, 20.0]
   box_friction: [0.3, 0.9]

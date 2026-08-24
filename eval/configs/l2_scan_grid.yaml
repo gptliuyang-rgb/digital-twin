@@ -1,0 +1,24 @@
+# Uncalibrated 3×3 contact/gain scan. SCAN_PLACEHOLDER only — not measured.
+# Do not publish grasp_success_rate from this grid (ADR-004).
+schema_version: "1.0"
+kind: uncalibrated_relative_scan
+policy_eval_forbidden: true
+
+friction_static:
+  - 0.40
+  - 0.80
+  - 1.20
+
+solref_timeconst_s:
+  - 0.020
+  - 0.010
+  - 0.005
+
+kp_scale: [0.5, 1.0, 2.0]
+kv_scale: [0.5, 1.0, 2.0]
+
+grid: friction_x_stiffness
+n_hold_steps: 400
+lift_m: 0.08
+dt_s: 0.001
+industrial_steps_per_phase: 40

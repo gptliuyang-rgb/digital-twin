@@ -1,1 +1,4 @@
-"""Placeholder package. Concrete MuJoCo env is assembled in assets/combined once mount SE(3) is filled."""
+from sim.mujoco_env.env import CombinedMujocoEnv
+from sim.mujoco_env.scene import SceneSpec
+
+__all__ = ["CombinedMujocoEnv", "SceneSpec"]

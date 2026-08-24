@@ -34,12 +34,16 @@ Re-run E1 and E2 (`hand/calibration/PROTOCOL.md`). Store under
 ```bash
 make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
 make eval-l1    # limits + coupling; IK skipped without Pinocchio
-make eval-l2    # refuses success rates while uncalibrated
+make assemble   # T800 + both DexHand2, identity flange, MIT motors, compile check
+make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline (needs MuJoCo)
 ```
+
+`make eval-l2` still sets `status: blocked_uncalibrated` and never writes a computed `grasp_success_rate`.
 
 ## What this repo will not do yet
 
 - Train SONIC on T800
 - Download GR00T / π0.5 weights
 - Claim a box-pick success rate
-- Weld Hand 2 onto T800 (`assets/combined/assemble.py` exits until mount SE(3) is filled)
+- Treat the identity T800↔Hand weld as CAD (`kinematic_bringup_identity` is sim-only; ADR-006)
+- Real-robot / HIL experiments

@@ -7,7 +7,7 @@
 | Hand mount STEP | `wuji-description/hand2/hand2_beta1/attachment/*-mount_beta1_step.STEP` | present (upstream caught up vs older notes) |
 | Hand with-mount MJCF offset | `r_wrist` under `r_mount` at `[0.003, 0.00025016, -0.0285]` m | filled |
 | T800 wrist flange CAD | Native SDK URDF dummy sphere on `LINK_WRIST_END_*` | **missing as a real flange** |
-| T800 ↔ Hand SE(3) | `assets/dexhand2/meta/mount_transform.yaml` | REQUIRED_INPUT |
+| T800 ↔ Hand SE(3) | `assets/dexhand2/meta/mount_transform.yaml` | REQUIRED_INPUT (identity weld is sim-only, ADR-006) |
 | Impact-separation adapter | Official gen-1 `Impact-Resistant-Adapter.step` is a design reference | design task |
 
 Recommend an impact-separation variant for stacking collisions. Nylon/PETG print is acceptable for a prototype flange (same idea as the Unitree G1 STL adapter).

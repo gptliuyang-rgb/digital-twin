@@ -35,3 +35,11 @@
 - **Context:** SDK `JointHandle.index` is 0..19, labels `{finger}_S{1..4}`, fingertip API 0=thumb…4=pinky.
 - **Decision:** Map S1=J0 … S4=J3 in TH/FF/MF/RF/LF actuator order. `nid` assumed equal to index until a live dump.
 - **Consequences:** One `joint_states` frame on hardware must be checked against `joint_name_map.yaml`.
+
+## ADR-006 — Kinematic-bringup flange vs CAD flange
+
+- **Status:** accepted for simulation-only digital twin
+- **Context:** T800 wrist flange CAD is still `REQUIRED_INPUT`. A combined T800 + DexHand2 model is required to exercise dual-arm box / QR-scan strategies in MuJoCo.
+- **Decision:** `kinematic_bringup_identity` welds `{l,r}_mount` onto `LINK_WRIST_END_*` with identity SE(3). Combined MJCF/URDF are generated under `assets/combined/generated/` (gitignored). Official Hand 2 and T800 files are never overwritten. Hand `<position>` actuators are converted to MIT `<motor>` plants in the derived combined model only.
+- **Forbidden:** publishing SONIC/VLA/sim2real numbers, or a `grasp_success_rate`, from this weld or from the uncalibrated μ/solref scan. Replace the weld with CAD SE(3) before any policy-eval claim.
+- **Consequences:** Box-handling palm orientation is the T800 elbow-yaw dummy frame (ADR-001). The scripted industrial FSM is a digital-twin playback, not a trained policy.

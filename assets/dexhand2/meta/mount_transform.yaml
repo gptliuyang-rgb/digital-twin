@@ -31,6 +31,19 @@ t800_wrist_to_hand_mount:
   cad_source_hand: hand2/hand2_beta1/attachment/wuji-hand2-description-right-mount_beta1_step.STEP
   cad_source_robot: REQUIRED_INPUT
 
+# Identity weld used ONLY to assemble a kinematic/digital-twin scene.
+# Forbidden as a CAD substitute for SONIC training, VLA eval, or sim2real claims.
+kinematic_bringup_identity:
+  enabled: true
+  policy_eval_forbidden: true
+  pos_m: [0.0, 0.0, 0.0]
+  quat_wxyz: [1.0, 0.0, 0.0, 0.0]
+  unit: "{m, quaternion wxyz}"
+  note: >
+    T800 LINK_WRIST_END_* is a dummy sphere on elbow yaw (no wrist pitch/roll).
+    Identity maps that dummy frame onto {l,r}_mount. Replace with CAD SE(3)
+    before any policy-eval number is published.
+
 frames:
   wrist_frame:
     description: SONIC body link (humanoid wrist).

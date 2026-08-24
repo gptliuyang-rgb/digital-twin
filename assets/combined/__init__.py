@@ -1,1 +1,2 @@
-# Combined T800 + Hand 2 assembly (blocked until mount SE(3) is filled).
+# Combined T800 + DexHand2 assembly.
+# CAD flange is REQUIRED_INPUT; kinematic_bringup_identity is allowed for sim only.
