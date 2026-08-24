@@ -28,7 +28,7 @@ view-industrial:
 	$(PYTHON) scripts/view_industrial_twin.py --steps-per-phase 100 --real-time
 
 render-industrial-gif:
-	$(PYTHON) scripts/render_industrial_gif.py --out artifacts/industrial_demo.gif --steps-per-phase 80
+	$(PYTHON) scripts/render_industrial_gif.py --out artifacts/industrial_demo.gif --steps-per-phase 60 --frame-stride 20 --fps 12
 
 eval-l0:
 	$(PYTHON) -m eval.l0_offline_replay --config eval/configs/l0_offline.yaml

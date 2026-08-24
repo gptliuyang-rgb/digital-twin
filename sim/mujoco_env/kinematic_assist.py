@@ -110,17 +110,20 @@ def place_box_on_pallet(
 
 def attach_gun_to_right_wrist(model, data, gun_body: str = "scan_gun") -> None:
     pos, R = body_pos_mat(model, data, "r_wrist")
-    # Handle sits slightly forward/down in wrist frame; barrel extends -Z local.
-    handle = pos + R @ np.array([0.04, -0.02, -0.05], dtype=np.float64)
-    barrel_dir = R @ np.array([0.0, 0.0, -1.0])
-    up = R @ np.array([0.0, 1.0, 0.0])
-    x = barrel_dir / (np.linalg.norm(barrel_dir) + 1e-9)
-    z = np.cross(x, up)
-    zn = np.linalg.norm(z)
-    if zn < 1e-6:
-        z = np.array([0.0, 1.0, 0.0])
-    else:
-        z /= zn
+    # Palm-forward offset in wrist frame; barrel points roughly toward +X world.
+    handle = pos + R @ np.array([0.05, 0.0, -0.04], dtype=np.float64)
+    # Build gun frame: local -Z = forward barrel toward workspace (+X-ish).
+    forward = np.array([1.0, 0.0, -0.15], dtype=np.float64)
+    forward = forward / (np.linalg.norm(forward) + 1e-9)
+    z = -forward
+    up = np.array([0.0, 0.0, 1.0])
+    x = np.cross(up, z)
+    xn = np.linalg.norm(x)
+    if xn < 1e-6:
+        up = np.array([0.0, 1.0, 0.0])
+        x = np.cross(up, z)
+        xn = np.linalg.norm(x)
+    x /= xn
     y = np.cross(z, x)
     Rg = np.column_stack([x, y, z])
     set_mocap_pose(model, data, gun_body, handle, mat_to_quat_wxyz(Rg))

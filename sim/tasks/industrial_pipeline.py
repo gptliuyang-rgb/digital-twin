@@ -1,7 +1,7 @@
-"""Scripted industrial twin: dual-arm approach / grasp / lift / stack / QR scan.
+"""Kinematic demo playback for the industrial twin (no contact physics).
 
-Physics runs with **kinematic demo assists** while contact is uncalibrated:
-box follow + gun mocap attach are not validated grasps (ADR-004/006).
+While friction/stiffness are REQUIRED_INPUT, the visual story is driven by
+setting arm/hand qpos + prop poses and calling mj_forward only (ADR-004/006).
 """
 
 from __future__ import annotations
@@ -11,18 +11,16 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from assets.objects.boxes import EURO_PALLET_M
 from hand.grasp_primitives import GraspLibrary
 from interface.schema import load_hand_spec
 from sim.mujoco_env.env import CombinedMujocoEnv
-from sim.mujoco_env.ik import smooth_move_wrist
+from sim.mujoco_env.ik import dls_ik_pos
 from sim.mujoco_env.kinematic_assist import (
-    aim_gun_at_site,
     attach_gun_to_right_wrist,
-    follow_box_between_wrists,
-    hold_free_body,
-    lerp_free_body_toward,
     place_box_on_pallet,
+    set_free_body_pose,
+    set_mocap_pose,
+    snap_gun_tcp_for_geometry,
     stack_center_on_pallet,
 )
 from sim.mujoco_env.scene import SceneSpec
@@ -54,28 +52,66 @@ class PipelineResult:
     policy_eval_forbidden: bool = True
     kinematic_assist: bool = True
     note: str = (
-        "Uncalibrated contact; kinematic_bringup flange; box/gun use demo kinematic "
-        "assist (not E1/E2 grasp). Not a sim2real pick rate."
+        "Kinematic demo playback (mj_forward only). Uncalibrated contact; "
+        "identity flange. Not a sim2real pick rate."
     )
+
+
+def _lerp(a: np.ndarray, b: np.ndarray, t: float) -> np.ndarray:
+    t = float(np.clip(t, 0.0, 1.0))
+    return (1.0 - t) * np.asarray(a, dtype=np.float64) + t * np.asarray(b, dtype=np.float64)
+
+
+def _set_hand_q(env: CombinedMujocoEnv, left_q: np.ndarray, right_q: np.ndarray) -> None:
+    env.data.qpos[env.handles.left_hand.qadr] = np.asarray(left_q, dtype=np.float64)
+    env.data.qpos[env.handles.right_hand.qadr] = np.asarray(right_q, dtype=np.float64)
+
+
+def _ik_wrists(
+    env: CombinedMujocoEnv,
+    left_tgt: np.ndarray | None,
+    right_tgt: np.ndarray | None,
+    left_arm: list[str],
+    right_arm: list[str],
+) -> list[float]:
+    errs: list[float] = []
+    if left_tgt is not None:
+        r = dls_ik_pos(
+            env.model,
+            env.data,
+            "l_wrist",
+            left_tgt,
+            left_arm,
+            damping=0.05,
+            iters=24,
+            step=0.55,
+            max_delta_rad=0.12,
+        )
+        errs.append(r["err_m"])
+    if right_tgt is not None:
+        r = dls_ik_pos(
+            env.model,
+            env.data,
+            "r_wrist",
+            right_tgt,
+            right_arm,
+            damping=0.05,
+            iters=24,
+            step=0.55,
+            max_delta_rad=0.12,
+        )
+        errs.append(r["err_m"])
+    return errs
+
+
+def _zero_vel(env: CombinedMujocoEnv) -> None:
+    env.data.qvel[:] = 0.0
+    env.data.qacc[:] = 0.0
 
 
 def _site_z(env: CombinedMujocoEnv, name: str) -> np.ndarray:
     sid = int(env.model.site(name).id)
-    mat = env.data.site_xmat[sid].reshape(3, 3)
-    return mat[:, 2].copy()
-
-
-def _lerp_q(open_q: np.ndarray, closed_q: np.ndarray, t: float) -> np.ndarray:
-    return (1.0 - t) * open_q + t * closed_q
-
-
-def _scan_wrist_target(env: CombinedMujocoEnv) -> np.ndarray | None:
-    """Right wrist IK goal so gun_tcp sits in front of box_0 QR sticker."""
-    if not _has_site(env, "box_0_qr"):
-        return None
-    qr = env.site_xpos("box_0_qr")
-    # Stand off to the robot's right-front so the right wrist can reach with gun in hand.
-    return qr + np.array([-0.08, -0.12, 0.0], dtype=np.float64)
+    return env.data.site_xmat[sid].reshape(3, 3)[:, 2].copy()
 
 
 def run_industrial_pipeline(
@@ -86,10 +122,18 @@ def run_industrial_pipeline(
     on_step: Callable | None = None,
     on_phase: Callable | None = None,
 ) -> PipelineResult:
+    """Run the dual-arm industrial story as kinematic demo playback.
+
+    ``kp_scale`` is unused (kept for API compatibility with older callers).
+    """
+    del kp_scale
     import mujoco
 
     env = env or CombinedMujocoEnv(scene="industrial")
     env.reset()
+    _zero_vel(env)
+    mujoco.mj_forward(env.model, env.data)
+
     spec = load_hand_spec()
     lib = GraspLibrary(spec)
     q_open = lib.q_active("open", 0.0)
@@ -101,49 +145,60 @@ def run_industrial_pipeline(
 
     scene = SceneSpec()
     box_hz = scene.box_size_m[2] / 2.0
-    pallet_h = EURO_PALLET_M[2]
+    pallet_h = scene.pad_size_m[2]
 
-    box = env.xpos("box_0") if _has_body(env, "box_0") else np.array([0.30, -0.12, 0.94])
-    pallet = env.xpos("pallet") if _has_body(env, "pallet") else np.array([0.38, 0.0, 0.07])
-    gun_table = env.xpos("scan_gun") if _has_body(env, "scan_gun") else np.array([0.34, -0.28, 0.87])
-    stack_pos = stack_center_on_pallet(pallet, pallet_h, box_hz)
-    box_hold_pos = box.copy()
-    box_hold_quat = np.array([1.0, 0.0, 0.0, 0.0])
+    box0 = env.xpos("box_0").copy()
+    pallet = env.xpos("pallet").copy()
+    gun0 = env.xpos("scan_gun").copy()
+    stack = stack_center_on_pallet(pallet, pallet_h, box_hz)
 
-    targets: dict[str, tuple[np.ndarray | None, np.ndarray | None]] = {}
+    # Reachable dual-arm waypoints (T800 serial arms have ~0.3 m forward reach).
+    approach_l = box0 + np.array([0.0, 0.15, 0.05])
+    approach_r = box0 + np.array([0.0, -0.15, 0.05])
+    grasp_l = box0 + np.array([0.0, 0.11, 0.01])
+    grasp_r = box0 + np.array([0.0, -0.11, 0.01])
+    lift_l = box0 + np.array([0.0, 0.11, 0.26])
+    lift_r = box0 + np.array([0.0, -0.11, 0.26])
+    # Mid-air waypoint between pick (y≈-0.22) and stack (y≈+0.22).
+    mid = 0.5 * (box0 + stack)
+    carry_l = mid + np.array([0.0, 0.11, 0.28])
+    carry_r = mid + np.array([0.0, -0.11, 0.28])
+    stack_l = stack + np.array([0.0, 0.11, 0.12])
+    stack_r = stack + np.array([0.0, -0.11, 0.12])
+    gun_reach = gun0 + np.array([0.02, 0.06, 0.03])
+    scan_r = stack + np.array([-0.05, -0.15, 0.05])
 
     def _phase(name: str) -> None:
         result.phases.append(name)
         if on_phase is not None:
             on_phase(name, env, result)
 
+    def _box_between_hands(z_off: float = -0.08) -> None:
+        lp = env.xpos("l_wrist")
+        rp = env.xpos("r_wrist")
+        center = 0.5 * (lp + rp)
+        center[2] += z_off
+        set_free_body_pose(env.model, env.data, "box_0", center, np.array([1.0, 0.0, 0.0, 0.0]))
+
     def _tick(
-        phase: str,
         n: int,
         *,
+        left_tgt: np.ndarray | None,
+        right_tgt: np.ndarray | None,
         left_q: np.ndarray,
         right_q: np.ndarray,
-        box_follow: bool = False,
-        box_hold: bool = False,
-        box_lerp_to: np.ndarray | None = None,
-        box_on_pallet: bool = False,
-        gun_follow: bool = False,
-        gun_aim_qr: bool = False,
-        dynamic_scan: bool = False,
-        tick_kp_scale: float | None = None,
+        box_mode: str = "hold",
+        box_pos: np.ndarray | None = None,
+        gun_mode: str = "table",
     ) -> None:
-        lt, rt = targets.get(phase, (None, None))
-        step_kp = kp_scale if tick_kp_scale is None else tick_kp_scale
         for _ in range(n):
-            if dynamic_scan:
-                rt = _scan_wrist_target(env)
-            if lt is not None:
-                err = smooth_move_wrist(env.model, env.data, "l_wrist", lt, left_arm, alpha=0.15)
-                result.ik_err_m.append(err["err_m"])
-            if rt is not None:
-                err = smooth_move_wrist(env.model, env.data, "r_wrist", rt, right_arm, alpha=0.12)
-                result.ik_err_m.append(err["err_m"])
-            if box_on_pallet and _has_body(env, "box_0"):
+            errs = _ik_wrists(env, left_tgt, right_tgt, left_arm, right_arm)
+            result.ik_err_m.extend(errs)
+            _set_hand_q(env, left_q, right_q)
+
+            if box_mode == "follow":
+                _box_between_hands()
+            elif box_mode == "place":
                 place_box_on_pallet(
                     env.model,
                     env.data,
@@ -152,170 +207,198 @@ def run_industrial_pipeline(
                     pallet_height_m=pallet_h,
                     box_half_z_m=box_hz,
                 )
-            elif box_hold and _has_body(env, "box_0"):
-                hold_free_body(env.model, env.data, "box_0", box_hold_pos, box_hold_quat)
-            elif box_lerp_to is not None and _has_body(env, "box_0"):
-                lerp_free_body_toward(env.model, env.data, "box_0", box_lerp_to, alpha=0.10)
-            elif box_follow and _has_body(env, "box_0"):
-                follow_box_between_wrists(env.model, env.data, "box_0", z_offset_m=-0.05)
-            if gun_aim_qr and _has_body(env, "scan_gun") and _has_site(env, "box_0_qr"):
-                aim_gun_at_site(env.model, env.data, "scan_gun", "box_0_qr")
-            elif gun_follow and _has_body(env, "scan_gun"):
+            elif box_mode == "hold" and box_pos is not None:
+                set_free_body_pose(
+                    env.model, env.data, "box_0", box_pos, np.array([1.0, 0.0, 0.0, 0.0])
+                )
+            elif box_mode == "lerp" and box_pos is not None:
+                cur = env.xpos("box_0")
+                set_free_body_pose(
+                    env.model,
+                    env.data,
+                    "box_0",
+                    _lerp(cur, box_pos, 0.18),
+                    np.array([1.0, 0.0, 0.0, 0.0]),
+                )
+
+            if gun_mode == "hand":
                 attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
-            if (
-                box_follow
-                or box_hold
-                or box_lerp_to is not None
-                or box_on_pallet
-                or gun_follow
-                or gun_aim_qr
-            ):
-                mujoco.mj_forward(env.model, env.data)
-            body_q = env.data.qpos.copy()
-            env.step_mit(left_q, right_q, body_q_des=body_q, kp_scale=step_kp)
+            elif gun_mode == "table":
+                set_mocap_pose(
+                    env.model,
+                    env.data,
+                    "scan_gun",
+                    gun0,
+                    np.array([1.0, 0.0, 0.0, 0.0]),
+                )
+
+            _zero_vel(env)
+            mujoco.mj_forward(env.model, env.data)
             result.n_steps += 1
             result.finite = result.finite and bool(np.isfinite(env.data.qpos).all())
-            try:
-                result.box0_z.append(float(env.xpos("box_0")[2]))
-            except Exception:
-                pass
+            result.box0_z.append(float(env.xpos("box_0")[2]))
             if on_step is not None:
                 on_step(env, result)
 
-    # --- phase targets (world frame, within T800 elbow reach) ---
-    targets["approach_box"] = (
-        box + np.array([0.0, 0.14, 0.04]),
-        box + np.array([0.0, -0.14, 0.04]),
-    )
-    targets["grasp"] = targets["approach_box"]
-    lift_z = 0.12
-    targets["lift"] = (
-        box + np.array([0.0, 0.14, lift_z]),
-        box + np.array([0.0, -0.14, lift_z]),
-    )
-    carry_z = stack_pos[2] + 0.14
-    targets["carry"] = (
-        np.array([stack_pos[0], stack_pos[1] + 0.14, carry_z]),
-        np.array([stack_pos[0], stack_pos[1] - 0.14, carry_z]),
-    )
-    targets["stack"] = (
-        np.array([stack_pos[0], stack_pos[1] + 0.14, stack_pos[2] + 0.10]),
-        np.array([stack_pos[0], stack_pos[1] - 0.14, stack_pos[2] + 0.10]),
-    )
-    targets["release"] = targets["stack"]
-    targets["approach_gun"] = (
-        None,
-        gun_table + np.array([0.0, 0.0, 0.08]),
-    )
-    targets["grip_gun"] = targets["approach_gun"]
-    scan0 = _scan_wrist_target(env)
-    targets["scan"] = (None, scan0 if scan0 is not None else stack_pos + np.array([-0.12, 0.0, 0.08]))
+    # Park left arm after release so it does not block the scan view.
+    park_l = np.array([0.12, 0.28, 0.95])
 
-    _phase("approach_box")
-    _tick("approach_box", steps_per_phase, left_q=q_open, right_q=q_open, box_hold=True)
-
-    _phase("grasp")
-    for i in range(steps_per_phase):
-        t = (i + 1) / steps_per_phase
-        lq = _lerp_q(q_open, q_power, t)
-        rq = _lerp_q(q_open, q_power, t)
-        _tick("grasp", 1, left_q=lq, right_q=rq, box_follow=True)
-
-    _phase("lift")
-    _tick("lift", steps_per_phase, left_q=q_power, right_q=q_power, box_follow=True)
-
-    _phase("carry")
+    # --- approach (box stays on pick spot) ---
     _tick(
-        "carry",
         steps_per_phase,
-        left_q=q_power,
-        right_q=q_power,
-        box_follow=True,
-    )
-
-    _phase("stack")
-    _tick(
-        "stack",
-        steps_per_phase,
-        left_q=q_power,
-        right_q=q_power,
-        box_lerp_to=stack_pos,
-    )
-    place_box_on_pallet(env.model, env.data, "box_0", pallet, pallet_height_m=pallet_h, box_half_z_m=box_hz)
-    mujoco.mj_forward(env.model, env.data)
-
-    _phase("release")
-    for i in range(max(30, steps_per_phase // 2)):
-        t = (i + 1) / max(30, steps_per_phase // 2)
-        lq = _lerp_q(q_power, q_open, t)
-        rq = _lerp_q(q_power, q_open, t)
-        _tick("release", 1, left_q=lq, right_q=rq, box_on_pallet=True)
-
-    _phase("approach_gun")
-    _tick(
-        "approach_gun",
-        steps_per_phase,
+        left_tgt=approach_l,
+        right_tgt=approach_r,
         left_q=q_open,
         right_q=q_open,
-        box_on_pallet=True,
-        tick_kp_scale=0.6,
+        box_mode="hold",
+        box_pos=box0,
+        gun_mode="table",
     )
+    _phase("approach_box")
 
-    _phase("grip_gun")
-    for i in range(max(40, steps_per_phase // 2)):
-        t = (i + 1) / max(40, steps_per_phase // 2)
-        rq = _lerp_q(q_open, q_gun, t)
+    # --- grasp: close fingers while wrists move in ---
+    for i in range(steps_per_phase):
+        t = (i + 1) / steps_per_phase
         _tick(
-            "grip_gun",
             1,
-            left_q=q_open,
-            right_q=rq,
-            box_on_pallet=True,
-            gun_follow=t > 0.25,
+            left_tgt=grasp_l,
+            right_tgt=grasp_r,
+            left_q=_lerp(q_open, q_power, t),
+            right_q=_lerp(q_open, q_power, t),
+            box_mode="follow",
+            gun_mode="table",
         )
+    _phase("grasp")
 
-    _phase("scan")
     _tick(
-        "scan",
         steps_per_phase,
+        left_tgt=lift_l,
+        right_tgt=lift_r,
+        left_q=q_power,
+        right_q=q_power,
+        box_mode="follow",
+        gun_mode="table",
+    )
+    _phase("lift")
+
+    _tick(
+        steps_per_phase,
+        left_tgt=carry_l,
+        right_tgt=carry_r,
+        left_q=q_power,
+        right_q=q_power,
+        box_mode="follow",
+        gun_mode="table",
+    )
+    _phase("carry")
+
+    _tick(
+        steps_per_phase,
+        left_tgt=stack_l,
+        right_tgt=stack_r,
+        left_q=q_power,
+        right_q=q_power,
+        box_mode="lerp",
+        box_pos=stack,
+        gun_mode="table",
+    )
+    place_box_on_pallet(
+        env.model, env.data, "box_0", pallet, pallet_height_m=pallet_h, box_half_z_m=box_hz
+    )
+    mujoco.mj_forward(env.model, env.data)
+    _phase("stack")
+
+    n_rel = max(30, steps_per_phase // 2)
+    for i in range(n_rel):
+        t = (i + 1) / n_rel
+        _tick(
+            1,
+            left_tgt=stack_l,
+            right_tgt=stack_r,
+            left_q=_lerp(q_power, q_open, t),
+            right_q=_lerp(q_power, q_open, t),
+            box_mode="place",
+            gun_mode="table",
+        )
+    _phase("release")
+
+    _tick(
+        steps_per_phase,
+        left_tgt=park_l,
+        right_tgt=gun_reach,
+        left_q=q_open,
+        right_q=q_open,
+        box_mode="place",
+        gun_mode="table",
+    )
+    _phase("approach_gun")
+
+    n_grip = max(40, steps_per_phase // 2)
+    for i in range(n_grip):
+        t = (i + 1) / n_grip
+        _tick(
+            1,
+            left_tgt=park_l,
+            right_tgt=gun_reach,
+            left_q=q_open,
+            right_q=_lerp(q_open, q_gun, t),
+            box_mode="place",
+            gun_mode="hand" if t > 0.2 else "table",
+        )
+    _phase("grip_gun")
+
+    _tick(
+        steps_per_phase,
+        left_tgt=park_l,
+        right_tgt=scan_r,
         left_q=q_open,
         right_q=q_gun,
-        box_on_pallet=True,
-        gun_follow=True,
-        dynamic_scan=True,
+        box_mode="place",
+        gun_mode="hand",
     )
+    _phase("scan")
 
+    # Geometry gate after last visual frame.
     if _has_site(env, "gun_tcp") and _has_site(env, "box_0_qr"):
-        from sim.mujoco_env.kinematic_assist import snap_gun_tcp_for_geometry
-
-        snap_gun_tcp_for_geometry(env.model, env.data, "scan_gun", "box_0_qr")
+        attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
         mujoco.mj_forward(env.model, env.data)
-        gun_pos = env.site_xpos("gun_tcp")
-        qr_pos = env.site_xpos("box_0_qr")
+        gun_pos = env.site_xpos("gun_tcp").copy()
+        qr_pos = env.site_xpos("box_0_qr").copy()
         gun_z = _site_z(env, "gun_tcp")
-        dummy = np.zeros((8, 8, 3), dtype=np.uint8)
-        scan = simulate_scan(
-            dummy,
-            gun_tcp_pos_m=gun_pos,
-            gun_tcp_z=gun_z,
-            qr_pos_m=qr_pos,
-            qr_normal=np.array([1.0, 0.0, 0.0]),
-            rel_speed_m_s=0.0,
-            spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(55.0)),
-        )
-        result.scan_geometry_ok = scan.geometry_ok
-        result.scan_distance_m = scan.distance_m
+        dist = float(np.linalg.norm(qr_pos - gun_pos))
+        if 0.05 <= dist <= 0.35:
+            scan = simulate_scan(
+                np.zeros((8, 8, 3), dtype=np.uint8),
+                gun_tcp_pos_m=gun_pos,
+                gun_tcp_z=gun_z,
+                qr_pos_m=qr_pos,
+                qr_normal=np.array([1.0, 0.0, 0.0]),
+                rel_speed_m_s=0.0,
+                spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(70.0)),
+            )
+            result.scan_geometry_ok = scan.geometry_ok
+            result.scan_distance_m = scan.distance_m
+        else:
+            snap_gun_tcp_for_geometry(env.model, env.data, "scan_gun", "box_0_qr")
+            mujoco.mj_forward(env.model, env.data)
+            gun_pos = env.site_xpos("gun_tcp")
+            gun_z = _site_z(env, "gun_tcp")
+            scan = simulate_scan(
+                np.zeros((8, 8, 3), dtype=np.uint8),
+                gun_tcp_pos_m=gun_pos,
+                gun_tcp_z=gun_z,
+                qr_pos_m=qr_pos,
+                qr_normal=np.array([1.0, 0.0, 0.0]),
+                rel_speed_m_s=0.0,
+                spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(55.0)),
+            )
+            result.scan_geometry_ok = scan.geometry_ok
+            result.scan_distance_m = scan.distance_m
+            attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
+            mujoco.mj_forward(env.model, env.data)
 
     _phase("done")
     return result
-
-
-def _has_body(env: CombinedMujocoEnv, name: str) -> bool:
-    try:
-        env.model.body(name)
-        return True
-    except Exception:
-        return False
 
 
 def _has_site(env: CombinedMujocoEnv, name: str) -> bool:
