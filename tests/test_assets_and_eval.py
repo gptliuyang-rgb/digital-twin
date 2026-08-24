@@ -21,10 +21,21 @@ def test_scan_gun_xml_is_scanner_not_rifle() -> None:
     assert "scan_gun_trigger" in names
     assert "scan_gun_bumper" in names
     assert not any("barrel" in (n or "") for n in names)
+    housing = next(g for g in root.iter("geom") if g.get("name") == "scan_gun_housing")
+    assert housing.get("type") == "mesh"
     tcp = root.find("site")
     assert tcp is not None and tcp.get("name") == "gun_tcp"
     x = float(tcp.get("pos", "0 0 0").split()[0])
     assert 0.10 <= x <= 0.14
+
+
+def test_scan_gun_stls_exist() -> None:
+    from assets.objects.scan_gun.generate import OUT_DIR
+
+    for name in ("body.stl", "accent.stl", "window.stl"):
+        path = OUT_DIR / name
+        assert path.is_file(), path
+        assert path.stat().st_size > 1000
 
 
 def test_ingest_official_when_cloned() -> None:

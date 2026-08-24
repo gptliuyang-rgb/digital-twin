@@ -130,8 +130,8 @@ def test_industrial_pipeline_walks_phases() -> None:
     names = {env.model.geom(i).name for i in range(env.model.ngeom)}
     assert "scan_gun_window" in names
     assert "scan_gun_trigger" in names
-    assert "scan_gun_grip" in names
     assert "scan_gun_bumper" in names
+    assert "scan_gun_housing" in names
     tcp = env.model.site_pos[int(env.model.site("gun_tcp").id)]
     assert 0.10 <= float(tcp[0]) <= 0.15
 

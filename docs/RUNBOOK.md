@@ -76,6 +76,7 @@ make eval-l1    # limits + coupling; IK skipped without Pinocchio
 make assemble   # T800 + both DexHand2, identity flange, MIT motors, compile check
 make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline (needs MuJoCo)
 make calibrate-synthetic  # E1/E2 CSV→fit→overlay→MuJoCo replay (does not patch live spec)
+make eval-l2-overlay      # L2 against the synthetic overlay spec (still no grasp_success_rate)
 make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (needs display)
 ```
 
@@ -84,9 +85,9 @@ make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (need
 While contact is uncalibrated, the pipeline uses **kinematic demo playback**
 (`mj_forward` only — no contact physics): the carton tracks the wrists during
 carry/stack, and the scan gun mocap sticks to the right hand during scan.
-Benches have legs to the floor; the scanner is a composed industrial
-barcode-gun silhouette (not vendor CAD). This is not a validated grasp
-(ADR-004/006/007).
+Benches have legs to the floor; the scanner is a lofted STL barcode-gun
+mesh (`assets/objects/scan_gun/`, not vendor CAD). This is not a validated
+grasp (ADR-004/006/007).
 
 ```bash
 make assemble
@@ -96,6 +97,8 @@ make render-industrial-gif
 # → artifacts/industrial_demo.gif
 # Scanner still (bench rest pose):
 python3 scripts/render_industrial_gif.py --skip-gif --gun-closeup artifacts/scan_gun_closeup.png
+# Overlay L2 (contact numbers from synthetic E1/E2; still no grasp_success_rate):
+make eval-l2-overlay
 ```
 
 - On **Wayland**, GLFW may warn about window position; run the viewer once per session.

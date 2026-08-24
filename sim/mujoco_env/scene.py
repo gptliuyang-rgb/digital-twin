@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
 from assets.combined.mjcf_xml import dump_mjcf, find_or_create
+from assets.objects.scan_gun.generate import OUT_DIR as SCAN_GUN_DIR
+from assets.objects.scan_gun.generate import TIP_X as SCAN_GUN_TIP_X
 
 
 @dataclass(frozen=True)
@@ -106,152 +108,63 @@ _SCAN_GUN_MATERIALS = (
 )
 
 
+def _scan_gun_mesh_assets() -> list[str]:
+    files = {
+        "scan_gun_body_msh": SCAN_GUN_DIR / "body.stl",
+        "scan_gun_accent_msh": SCAN_GUN_DIR / "accent.stl",
+        "scan_gun_window_msh": SCAN_GUN_DIR / "window.stl",
+    }
+    missing = [str(path) for path in files.values() if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "scan-gun STLs missing. Run: python3 -m assets.objects.scan_gun.generate\n"
+            + "\n".join(missing)
+        )
+    return [
+        f'<mesh name="{name}" file="{path.resolve().as_posix()}"/>' for name, path in files.items()
+    ]
+
+
 def _scan_gun_xml(*, barrel_m: float, table_pos: str) -> str:
-    """Warehouse handheld scanner (Zebra/Honeywell silhouette). Not vendor CAD.
+    """Lofted industrial barcode-scanner mesh. Not vendor CAD.
 
     Gun frame is unchanged: optical axis +X, grip −Y, ``gun_tcp`` +Z = +X.
+    ``barrel_m`` is accepted for API compatibility; the committed STL is ~13 cm.
     """
-    # Clamp so a leftover 0.16 "barrel" spec still looks like a scanner, not a rifle.
-    tip = float(min(max(barrel_m, 0.10), 0.14))
-    y0 = 0.006  # head slightly above grip junction
+    _ = barrel_m
+    tip = SCAN_GUN_TIP_X
+    y0 = 0.006
     geoms = [
-        # Head / engine housing
+        _vis("scan_gun_housing", "mesh", mesh="scan_gun_body_msh", material="scan_gun_body"),
+        _vis("scan_gun_bumper", "mesh", mesh="scan_gun_accent_msh", material="scan_gun_accent"),
+        _vis("scan_gun_window", "mesh", mesh="scan_gun_window_msh", material="scan_gun_glass"),
         _vis(
-            "scan_gun_housing",
+            "scan_gun_trigger",
             "box",
-            size=f"{tip * 0.46:.4f} 0.027 0.036",
-            pos=f"{tip * 0.42:.4f} {y0} 0",
-            material="scan_gun_body",
-        ),
-        _vis(
-            "scan_gun_housing_top",
-            "box",
-            size=f"{tip * 0.40:.4f} 0.010 0.028",
-            pos=f"{tip * 0.40:.4f} {y0 + 0.030:.4f} 0",
-            material="scan_gun_body",
-        ),
-        # Zebra-style yellow top stripe + nose bumper
-        _vis(
-            "scan_gun_stripe",
-            "box",
-            size=f"{tip * 0.36:.4f} 0.003 0.020",
-            pos=f"{tip * 0.40:.4f} {y0 + 0.040:.4f} 0",
-            material="scan_gun_accent",
-        ),
-        _vis(
-            "scan_gun_bumper",
-            "box",
-            size="0.009 0.030 0.038",
-            pos=f"{tip - 0.018:.4f} {y0} 0",
-            material="scan_gun_accent",
-        ),
-        _vis(
-            "scan_gun_bezel",
-            "box",
-            size="0.006 0.024 0.030",
-            pos=f"{tip - 0.008:.4f} {y0} 0",
-            material="scan_gun_body",
-        ),
-        _vis(
-            "scan_gun_window",
-            "box",
-            size="0.0035 0.017 0.023",
-            pos=f"{tip:.4f} {y0} 0",
-            material="scan_gun_glass",
+            size="0.006 0.011 0.005",
+            pos="0.038 -0.034 0",
+            rgba="0.16 0.16 0.17 1",
         ),
         _vis(
             "scan_gun_led",
             "box",
-            size="0.003 0.004 0.010",
-            pos=f"{tip - 0.006:.4f} {y0 + 0.026:.4f} 0",
+            size="0.003 0.004 0.008",
+            pos=f"{tip - 0.006:.4f} {y0 + 0.024:.4f} 0",
             rgba="0.15 0.85 0.35 1",
-        ),
-        # Side overmold + buttons
-        _vis(
-            "scan_gun_side_l",
-            "box",
-            size=f"{tip * 0.28:.4f} 0.014 0.004",
-            pos=f"{tip * 0.40:.4f} {y0} -0.038",
-            material="scan_gun_rubber",
-        ),
-        _vis(
-            "scan_gun_side_r",
-            "box",
-            size=f"{tip * 0.28:.4f} 0.014 0.004",
-            pos=f"{tip * 0.40:.4f} {y0} 0.038",
-            material="scan_gun_rubber",
         ),
         _vis(
             "scan_gun_btn_a",
             "cylinder",
-            fromto=f"{tip * 0.34:.4f} {y0:.4f} 0.036 {tip * 0.34:.4f} {y0:.4f} 0.043",
-            size="0.006",
+            fromto=f"0.042 {y0:.4f} 0.034 0.042 {y0:.4f} 0.041",
+            size="0.0055",
             material="scan_gun_metal",
         ),
         _vis(
             "scan_gun_btn_b",
             "cylinder",
-            fromto=f"{tip * 0.48:.4f} {y0:.4f} 0.036 {tip * 0.48:.4f} {y0:.4f} 0.043",
-            size="0.006",
+            fromto=f"0.062 {y0:.4f} 0.034 0.062 {y0:.4f} 0.041",
+            size="0.0055",
             material="scan_gun_metal",
-        ),
-        # Pistol grip (angled back) + rubber butt + cable
-        _vis(
-            "scan_gun_grip",
-            "capsule",
-            fromto=f"{tip * 0.22:.4f} -0.016 0 -0.010 -0.118 0",
-            size="0.020",
-            material="scan_gun_rubber",
-        ),
-        _vis(
-            "scan_gun_grip_core",
-            "capsule",
-            fromto=f"{tip * 0.18:.4f} -0.028 0 0.002 -0.088 0",
-            size="0.016",
-            material="scan_gun_body",
-        ),
-        _vis(
-            "scan_gun_butt",
-            "cylinder",
-            fromto="-0.008 -0.116 0 -0.014 -0.136 0",
-            size="0.014",
-            material="scan_gun_metal",
-        ),
-        _vis(
-            "scan_gun_cable",
-            "capsule",
-            fromto="-0.014 -0.136 0 -0.045 -0.175 0",
-            size="0.005",
-            material="scan_gun_rubber",
-        ),
-        # Trigger guard + trigger
-        _vis(
-            "scan_gun_guard_rear",
-            "box",
-            size="0.005 0.016 0.010",
-            pos=f"{tip * 0.16:.4f} -0.038 0",
-            material="scan_gun_metal",
-        ),
-        _vis(
-            "scan_gun_guard_bottom",
-            "box",
-            size="0.018 0.005 0.010",
-            pos=f"{tip * 0.28:.4f} -0.056 0",
-            material="scan_gun_metal",
-        ),
-        _vis(
-            "scan_gun_guard_front",
-            "box",
-            size="0.005 0.014 0.010",
-            pos=f"{tip * 0.40:.4f} -0.040 0",
-            material="scan_gun_metal",
-        ),
-        _vis(
-            "scan_gun_trigger",
-            "box",
-            size="0.007 0.013 0.006",
-            pos=f"{tip * 0.28:.4f} -0.034 0",
-            rgba="0.16 0.16 0.17 1",
         ),
     ]
     inner = "".join(geoms)
@@ -269,8 +182,8 @@ def _scan_gun_xml(*, barrel_m: float, table_pos: str) -> str:
 def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = None) -> ET.Element:
     spec = spec or SceneSpec()
     asset = find_or_create(robot_root, "asset")
-    for material in _SCAN_GUN_MATERIALS:
-        asset.append(ET.fromstring(material))
+    for xml in (*_scan_gun_mesh_assets(), *_SCAN_GUN_MATERIALS):
+        asset.append(ET.fromstring(xml))
     world = find_or_create(robot_root, "worldbody")
     solref = f"{spec.solref_timeconst_s} {spec.solref_timeconst_s * 2}"
     friction = f"{spec.friction} {spec.friction * 0.1} 0.001"

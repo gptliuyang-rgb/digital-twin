@@ -44,7 +44,15 @@ E1_FIELDS = [
 E2_FIELDS = ["trial", "finger", "skin", "disp_m", "force_n", "k_n_per_m", "batch", "fw"]
 
 
-def write_synthetic_csvs(root: Path | None = None, *, seed: int = 0) -> dict[str, Path]:
+def write_synthetic_csvs(
+    root: Path | None = None,
+    *,
+    seed: int = 0,
+    skin: str = SKIN,
+    mu_s: float = MU_S_TRUE,
+    mu_d: float = MU_D_TRUE,
+    k_n_per_m: float = K_TRUE_N_PER_M,
+) -> dict[str, Path]:
     out_dir = (root or SKIN_ON_DIR)
     out_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed)
@@ -57,13 +65,13 @@ def write_synthetic_csvs(root: Path | None = None, *, seed: int = 0) -> dict[str
         writer.writeheader()
         for finger in fingers:
             for trial in range(1, 11):
-                theta_s = math.degrees(math.atan(MU_S_TRUE)) + rng.gauss(0.0, 0.35)
-                theta_d = math.degrees(math.atan(MU_D_TRUE)) + rng.gauss(0.0, 0.40)
+                theta_s = math.degrees(math.atan(mu_s)) + rng.gauss(0.0, 0.35)
+                theta_d = math.degrees(math.atan(mu_d)) + rng.gauss(0.0, 0.40)
                 writer.writerow(
                     {
                         "trial": trial,
                         "finger": finger,
-                        "skin": SKIN,
+                        "skin": skin,
                         "normal_n": 5.0 if trial <= 5 else 10.0,
                         "theta_s_deg": f"{theta_s:.4f}",
                         "theta_d_deg": f"{theta_d:.4f}",
@@ -80,7 +88,7 @@ def write_synthetic_csvs(root: Path | None = None, *, seed: int = 0) -> dict[str
         writer.writeheader()
         for finger in fingers:
             for trial in range(1, 6):
-                k_trial = K_TRUE_N_PER_M * (1.0 + rng.gauss(0.0, 0.04))
+                k_trial = k_n_per_m * (1.0 + rng.gauss(0.0, 0.04))
                 for raw in (0.00010, 0.00020, 0.00035, 0.00050, 0.00070, 0.00090, 0.00100, 0.00120):
                     # Nonlinear toe below 0.2 mm; fitter uses the 0.2–1.0 mm window.
                     scale = 0.35 if raw < 0.0002 else 1.0
@@ -89,7 +97,7 @@ def write_synthetic_csvs(root: Path | None = None, *, seed: int = 0) -> dict[str
                         {
                             "trial": f"{finger}_{trial}",
                             "finger": finger,
-                            "skin": SKIN,
+                            "skin": skin,
                             "disp_m": f"{raw:.5f}",
                             "force_n": f"{force:.5f}",
                             "k_n_per_m": "",
@@ -119,9 +127,19 @@ def write_synthetic_csvs(root: Path | None = None, *, seed: int = 0) -> dict[str
 
 
 def main() -> None:
-    paths = write_synthetic_csvs()
-    for key, path in paths.items():
-        print(f"{key}: {path}")
+    on = write_synthetic_csvs(SKIN_ON_DIR, seed=0, skin="on")
+    off = write_synthetic_csvs(
+        SYNTHETIC_ROOT / "skin_off",
+        seed=1,
+        skin="off",
+        mu_s=0.58,
+        mu_d=0.42,
+        k_n_per_m=3800.0,
+    )
+    for label, paths in (("skin_on", on), ("skin_off", off)):
+        print(label)
+        for key, path in paths.items():
+            print(f"  {key}: {path}")
 
 
 if __name__ == "__main__":

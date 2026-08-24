@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh
 
 PYTHON ?= python3
 
@@ -41,3 +41,11 @@ eval-l2:
 
 calibrate-synthetic:
 	$(PYTHON) scripts/run_e1_e2_pipeline.py
+
+eval-l2-overlay:
+	$(PYTHON) -m eval.l2_mujoco_closedloop \
+		--spec hand/calibration/results/synthetic_batch_v1.0/generated/overlay.yaml \
+		--out eval/report/generated/l2_overlay.json --skip-physics
+
+scan-gun-mesh:
+	$(PYTHON) -m assets.objects.scan_gun.generate
