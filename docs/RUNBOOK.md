@@ -84,8 +84,9 @@ make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (need
 While contact is uncalibrated, the pipeline uses **kinematic demo playback**
 (`mj_forward` only — no contact physics): the carton tracks the wrists during
 carry/stack, and the scan gun mocap sticks to the right hand during scan.
-Benches have legs to the floor; the scanner is a placeholder pistol mesh, not
-vendor CAD. This is not a validated grasp (ADR-004/006/007).
+Benches have legs to the floor; the scanner is a composed industrial
+barcode-gun silhouette (not vendor CAD). This is not a validated grasp
+(ADR-004/006/007).
 
 ```bash
 make assemble
@@ -93,6 +94,8 @@ python3 scripts/view_industrial_twin.py --steps-per-phase 100 --real-time --sync
 # Headless GIF (no window):
 make render-industrial-gif
 # → artifacts/industrial_demo.gif
+# Scanner still (bench rest pose):
+python3 scripts/render_industrial_gif.py --skip-gif --gun-closeup artifacts/scan_gun_closeup.png
 ```
 
 - On **Wayland**, GLFW may warn about window position; run the viewer once per session.

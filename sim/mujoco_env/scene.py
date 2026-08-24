@@ -1,4 +1,4 @@
-"""Industrial MuJoCo scene: grounded benches, carton, handheld scan gun.
+"""Industrial MuJoCo scene: grounded benches, carton, handheld barcode scanner.
 
 Contact friction/stiffness are SCAN_PLACEHOLDER (not E1/E2). Layout fits T800
 elbow reach (~0.30 m forward from the pinned base).
@@ -26,9 +26,9 @@ class SceneSpec:
     leg_size_m: float = 0.04
     # Stack-bench top footprint (not a floating Euro pallet slab).
     pad_size_m: tuple[float, float, float] = (0.40, 0.32, 0.04)
-    # Barrel length for the placeholder pistol-style scanner (no vendor CAD yet).
-    gun_barrel_m: float = 0.16
-    gun_length_m: float = 0.16  # alias used by older callers
+    # Origin → scan window along +X. Real handheld scanners are ~12 cm, not a rifle.
+    gun_barrel_m: float = 0.13
+    gun_length_m: float = 0.13  # alias used by older callers
 
 
 def _box_inertial(mass: float, size: tuple[float, float, float]) -> str:
@@ -89,40 +89,188 @@ def _bench_xml(
     return f'<body name="{name}" pos="{cx} {cy} {top_z}">{inner}</body>'
 
 
+def _vis(name: str, gtype: str, **kw: object) -> str:
+    parts = [f'<geom name="{name}" type="{gtype}"']
+    for key, value in kw.items():
+        parts.append(f'{key}="{value}"')
+    parts.append('contype="0" conaffinity="0" group="0"/>')
+    return " ".join(parts)
+
+
+_SCAN_GUN_MATERIALS = (
+    '<material name="scan_gun_body" rgba="0.10 0.10 0.11 1" specular="0.28" shininess="0.25"/>',
+    '<material name="scan_gun_accent" rgba="0.93 0.74 0.10 1" specular="0.18" shininess="0.15"/>',
+    '<material name="scan_gun_glass" rgba="0.62 0.07 0.06 1" specular="0.65" shininess="0.55"/>',
+    '<material name="scan_gun_metal" rgba="0.38 0.39 0.41 1" specular="0.45" shininess="0.40"/>',
+    '<material name="scan_gun_rubber" rgba="0.07 0.07 0.08 1" specular="0.08" shininess="0.05"/>',
+)
+
+
 def _scan_gun_xml(*, barrel_m: float, table_pos: str) -> str:
-    """Handheld barcode scanner placeholder: pistol grip + housing + barrel + window."""
-    b = barrel_m
-    tip = 0.055 + b
+    """Warehouse handheld scanner (Zebra/Honeywell silhouette). Not vendor CAD.
+
+    Gun frame is unchanged: optical axis +X, grip −Y, ``gun_tcp`` +Z = +X.
+    """
+    # Clamp so a leftover 0.16 "barrel" spec still looks like a scanner, not a rifle.
+    tip = float(min(max(barrel_m, 0.10), 0.14))
+    y0 = 0.006  # head slightly above grip junction
+    geoms = [
+        # Head / engine housing
+        _vis(
+            "scan_gun_housing",
+            "box",
+            size=f"{tip * 0.46:.4f} 0.027 0.036",
+            pos=f"{tip * 0.42:.4f} {y0} 0",
+            material="scan_gun_body",
+        ),
+        _vis(
+            "scan_gun_housing_top",
+            "box",
+            size=f"{tip * 0.40:.4f} 0.010 0.028",
+            pos=f"{tip * 0.40:.4f} {y0 + 0.030:.4f} 0",
+            material="scan_gun_body",
+        ),
+        # Zebra-style yellow top stripe + nose bumper
+        _vis(
+            "scan_gun_stripe",
+            "box",
+            size=f"{tip * 0.36:.4f} 0.003 0.020",
+            pos=f"{tip * 0.40:.4f} {y0 + 0.040:.4f} 0",
+            material="scan_gun_accent",
+        ),
+        _vis(
+            "scan_gun_bumper",
+            "box",
+            size="0.009 0.030 0.038",
+            pos=f"{tip - 0.018:.4f} {y0} 0",
+            material="scan_gun_accent",
+        ),
+        _vis(
+            "scan_gun_bezel",
+            "box",
+            size="0.006 0.024 0.030",
+            pos=f"{tip - 0.008:.4f} {y0} 0",
+            material="scan_gun_body",
+        ),
+        _vis(
+            "scan_gun_window",
+            "box",
+            size="0.0035 0.017 0.023",
+            pos=f"{tip:.4f} {y0} 0",
+            material="scan_gun_glass",
+        ),
+        _vis(
+            "scan_gun_led",
+            "box",
+            size="0.003 0.004 0.010",
+            pos=f"{tip - 0.006:.4f} {y0 + 0.026:.4f} 0",
+            rgba="0.15 0.85 0.35 1",
+        ),
+        # Side overmold + buttons
+        _vis(
+            "scan_gun_side_l",
+            "box",
+            size=f"{tip * 0.28:.4f} 0.014 0.004",
+            pos=f"{tip * 0.40:.4f} {y0} -0.038",
+            material="scan_gun_rubber",
+        ),
+        _vis(
+            "scan_gun_side_r",
+            "box",
+            size=f"{tip * 0.28:.4f} 0.014 0.004",
+            pos=f"{tip * 0.40:.4f} {y0} 0.038",
+            material="scan_gun_rubber",
+        ),
+        _vis(
+            "scan_gun_btn_a",
+            "cylinder",
+            fromto=f"{tip * 0.34:.4f} {y0:.4f} 0.036 {tip * 0.34:.4f} {y0:.4f} 0.043",
+            size="0.006",
+            material="scan_gun_metal",
+        ),
+        _vis(
+            "scan_gun_btn_b",
+            "cylinder",
+            fromto=f"{tip * 0.48:.4f} {y0:.4f} 0.036 {tip * 0.48:.4f} {y0:.4f} 0.043",
+            size="0.006",
+            material="scan_gun_metal",
+        ),
+        # Pistol grip (angled back) + rubber butt + cable
+        _vis(
+            "scan_gun_grip",
+            "capsule",
+            fromto=f"{tip * 0.22:.4f} -0.016 0 -0.010 -0.118 0",
+            size="0.020",
+            material="scan_gun_rubber",
+        ),
+        _vis(
+            "scan_gun_grip_core",
+            "capsule",
+            fromto=f"{tip * 0.18:.4f} -0.028 0 0.002 -0.088 0",
+            size="0.016",
+            material="scan_gun_body",
+        ),
+        _vis(
+            "scan_gun_butt",
+            "cylinder",
+            fromto="-0.008 -0.116 0 -0.014 -0.136 0",
+            size="0.014",
+            material="scan_gun_metal",
+        ),
+        _vis(
+            "scan_gun_cable",
+            "capsule",
+            fromto="-0.014 -0.136 0 -0.045 -0.175 0",
+            size="0.005",
+            material="scan_gun_rubber",
+        ),
+        # Trigger guard + trigger
+        _vis(
+            "scan_gun_guard_rear",
+            "box",
+            size="0.005 0.016 0.010",
+            pos=f"{tip * 0.16:.4f} -0.038 0",
+            material="scan_gun_metal",
+        ),
+        _vis(
+            "scan_gun_guard_bottom",
+            "box",
+            size="0.018 0.005 0.010",
+            pos=f"{tip * 0.28:.4f} -0.056 0",
+            material="scan_gun_metal",
+        ),
+        _vis(
+            "scan_gun_guard_front",
+            "box",
+            size="0.005 0.014 0.010",
+            pos=f"{tip * 0.40:.4f} -0.040 0",
+            material="scan_gun_metal",
+        ),
+        _vis(
+            "scan_gun_trigger",
+            "box",
+            size="0.007 0.013 0.006",
+            pos=f"{tip * 0.28:.4f} -0.034 0",
+            rgba="0.16 0.16 0.17 1",
+        ),
+    ]
+    inner = "".join(geoms)
     return (
         f'<body name="scan_gun" mocap="true" pos="{table_pos}">'
-        '<inertial pos="0.05 -0.04 0" mass="0.25" diaginertia="0.0005 0.0006 0.00025"/>'
-        # Pistol grip
-        '<geom name="scan_gun_grip" type="capsule" fromto="0.01 0.01 0 0.01 -0.11 0" '
-        'size="0.020" rgba="0.10 0.10 0.12 1" contype="0" conaffinity="0"/>'
-        # Main housing
-        '<geom name="scan_gun_housing" type="box" size="0.055 0.032 0.028" pos="0.03 0.0 0" '
-        'rgba="0.16 0.17 0.20 1" contype="0" conaffinity="0"/>'
-        # Amber / red scan engine window band
-        '<geom name="scan_gun_band" type="box" size="0.014 0.034 0.030" pos="0.08 0 0" '
-        'rgba="0.90 0.25 0.08 1" contype="0" conaffinity="0"/>'
-        # Barrel
-        f'<geom name="scan_gun_barrel" type="capsule" fromto="0.09 0 0 {tip - 0.01} 0 0" '
-        'size="0.015" rgba="0.28 0.29 0.32 1" contype="0" conaffinity="0"/>'
-        # Green optical nose
-        f'<geom name="scan_gun_nose" type="cylinder" fromto="{tip - 0.012} 0 0 {tip} 0 0" '
-        'size="0.018" rgba="0.10 0.85 0.40 1" contype="0" conaffinity="0"/>'
-        # Trigger
-        '<geom name="scan_gun_trigger" type="box" size="0.010 0.014 0.007" pos="0.025 -0.040 0" '
-        'rgba="0.40 0.40 0.44 1" contype="0" conaffinity="0"/>'
-        f'<site name="gun_tcp" pos="{tip} 0 0" size="0.009" rgba="0 1 0.3 1" '
+        '<inertial pos="0.04 -0.04 0" mass="0.28" diaginertia="0.00055 0.00065 0.00028"/>'
+        f"{inner}"
+        f'<site name="gun_tcp" pos="{tip:.4f} {y0} 0" size="0.003" rgba="0 0 0 0" '
         'xyaxes="0 1 0 0 0 1"/>'
-        f'<camera name="gun_cam" pos="{tip} 0 0" xyaxes="0 -1 0 0 0 1" fovy="55"/>'
+        f'<camera name="gun_cam" pos="{tip:.4f} {y0} 0" xyaxes="0 -1 0 0 0 1" fovy="55"/>'
         "</body>"
     )
 
 
 def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = None) -> ET.Element:
     spec = spec or SceneSpec()
+    asset = find_or_create(robot_root, "asset")
+    for material in _SCAN_GUN_MATERIALS:
+        asset.append(ET.fromstring(material))
     world = find_or_create(robot_root, "worldbody")
     solref = f"{spec.solref_timeconst_s} {spec.solref_timeconst_s * 2}"
     friction = f"{spec.friction} {spec.friction * 0.1} 0.001"
@@ -222,9 +370,9 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
             )
         )
 
-    # Rest the scanner on the pick bench, barrel along +X, grip down.
-    gun_z = spec.table_height_m + 0.04
-    table_gun = f"0.22 -0.40 {gun_z}"
+    # Rest the scanner on the pick-bench edge, window +X, grip hanging −Y off the apron.
+    gun_z = spec.table_height_m + 0.038
+    table_gun = f"0.24 -0.38 {gun_z}"
     barrel = spec.gun_barrel_m if spec.gun_barrel_m else spec.gun_length_m
     world.append(ET.fromstring(_scan_gun_xml(barrel_m=barrel, table_pos=table_gun)))
     return robot_root

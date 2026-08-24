@@ -119,6 +119,54 @@ def render_gif(
     }
 
 
+def render_gun_closeup(
+    *,
+    out_path: Path,
+    width: int = 960,
+    height: int = 540,
+    in_hand_path: Path | None = None,
+) -> dict:
+    """Still of the barcode scanner on the pick bench; optional in-hand still."""
+    import mujoco
+    from PIL import Image
+
+    from sim.mujoco_env.env import CombinedMujocoEnv
+
+    env = CombinedMujocoEnv(scene="industrial")
+    env.reset()
+    env.model.vis.global_.offwidth = max(int(env.model.vis.global_.offwidth), width)
+    env.model.vis.global_.offheight = max(int(env.model.vis.global_.offheight), height)
+    renderer = mujoco.Renderer(env.model, width=width, height=height)
+
+    def _shot(lookat, distance: float, elevation: float, azimuth: float, dest: Path) -> None:
+        cam = mujoco.MjvCamera()
+        cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+        cam.lookat[:] = lookat
+        cam.distance = distance
+        cam.elevation = elevation
+        cam.azimuth = azimuth
+        renderer.update_scene(env.data, camera=cam)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(renderer.render()).convert("RGB").save(dest)
+
+    gun = env.xpos("scan_gun")
+    _shot([gun[0] + 0.03, gun[1] - 0.05, gun[2]], 0.40, -52.0, 155.0, out_path)
+    saved = {"out": str(out_path.resolve()), "lookat": gun.tolist()}
+    if in_hand_path is not None:
+        from sim.tasks.industrial_pipeline import run_industrial_pipeline
+
+        def on_phase(name: str, _env, _result) -> None:
+            if name not in {"grip_gun", "scan"}:
+                return
+            g = env.xpos("scan_gun")
+            _shot([g[0] + 0.02, g[1], g[2] + 0.02], 0.32, -14.0, 142.0, in_hand_path)
+
+        run_industrial_pipeline(env, steps_per_phase=40, on_phase=on_phase)
+        saved["in_hand"] = str(in_hand_path.resolve())
+    renderer.close()
+    return saved
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Render industrial twin pipeline to GIF")
     parser.add_argument(
@@ -137,6 +185,19 @@ def main() -> int:
     parser.add_argument("--width", type=int, default=960)
     parser.add_argument("--height", type=int, default=540)
     parser.add_argument("--fps", type=float, default=12.0, help="Playback rate of the GIF")
+    parser.add_argument(
+        "--gun-closeup",
+        type=Path,
+        default=None,
+        help="Write a still of the barcode scanner (identity pose on the bench)",
+    )
+    parser.add_argument(
+        "--gun-in-hand",
+        type=Path,
+        default=None,
+        help="Write a still after the pipeline seats the scanner in the right hand",
+    )
+    parser.add_argument("--skip-gif", action="store_true", help="Skip the full pipeline GIF")
     args = parser.parse_args()
 
     try:
@@ -144,6 +205,19 @@ def main() -> int:
     except ImportError as exc:
         print("mujoco is required: pip install -e '.[sim]'", file=sys.stderr)
         raise SystemExit(1) from exc
+
+    if args.gun_closeup or args.gun_in_hand:
+        still = render_gun_closeup(
+            out_path=args.gun_closeup or Path("artifacts/scan_gun_closeup.png"),
+            width=args.width,
+            height=args.height,
+            in_hand_path=args.gun_in_hand,
+        )
+        print(f"[saved] {still}", flush=True)
+    if args.skip_gif:
+        if args.gun_closeup is None and args.gun_in_hand is None:
+            raise SystemExit("--skip-gif requires --gun-closeup or --gun-in-hand")
+        return 0
 
     info = render_gif(
         out_path=args.out,

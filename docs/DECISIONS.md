@@ -48,7 +48,7 @@
 
 - **Status:** accepted for simulation-only digital twin
 - **Context:** Uncalibrated hand–object contact (ADR-004) cannot support a believable physics grasp; floating prop slabs also read as unfinished set dressing.
-- **Decision:** The scripted industrial FSM (`sim/tasks/industrial_pipeline.py`) plays back with `mj_forward` + IK + explicit carton/gun assists. Scene benches are grounded (legs to floor). The scan gun is a **placeholder pistol mesh** (grip/housing/barrel), not vendor CAD.
+- **Decision:** The scripted industrial FSM (`sim/tasks/industrial_pipeline.py`) plays back with `mj_forward` + IK + explicit carton/gun assists. Scene benches are grounded (legs to floor). The scan gun is a **composed industrial barcode-scanner silhouette** (grip, head, red window, yellow bumper — not vendor CAD).
 - **Forbidden:** treating lift/carry/scan visuals as contact-validated sim2real evidence or publishing `grasp_success_rate`.
 - **Consequences:** Demo answers “does the twin look like the cell?” not “does the hand pick?”. Replace assists with E1/E2 friction/stiffness and a real scanner mesh when available.
 

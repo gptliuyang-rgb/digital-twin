@@ -109,7 +109,7 @@ def place_box_on_pallet(
 
 
 def attach_gun_to_right_wrist(model, data, gun_body: str = "scan_gun") -> None:
-    """Seat pistol-style scanner in the right palm (grip -Y, barrel +X in gun frame)."""
+    """Seat industrial barcode scanner in the right palm (grip -Y, optical +X)."""
     pos, R = body_pos_mat(model, data, "r_wrist")
     handle = pos + R @ np.array([0.06, 0.0, -0.03], dtype=np.float64)
     x = np.array([1.0, 0.0, -0.05], dtype=np.float64)
