@@ -36,6 +36,7 @@ make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
 make eval-l1    # limits + coupling; IK skipped without Pinocchio
 make assemble   # T800 + both DexHand2, identity flange, MIT motors, compile check
 make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline (needs MuJoCo)
+make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (needs display)
 ```
 
 `make eval-l2` still sets `status: blocked_uncalibrated` and never writes a computed `grasp_success_rate`.

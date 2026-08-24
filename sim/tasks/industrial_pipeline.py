@@ -6,6 +6,7 @@ Scan success is geometry (+ optional decode), not a learned IBVS policy.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -56,6 +57,8 @@ def run_industrial_pipeline(
     *,
     steps_per_phase: int = 80,
     kp_scale: float = 1.0,
+    on_step: Callable | None = None,
+    on_phase: Callable | None = None,
 ) -> PipelineResult:
     env = env or CombinedMujocoEnv(scene="industrial")
     env.reset()
@@ -78,6 +81,13 @@ def run_industrial_pipeline(
                 result.box0_z.append(float(env.xpos("box_0")[2]))
             except Exception:
                 pass
+            if on_step is not None:
+                on_step(env, result)
+
+    def _phase(name: str) -> None:
+        result.phases.append(name)
+        if on_phase is not None:
+            on_phase(name, env, result)
 
     # Approach: IK wrists toward box sides.
     try:
@@ -90,14 +100,14 @@ def run_industrial_pipeline(
     ik_r = dls_ik_pos(env.model, env.data, "r_wrist", right_tgt, env.handles.arm_joints["right"])
     body_q = env.data.qpos.copy()
     result.ik_err_m.extend([ik_l["err_m"], ik_r["err_m"]])
-    result.phases.append("approach_box")
+    _phase("approach_box")
     _tick(q_open, q_open, steps_per_phase)
 
-    result.phases.append("grasp")
+    _phase("grasp")
     _tick(q_power, q_power, steps_per_phase)
     left_q, right_q = q_power, q_power
 
-    result.phases.append("lift")
+    _phase("lift")
     lift = dls_ik_pos(
         env.model,
         env.data,
@@ -116,35 +126,35 @@ def run_industrial_pipeline(
     result.ik_err_m.append(lift["err_m"])
     _tick(left_q, right_q, steps_per_phase)
 
-    result.phases.append("carry")
+    _phase("carry")
     pallet = env.xpos("pallet") if _has_body(env, "pallet") else np.array([0.70, 0.0, 0.2])
     dls_ik_pos(env.model, env.data, "l_wrist", pallet + np.array([0.0, 0.16, 0.25]), env.handles.arm_joints["left"])
     dls_ik_pos(env.model, env.data, "r_wrist", pallet + np.array([0.0, -0.16, 0.25]), env.handles.arm_joints["right"])
     body_q = env.data.qpos.copy()
     _tick(left_q, right_q, steps_per_phase)
 
-    result.phases.append("stack")
+    _phase("stack")
     dls_ik_pos(env.model, env.data, "l_wrist", pallet + np.array([0.0, 0.16, 0.18]), env.handles.arm_joints["left"])
     dls_ik_pos(env.model, env.data, "r_wrist", pallet + np.array([0.0, -0.16, 0.18]), env.handles.arm_joints["right"])
     body_q = env.data.qpos.copy()
     _tick(left_q, right_q, steps_per_phase)
 
-    result.phases.append("release")
+    _phase("release")
     left_q, right_q = q_open, q_open
     _tick(left_q, right_q, max(20, steps_per_phase // 2))
 
-    result.phases.append("approach_gun")
+    _phase("approach_gun")
     if _has_body(env, "scan_gun"):
         gun = env.xpos("scan_gun")
         dls_ik_pos(env.model, env.data, "r_wrist", gun + np.array([0.0, 0.0, 0.05]), env.handles.arm_joints["right"])
         body_q = env.data.qpos.copy()
     _tick(q_open, q_open, steps_per_phase)
 
-    result.phases.append("grip_gun")
+    _phase("grip_gun")
     right_q = q_gun
     _tick(q_open, right_q, max(20, steps_per_phase // 2))
 
-    result.phases.append("scan")
+    _phase("scan")
     if _has_body(env, "box_1"):
         qr = env.site_xpos("box_1_qr")
         dls_ik_pos(env.model, env.data, "r_wrist", qr + np.array([-0.18, 0.0, 0.0]), env.handles.arm_joints["right"])
@@ -166,7 +176,7 @@ def run_industrial_pipeline(
         )
         result.scan_geometry_ok = scan.geometry_ok
         result.scan_distance_m = scan.distance_m
-    result.phases.append("done")
+    _phase("done")
     return result
 
 

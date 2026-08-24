@@ -26,6 +26,7 @@ python3 -m pip install -e ".[dev]"
 ./scripts/bootstrap_resources.sh
 make test
 make assemble   # T800 + both DexHand2, identity flange (needs MuJoCo)
+make view-industrial   # interactive MuJoCo viewer (needs display / X11)
 ```
 
 `make check-spec` is **supposed to fail** until the P0 `REQUIRED_INPUT` fields in `docs/SPEC_INTAKE.md` are filled. That is intentional.
