@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif
 
 PYTHON ?= python3
 
@@ -26,6 +26,9 @@ assemble:
 
 view-industrial:
 	$(PYTHON) scripts/view_industrial_twin.py --steps-per-phase 100 --real-time
+
+render-industrial-gif:
+	$(PYTHON) scripts/render_industrial_gif.py --out artifacts/industrial_demo.gif --steps-per-phase 80
 
 eval-l0:
 	$(PYTHON) -m eval.l0_offline_replay --config eval/configs/l0_offline.yaml

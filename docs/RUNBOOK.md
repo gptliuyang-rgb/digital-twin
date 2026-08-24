@@ -48,6 +48,9 @@ validated grasps (ADR-004/006).
 ```bash
 make assemble
 python3 scripts/view_industrial_twin.py --steps-per-phase 100 --real-time --sync-every 8
+# Headless GIF (no window):
+make render-industrial-gif
+# → artifacts/industrial_demo.gif
 ```
 
 - On **Wayland**, GLFW may warn about window position; run the viewer once per session.
