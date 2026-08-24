@@ -41,9 +41,10 @@ make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (need
 
 ### Industrial viewer tips
 
-While contact is uncalibrated, the pipeline uses **kinematic demo assists** so the carton
-follows the wrists during carry/stack and the scan gun mocap aims at `box_0_qr` — not
-validated grasps (ADR-004/006).
+While contact is uncalibrated, the pipeline uses **kinematic demo playback**
+(`mj_forward` only — no contact physics): the carton tracks the wrists during
+carry/stack, and the scan gun mocap sticks to the right hand during scan.
+This is not a validated grasp (ADR-004/006).
 
 ```bash
 make assemble

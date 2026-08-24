@@ -30,3 +30,7 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+# local renders
+artifacts/
+MUJOCO_LOG.TXT
