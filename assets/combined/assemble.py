@@ -20,6 +20,7 @@ import yaml
 from assets.combined.mjcf_xml import dump_mjcf, find_body, find_or_create, load_mjcf
 from assets.dexhand2.build.ingest_official import official_mjcf, official_urdf
 from assets.engineai.paths import t800_mjcf, t800_root, t800_urdf
+from hand.calibration.contact_mujoco import contact_is_calibrated
 from interface.schema import REPO_ROOT, REQUIRED_INPUT_TOKEN, find_required_inputs
 
 MOUNT = REPO_ROOT / "assets" / "dexhand2" / "meta" / "mount_transform.yaml"
@@ -90,7 +91,7 @@ def convert_position_actuators(xml_text: str) -> tuple[str, list[dict[str, Any]]
     return new, gains
 
 
-def _inject_pad_spheres(xml_text: str, side: str) -> str:
+def _inject_pad_spheres(xml_text: str, side: str, spec_raw: dict[str, Any] | None = None) -> str:
     from assets.dexhand2.build.gen_derived import (
         fit_pad_spheres,
         inject_spheres,
@@ -98,6 +99,7 @@ def _inject_pad_spheres(xml_text: str, side: str) -> str:
         read_stl_vertices,
     )
     from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM
+    from hand.calibration.contact_mujoco import apply_contact_to_xml
 
     prefix = "r" if side == "right" else "l"
     mesh_dir = DEFAULT_UPSTREAM / "hand2/hand2_beta1/body/meshes" / side
@@ -112,16 +114,24 @@ def _inject_pad_spheres(xml_text: str, side: str) -> str:
             xml_text = inject_spheres(xml_text, site["name"], fit_pad_spheres(read_stl_vertices(stl)))
         except ValueError:
             continue
+    if spec_raw:
+        xml_text = apply_contact_to_xml(xml_text, spec_raw)
     return xml_text
 
 
-def _load_hand_mjcf(side: str, *, mit_motors: bool, pad_spheres: bool) -> tuple[ET.Element, list[dict[str, Any]]]:
+def _load_hand_mjcf(
+    side: str,
+    *,
+    mit_motors: bool,
+    pad_spheres: bool,
+    spec_raw: dict[str, Any] | None = None,
+) -> tuple[ET.Element, list[dict[str, Any]]]:
     from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM
 
     path = official_mjcf(side, with_mount=True)
     text = path.read_text(encoding="utf-8")
     if pad_spheres:
-        text = _inject_pad_spheres(text, side)
+        text = _inject_pad_spheres(text, side, spec_raw=spec_raw)
     gains: list[dict[str, Any]] = []
     if mit_motors:
         text, gains = convert_position_actuators(text)
@@ -142,8 +152,12 @@ def assemble_mjcf(
     mit_motors: bool = True,
     pad_spheres: bool = True,
     timestep_s: float = 0.001,
+    spec_path: Path | None = None,
 ) -> tuple[str, dict[str, Any]]:
+    from interface.schema import load_hand_spec
+
     bringup = kinematic_bringup()
+    spec_raw = load_hand_spec(spec_path).raw if spec_path is not None else load_hand_spec().raw
     pos = " ".join(str(x) for x in bringup["pos_m"])
     quat = " ".join(str(x) for x in bringup["quat_wxyz"])
 
@@ -173,7 +187,9 @@ def assemble_mjcf(
         ("left", "LINK_WRIST_END_L", "l_mount"),
         ("right", "LINK_WRIST_END_R", "r_mount"),
     ):
-        hand, gains = _load_hand_mjcf(side, mit_motors=mit_motors, pad_spheres=pad_spheres)
+        hand, gains = _load_hand_mjcf(
+            side, mit_motors=mit_motors, pad_spheres=pad_spheres, spec_raw=spec_raw
+        )
         all_gains.extend(gains)
         hand_asset = hand.find("asset")
         if hand_asset is not None:
@@ -210,6 +226,7 @@ def assemble_mjcf(
         "pin_base": pin_base,
         "mit_motors": mit_motors,
         "pad_spheres": pad_spheres,
+        "contact_calibrated": contact_is_calibrated(spec_raw) if pad_spheres else False,
         "timestep_s": timestep_s,
         "hand_mit_gains": all_gains,
         "n_hand_actuators": len(all_gains),

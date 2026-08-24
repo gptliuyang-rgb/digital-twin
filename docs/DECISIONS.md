@@ -26,8 +26,8 @@
 
 - **Status:** accepted
 - **Context:** N3 in the agent prompt. Official contact is convex-hull distal, pad not colliding, soft body unlocked.
-- **Decision:** `eval/l2_mujoco_closedloop.py` reports `blocked_uncalibrated` while friction/stiffness are `REQUIRED_INPUT`.
-- **Consequences:** No dashboard number that looks like a pick-success rate.
+- **Decision:** `eval/l2_mujoco_closedloop.py` reports `blocked_uncalibrated` while friction/stiffness are `REQUIRED_INPUT` on the **live** spec. A synthetic overlay may run a single E1/E2 micro episode (`status: ready` for that overlay only) but still omits `grasp_success_rate`. Fit fragments never silently patch `dexhand2_spec.yaml`.
+- **Consequences:** No dashboard number that looks like a pick-success rate. `make calibrate-synthetic` is a pipeline dry-run, not a hardware claim.
 
 ## ADR-005 — SDK index order
 

@@ -5,9 +5,15 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+from collections import defaultdict
 from pathlib import Path
 
 import yaml
+
+from hand.calibration.contact_mujoco import (
+    DEFAULT_PAD_M_EFF_KG,
+    solref_timeconst_from_stiffness,
+)
 
 
 def _mean(xs: list[float]) -> float:
@@ -16,6 +22,7 @@ def _mean(xs: list[float]) -> float:
 
 def fit_e1(path: Path) -> dict:
     mu_s, mu_d = [], []
+    batch = fw = skin = None
     with path.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             if row.get("mu_s"):
@@ -26,21 +33,80 @@ def fit_e1(path: Path) -> dict:
                 mu_d.append(float(row["mu_d"]))
             elif row.get("theta_d_deg"):
                 mu_d.append(math.tan(math.radians(float(row["theta_d_deg"]))))
-    return {
+            batch = batch or row.get("batch")
+            fw = fw or row.get("fw")
+            skin = skin or row.get("skin")
+    out = {
         "friction_vs_cardboard_static": _mean(mu_s),
         "friction_vs_cardboard_dynamic": _mean(mu_d),
         "n_static": len(mu_s),
         "n_dynamic": len(mu_d),
     }
+    if batch:
+        out["soft_body_batch_id"] = batch
+        out["skin_batch_id"] = batch
+    if fw:
+        out["firmware_version"] = fw
+    if skin:
+        out["skin_present"] = skin.lower() in {"1", "true", "yes", "on", "skin_on"}
+    return out
 
 
-def fit_e2(path: Path) -> dict:
+def _fit_k_from_trial(rows: list[dict], *, disp_lo_m: float = 0.0002, disp_hi_m: float = 0.001) -> float | None:
+    xs, ys = [], []
+    for row in rows:
+        disp = float(row["disp_m"])
+        force = float(row["force_n"])
+        if disp_lo_m <= disp <= disp_hi_m:
+            xs.append(disp)
+            ys.append(force)
+    if len(xs) < 2:
+        return None
+    x_mean = _mean(xs)
+    y_mean = _mean(ys)
+    num = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys, strict=True))
+    den = sum((x - x_mean) ** 2 for x in xs)
+    if den <= 0:
+        return None
+    k = num / den
+    return k if k > 0 else None
+
+
+def fit_e2(path: Path, *, m_eff_kg: float = DEFAULT_PAD_M_EFF_KG) -> dict:
     ks: list[float] = []
+    by_trial: dict[str, list[dict]] = defaultdict(list)
+    batch = fw = skin = None
     with path.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             if row.get("k_n_per_m"):
                 ks.append(float(row["k_n_per_m"]))
-    return {"normal_stiffness_n_per_m": _mean(ks), "n": len(ks)}
+            elif row.get("disp_m") and row.get("force_n"):
+                trial = row.get("trial") or str(len(by_trial))
+                by_trial[trial].append(row)
+            batch = batch or row.get("batch")
+            fw = fw or row.get("fw")
+            skin = skin or row.get("skin")
+    for trial_rows in by_trial.values():
+        k = _fit_k_from_trial(trial_rows)
+        if k is not None:
+            ks.append(k)
+    k_mean = _mean(ks)
+    solref = solref_timeconst_from_stiffness(k_mean, m_eff_kg=m_eff_kg) if ks else float("nan")
+    out = {
+        "normal_stiffness_n_per_m": k_mean,
+        "solref_timeconst_s": solref,
+        "m_eff_kg": m_eff_kg,
+        "n": len(ks),
+        "n_trials_fitted": len(by_trial),
+    }
+    if batch:
+        out["soft_body_batch_id"] = batch
+        out["skin_batch_id"] = batch
+    if fw:
+        out["firmware_version"] = fw
+    if skin:
+        out["skin_present"] = skin.lower() in {"1", "true", "yes", "on", "skin_on"}
+    return out
 
 
 def main() -> None:
@@ -48,12 +114,18 @@ def main() -> None:
     parser.add_argument("--e1", default="")
     parser.add_argument("--e2", default="")
     parser.add_argument("--out", default="hand/calibration/results/fragment.yaml")
+    parser.add_argument("--m-eff-kg", type=float, default=DEFAULT_PAD_M_EFF_KG)
     args = parser.parse_args()
-    fragment: dict = {"source": "fit_params.py", "do_not_treat_as_committed_hardware": True}
+    fragment: dict = {
+        "source": "fit_params.py",
+        "do_not_treat_as_committed_hardware": True,
+        "human_must_accept_solref": True,
+    }
     if args.e1:
         fragment.update(fit_e1(Path(args.e1)))
     if args.e2:
-        fragment.update(fit_e2(Path(args.e2)))
+        fragment.update(fit_e2(Path(args.e2), m_eff_kg=args.m_eff_kg))
+        fragment["human_must_accept_solref"] = True
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(yaml.safe_dump(fragment, sort_keys=False), encoding="utf-8")

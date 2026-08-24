@@ -15,8 +15,8 @@ Priority:
 
 | Field | Why it blocks | How to get it | Worst-case substitute if you cannot get it |
 |---|---|---|---|
-| `friction_vs_cardboard_static/dynamic` | Grasp success is a friction problem. Official soft body / skin is not locked. | E1 incline test (`hand/calibration/PROTOCOL.md`) | Do **not** publish a success rate. Run the 3×3 μ/stiffness scan and report range only. |
-| `normal_stiffness_n_per_m` | Sets MuJoCo `solref`/`solimp` and Isaac material. Convex-hull distal contact is already wrong; wrong stiffness makes it worse. | E2 compression test | Same 3×3 scan. Label results "uncalibrated". |
+| `friction_vs_cardboard_static/dynamic` | Grasp success is a friction problem. Official soft body / skin is not locked. | E1 incline test (`hand/calibration/PROTOCOL.md`) | Do **not** publish a success rate. Run `make calibrate-synthetic` (overlay only) and/or the 3×3 μ/stiffness scan. Live spec stays `REQUIRED_INPUT` until hardware CSVs are accepted. |
+| `normal_stiffness_n_per_m` | Sets MuJoCo `solref`/`solimp` and Isaac material. Convex-hull distal contact is already wrong; wrong stiffness makes it worse. | E2 compression test | Same overlay dry-run + 3×3 scan. Label results "uncalibrated" until a human accepts `solref`. |
 | `motor_max_torque_nm` (hardware) | Official usage constraints: measured load is **not** a committed spec. MJCF `forcerange` is sim-only. | E3 grasp-limit test / ask Wuji FAE | Use MJCF `sim_actuator_forcerange_nm` **only** inside sim, never as a payload rating. |
 | `hardware_kp` / `hardware_kd` | Official USD/MJCF gains are gen-1 carry-over, not Hand 2 sys-id. | Step / chirp identification, or FAE | Gain scan 3×3 (`eval/configs/gain_scan.yaml`). Report range. |
 | `command_latency_ms` | Finger ring is 1 kHz; unmodelled delay wrecks grasp timing. | Scope / SDK timestamp vs motion | Ring-buffer sweep 5–40 ms; do not pick one value. |

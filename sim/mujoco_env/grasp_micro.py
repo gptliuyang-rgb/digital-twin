@@ -15,6 +15,7 @@ import numpy as np
 from assets.combined.assemble import convert_position_actuators
 from assets.combined.mjcf_xml import dump_mjcf, load_mjcf
 from assets.dexhand2.build.ingest_official import official_mjcf
+from hand.calibration.contact_mujoco import contact_is_calibrated, solref_timeconst_s
 from hand.grasp_primitives import GraspLibrary
 from interface.schema import load_hand_spec
 from sim.mujoco_env.hand_mit import apply_mit, lookup_hand_actuators
@@ -32,9 +33,19 @@ class MicroMetrics:
     finite: bool
 
 
-def _micro_xml(friction: float, solref_s: float) -> tuple[str, list[dict]]:
+def _micro_xml(
+    friction: float,
+    solref_s: float,
+    *,
+    pad_contact_raw: dict | None = None,
+) -> tuple[str, list[dict]]:
+    from assets.combined.assemble import _inject_pad_spheres
+
     src = official_mjcf("right", with_mount=True)
-    text, gains = convert_position_actuators(src.read_text(encoding="utf-8"))
+    text = src.read_text(encoding="utf-8")
+    if pad_contact_raw is not None:
+        text = _inject_pad_spheres(text, "right", spec_raw=pad_contact_raw)
+    text, gains = convert_position_actuators(text)
     resolved = src.parent / "_micro_right.xml"
     # Write next to official so relative meshdir still resolves, then load_mjcf absolutizes.
     resolved.write_text(text, encoding="utf-8")
@@ -110,10 +121,11 @@ def run_micro_episode(
     lift_m: float = 0.08,
     kp_scale: float = 1.0,
     kd_scale: float = 1.0,
+    pad_contact_raw: dict | None = None,
 ) -> MicroMetrics:
     import mujoco
 
-    xml, gains = _micro_xml(friction, solref_s)
+    xml, gains = _micro_xml(friction, solref_s, pad_contact_raw=pad_contact_raw)
     model = mujoco.MjModel.from_xml_string(xml)
     data = mujoco.MjData(model)
     plant = lookup_hand_actuators(model, gains, "right")
@@ -180,3 +192,30 @@ def run_scan_grid(cfg: dict, *, n_close: int = 80, n_hold: int = 80) -> list[dic
                 }
             )
     return rows
+
+
+def run_calibrated_micro(spec_raw: dict, *, n_close: int = 80, n_hold: int = 80, lift_m: float = 0.08) -> dict:
+    """Single micro episode at E1/E2 μ and proposed solref. Never writes grasp_success_rate."""
+    if not contact_is_calibrated(spec_raw):
+        raise ValueError("run_calibrated_micro requires numeric E1/E2 contact fields")
+    mu = float(spec_raw["friction_vs_cardboard_static"])
+    sol = solref_timeconst_s(spec_raw)
+    m = run_micro_episode(
+        mu,
+        sol,
+        n_close=n_close,
+        n_hold=n_hold,
+        lift_m=lift_m,
+        pad_contact_raw=spec_raw,
+    )
+    return {
+        "friction_static": m.friction,
+        "solref_timeconst_s": m.solref_timeconst_s,
+        "uncalibrated_slip_m": m.slip_m,
+        "uncalibrated_cube_drop_m": m.cube_drop_m,
+        "uncalibrated_n_contacts": m.n_contacts,
+        "max_abs_tau_nm": m.max_abs_tau,
+        "finite": m.finite,
+        "label": "E1_E2_CALIBRATED",
+        "human_must_accept_solref": True,
+    }

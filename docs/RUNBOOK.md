@@ -29,6 +29,45 @@ python3 scripts/check_upstream_drift.py
 Re-run E1 and E2 (`hand/calibration/PROTOCOL.md`). Store under
 `hand/calibration/results/<batch>_<fw>/`. Do not mix batches in one spec file.
 
+### E1/E2 pipeline (synthetic dry-run first)
+
+Live `dexhand2_spec.yaml` stays `REQUIRED_INPUT` until a human accepts a hardware
+fragment. The dry-run proves CSV → fit → overlay → pad `friction`/`solref` →
+MuJoCo replay:
+
+```bash
+make calibrate-synthetic
+# writes hand/calibration/results/synthetic_batch_v1.0/generated/{fragment,overlay,validate_sim.json}
+# does not patch assets/dexhand2/meta/dexhand2_spec.yaml
+```
+
+Hardware sheets (same commands, real CSVs):
+
+```bash
+python3 -m hand.calibration.fit_params \
+  --e1 hand/calibration/results/<batch>/skin_on/e1.csv \
+  --e2 hand/calibration/results/<batch>/skin_on/e2.csv \
+  --out hand/calibration/results/<batch>/generated/fragment.yaml
+python3 scripts/apply_calibration_fragment.py \
+  --fragment hand/calibration/results/<batch>/generated/fragment.yaml \
+  --out hand/calibration/results/<batch>/generated/overlay.yaml
+python3 -m hand.calibration.validate_sim \
+  --spec hand/calibration/results/<batch>/generated/overlay.yaml \
+  --out hand/calibration/results/<batch>/generated/validate_sim.json
+# After a human accepts solref: apply_calibration_fragment.py --commit-live
+make build-assets
+```
+
+`make eval-l2` still uses the live spec (`blocked_uncalibrated`) until contact
+fields are filled. Overlay L2 (relative metrics only, still no
+`grasp_success_rate`):
+
+```bash
+python3 -m eval.l2_mujoco_closedloop \
+  --spec hand/calibration/results/synthetic_batch_v1.0/generated/overlay.yaml \
+  --out eval/report/generated/l2_overlay.json
+```
+
 ## Eval
 
 ```bash
@@ -36,6 +75,7 @@ make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
 make eval-l1    # limits + coupling; IK skipped without Pinocchio
 make assemble   # T800 + both DexHand2, identity flange, MIT motors, compile check
 make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline (needs MuJoCo)
+make calibrate-synthetic  # E1/E2 CSV→fit→overlay→MuJoCo replay (does not patch live spec)
 make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (needs display)
 ```
 

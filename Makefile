@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic
 
 PYTHON ?= python3
 
@@ -38,3 +38,6 @@ eval-l1:
 
 eval-l2:
 	$(PYTHON) -m eval.l2_mujoco_closedloop --config eval/configs/l2_mujoco.yaml
+
+calibrate-synthetic:
+	$(PYTHON) scripts/run_e1_e2_pipeline.py

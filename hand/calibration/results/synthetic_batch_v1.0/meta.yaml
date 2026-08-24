@@ -1,0 +1,8 @@
+kind: synthetic_dry_run
+do_not_treat_as_committed_hardware: true
+batch: synthetic_batch_v1.0
+firmware_version: synthetic-fw
+mu_s_true: 0.75
+mu_d_true: 0.55
+k_n_per_m_true: 2500.0
+note: Pipeline fixture. Never copy into live dexhand2_spec.yaml as hardware.

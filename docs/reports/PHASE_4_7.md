@@ -12,8 +12,12 @@
 ## Phase 5
 
 - E1–E3 protocol written
-- `fit_params.py` / `validate_sim.py` refuse uncalibrated specs
-- L2.2 micro-env 3×3 μ × solref scan reports *relative* slip/drop/contacts only
+- `fit_params.py` fits μ from E1 and `k` from E2 (`k` column or F=kx on 0.2–1.0 mm)
+- Fragment + overlay apply; live spec is not silently patched
+- `validate_sim.py` replays Coulomb pull (E1) and pad indent (E2) on an overlay spec
+- `make calibrate-synthetic` dry-runs the pipeline; L2.2 uses a 3×3 μ × solref scan
+  on the live uncalibrated spec and a single E1/E2 micro episode on an overlay
+- Relative slip/drop/contacts only — never `grasp_success_rate` (ADR-004)
 
 ## Phase 6
 

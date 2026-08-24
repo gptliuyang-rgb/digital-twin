@@ -22,6 +22,9 @@ venv/
 assets/dexhand2/derived/
 assets/combined/generated/
 eval/report/generated/
+hand/calibration/results/**/generated/
+hand/calibration/results/fragment.yaml
+hand/calibration/results/validate_sim.json
 .eval_output/
 .coverage
 htmlcov/

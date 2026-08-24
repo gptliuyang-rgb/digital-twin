@@ -1,7 +1,8 @@
 """Derive a Hand 2 MJCF with fingertip-pad spheres. Official files are never overwritten.
 
 Sphere radii are fitted from official `*_tip.STL` when present. That is mesh geometry,
-not the live soft pad (still REQUIRED_INPUT).
+not the live soft pad. When the spec overlay has E1/E2 numbers, pad geoms also get
+friction/solref; the live spec stays REQUIRED_INPUT until hardware CSVs are accepted.
 """
 
 from __future__ import annotations
@@ -79,10 +80,14 @@ def inject_spheres(mjcf_text: str, site_name: str, spheres: list[tuple[list[floa
     return new
 
 
-def generate(side: str = "right", root: Path | None = None) -> Path:
+def generate(side: str = "right", root: Path | None = None, spec_path: Path | None = None) -> Path:
+    from hand.calibration.contact_mujoco import apply_contact_to_xml
+    from interface.schema import load_hand_spec
+
     root = root or DEFAULT_UPSTREAM
     src = official_mjcf(side, root=root)
     text = src.read_text(encoding="utf-8")
+    spec = load_hand_spec(spec_path) if spec_path is not None else load_hand_spec()
     header = (
         f"<!-- GENERATED FROM {src.as_posix()} — fingertip pad spheres. "
         "Do not edit. Official file is untouched. -->\n"
@@ -101,6 +106,7 @@ def generate(side: str = "right", root: Path | None = None) -> Path:
         # (Wuji ships tip meshes next to distal). If the STL origin differs, the
         # spheres will be wrong — PHASE 1 report must include site-to-sphere distance.
         text = inject_spheres(text, site["name"], spheres)
+    text = apply_contact_to_xml(text, spec.raw)
     DERIVED.mkdir(parents=True, exist_ok=True)
     out = DERIVED / f"{side}_with_pad_spheres.xml"
     # meshdir in official MJCF is relative; rewrite to absolute official meshes.
@@ -112,8 +118,9 @@ def generate(side: str = "right", root: Path | None = None) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--side", default="right", choices=["left", "right"])
+    parser.add_argument("--spec", default="", help="Optional overlay spec with E1/E2 numbers")
     args = parser.parse_args()
-    path = generate(args.side)
+    path = generate(args.side, spec_path=Path(args.spec) if args.spec else None)
     print(path)
 
 
