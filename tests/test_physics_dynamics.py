@@ -63,6 +63,31 @@ def test_gravity_comp_holds_hinge_away_from_hang() -> None:
     assert abs(float(data.qpos[0]) - 0.45) < 0.08
 
 
+def test_hand_object_contact_counter() -> None:
+    from sim.mujoco_env.contacts import hand_object_contacts, pad_object_contacts
+
+    xml = """
+    <mujoco>
+      <worldbody>
+        <body name="hand">
+          <geom name="r_index_finger_tip_pad_0" type="sphere" size="0.02" pos="0 0 0.1"/>
+          <geom name="r_palm" type="sphere" size="0.02" pos="0 0 0.12"/>
+        </body>
+        <body name="box_0" pos="0 0 0.1">
+          <geom name="box_0_geom" type="sphere" size="0.02"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    mujoco.mj_collision(model, data)
+    assert hand_object_contacts(model, data, "right", "box_0") >= 1
+    assert pad_object_contacts(model, data, "right", "box_0") >= 1
+    assert hand_object_contacts(model, data, "left", "box_0") == 0
+
+
 def test_weld_snapshot_keeps_relative_pose_in_free_fall() -> None:
     from sim.mujoco_env.welds import set_weld_active, weld_relpose
 

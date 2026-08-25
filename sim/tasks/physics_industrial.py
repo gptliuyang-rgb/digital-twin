@@ -1,10 +1,14 @@
-"""Industrial cell with mj_step, gravity-compensated arm PD, constraint welds.
+"""Industrial cell with mj_step, gravity-compensated arm PD, contact-gated welds.
 
-Arm PD tracks Cartesian-interpolated IK waypoints
-(τ = kp e − kd q̇ + qfrc_bias + Jᵀ F_payload). Hands use MIT.
-Carton/gun are free bodies under gravity + contact. During grasp/carry/scan a
-weld snapshots the relative pose (constraint grasp) — not Coulomb friction,
-not grasp_success_rate (ADR-004).
+Arm PD tracks IK waypoints (τ = kp e − kd q̇ + qfrc_bias + Jᵀ F_payload).
+Hands use MIT. Carton/gun are free bodies.
+
+T800 has no wrist pitch/roll (ADR-001): DexHand pads hang ~15 cm below the
+wrist in −Z, so a straight hang→box IK drives the fingers through the bench.
+Playback raises the wrists first, then overlays from above, then closes.
+
+A weld snapshots the relative pose only after DexHand pad/hull contact — not
+a no-touch lift, not Coulomb E1/E2, not grasp_success_rate (ADR-004).
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ import numpy as np
 
 from hand.grasp_primitives import GraspLibrary
 from interface.schema import load_hand_spec
+from sim.mujoco_env.contacts import hand_object_contacts, pad_object_contacts
 from sim.mujoco_env.dynamics import rate_limit_qpos
 from sim.mujoco_env.env import CombinedMujocoEnv
 from sim.mujoco_env.ik import dls_ik_pos
@@ -45,10 +50,18 @@ class PhysicsIndustrialResult:
     box_drop_m: float | None = None
     wrist_track_err_m: list[float] = field(default_factory=list)
     max_abs_tau_nm: float = 0.0
+    n_pad_box_contacts: int = 0
+    n_hand_box_contacts: int = 0
+    n_pad_gun_contacts: int = 0
+    n_hand_gun_contacts: int = 0
+    box_weld_from_contact: bool = False
+    gun_weld_from_contact: bool = False
+    box_weld_side: str | None = None
     note: str = (
-        "Physics industrial (mj_step + gravity-compensated PD + optional welds). "
-        "Welds are constraint grasps, not E1/E2 contact. Identity flange. "
-        "Relative metrics only."
+        "Physics industrial (mj_step + gravity-compensated PD). "
+        "Raise-then-overlay so DexHand pads meet the carton/gun; welds snapshot "
+        "only after that contact. Constraint grasp, not E1/E2 Coulomb. "
+        "Identity flange. Relative metrics only."
     )
 
 
@@ -62,9 +75,9 @@ def _ik(env: CombinedMujocoEnv, left_tgt, right_tgt, left_arm, right_arm) -> lis
             left_tgt,
             left_arm,
             damping=0.05,
-            iters=12,
-            step=0.45,
-            max_delta_rad=0.08,
+            iters=18,
+            step=0.52,
+            max_delta_rad=0.10,
         )
         errs.append(r["err_m"])
     if right_tgt is not None:
@@ -75,9 +88,9 @@ def _ik(env: CombinedMujocoEnv, left_tgt, right_tgt, left_arm, right_arm) -> lis
             right_tgt,
             right_arm,
             damping=0.05,
-            iters=12,
-            step=0.45,
-            max_delta_rad=0.08,
+            iters=18,
+            step=0.52,
+            max_delta_rad=0.10,
         )
         errs.append(r["err_m"])
     return errs
@@ -92,7 +105,7 @@ def run_physics_industrial(
     env: CombinedMujocoEnv | None = None,
     *,
     steps_per_phase: int = 32,
-    substeps: int = 16,
+    substeps: int = 24,
     use_welds: bool = True,
     settle_steps: int = 200,
     on_step: Callable | None = None,
@@ -106,7 +119,7 @@ def run_physics_industrial(
     lib = GraspLibrary(spec)
     q_open = lib.q_active("open", 0.0)
     q_power = lib.q_active("power_grasp", 0.85)
-    q_gun = lib.q_active("gun_grip", 0.75)
+    q_gun = lib.q_active("gun_grip", 0.90)
     left_arm = env.handles.arm_joints["left"]
     right_arm = env.handles.arm_joints["right"]
     result = PhysicsIndustrialResult(constraint_weld=use_welds)
@@ -125,24 +138,6 @@ def run_physics_industrial(
     pallet_h = scene.pad_size_m[2]
     stack = pallet + np.array([0.0, 0.0, pallet_h / 2.0 + box_hz])
 
-    # Reachable dual-arm waypoints (T800 serial arms ~0.3 m forward).
-    approach_l = box0 + np.array([0.0, 0.15, 0.05])
-    approach_r = box0 + np.array([0.0, -0.15, 0.05])
-    grasp_l = box0 + np.array([0.0, 0.11, 0.01])
-    grasp_r = box0 + np.array([0.0, -0.11, 0.01])
-    lift_l = box0 + np.array([0.0, 0.11, 0.18])
-    lift_r = box0 + np.array([0.0, -0.11, 0.18])
-    mid = 0.5 * (box0 + stack)
-    carry_l = mid + np.array([0.0, 0.11, 0.20])
-    carry_r = mid + np.array([0.0, -0.11, 0.20])
-    hover_l = stack + np.array([0.0, 0.11, 0.14])
-    hover_r = stack + np.array([0.0, -0.11, 0.14])
-    stack_l = stack + np.array([0.0, 0.11, 0.06])
-    stack_r = stack + np.array([0.0, -0.11, 0.06])
-    park_l = np.array([0.12, 0.28, 0.95])
-    gun_reach = gun0 + np.array([0.02, 0.05, 0.03])
-    scan_r = stack + np.array([-0.14, -0.12, 0.03])
-
     payload_body: str | None = None
     payload_mass = 0.0
     act_ids = env.handles.body_actuator_ids
@@ -150,6 +145,32 @@ def run_physics_industrial(
     hold_q = env.data.qpos.copy()
     for _ in range(max(1, settle_steps)):
         env.step_mit(q_open, q_open, body_q_des=hold_q)
+
+    hang_l = env.xpos("l_wrist").copy()
+    hang_r = env.xpos("r_wrist").copy()
+    box0 = env.xpos("box_0").copy()
+    gun0 = env.xpos("scan_gun").copy()
+    # Straight up first: pads hang ~0.15 m below the wrist, bench top is 0.88 m.
+    raise_l = hang_l + np.array([0.0, 0.0, 0.26])
+    raise_r = hang_r + np.array([0.0, 0.0, 0.26])
+    # Overhead wrap (pads curl −Z onto the carton). Side-grasp IK leaves empty air.
+    approach_l = box0 + np.array([-0.08, 0.10, 0.22])
+    approach_r = box0 + np.array([-0.08, -0.10, 0.22])
+    grasp_l = box0 + np.array([-0.08, 0.08, 0.18])
+    grasp_r = box0 + np.array([-0.08, -0.08, 0.18])
+    lift_l = grasp_l + np.array([0.0, 0.0, 0.16])
+    lift_r = grasp_r + np.array([0.0, 0.0, 0.16])
+    mid = 0.5 * (box0 + stack)
+    carry_l = mid + np.array([-0.08, 0.08, 0.22])
+    carry_r = mid + np.array([-0.08, -0.08, 0.22])
+    hover_l = stack + np.array([-0.08, 0.08, 0.20])
+    hover_r = stack + np.array([-0.08, -0.08, 0.20])
+    stack_l = stack + np.array([-0.08, 0.08, 0.16])
+    stack_r = stack + np.array([-0.08, -0.08, 0.16])
+    park_l = raise_l.copy()
+    gun_high = gun0 + np.array([-0.04, -0.06, 0.18])
+    gun_reach = gun0 + np.array([-0.04, -0.06, 0.08])
+    scan_r = stack + np.array([-0.10, -0.10, 0.04])
 
     def _phase(name: str) -> None:
         result.phases.append(name)
@@ -163,15 +184,23 @@ def run_physics_industrial(
         left_q,
         right_q,
         *,
-        lerp_cart: bool = True,
+        lerp_cart: bool = False,
+        kp_scale: float = 1.0,
+        body_kp: float = 280.0,
+        body_kd: float = 24.0,
+        max_dq: float = 0.10,
+        max_err_rad: float = 1.2,
     ) -> None:
         nonlocal payload_body, payload_mass
         left0 = env.xpos("l_wrist").copy()
         right0 = env.xpos("r_wrist").copy()
         for i in range(n):
             t = (i + 1) / max(n, 1)
-            l_goal = _lerp(left0, left_tgt, t) if (lerp_cart and left_tgt is not None) else left_tgt
-            r_goal = _lerp(right0, right_tgt, t) if (lerp_cart and right_tgt is not None) else right_tgt
+            l_goal = left_tgt
+            r_goal = right_tgt
+            if lerp_cart:
+                l_goal = _lerp(left0, left_tgt, t) if left_tgt is not None else None
+                r_goal = _lerp(right0, right_tgt, t) if right_tgt is not None else None
             q_before = env.data.qpos.copy()
             errs = _ik(env, l_goal, r_goal, left_arm, right_arm)
             result.ik_err_m.extend(errs)
@@ -184,15 +213,17 @@ def run_physics_industrial(
                 result.wrist_track_err_m.append(float(np.linalg.norm(env.xpos("r_wrist") - r_goal)))
             q_cmd = q_before
             for _s in range(substeps):
-                q_cmd = rate_limit_qpos(q_cmd, q_ik, max_dq=0.02)
+                q_cmd = rate_limit_qpos(q_cmd, q_ik, max_dq=max_dq)
                 env.step_mit(
                     left_q,
                     right_q,
                     body_q_des=q_cmd,
-                    body_kp=90.0,
-                    body_kd=12.0,
+                    body_kp=body_kp,
+                    body_kd=body_kd,
+                    kp_scale=kp_scale,
                     payload_body=payload_body,
                     payload_mass_kg=payload_mass,
+                    max_err_rad=max_err_rad,
                 )
             if act_ids.size:
                 result.max_abs_tau_nm = max(
@@ -203,23 +234,79 @@ def run_physics_industrial(
             result.n_contacts_max = max(result.n_contacts_max, int(env.data.ncon))
             result.finite = result.finite and bool(np.isfinite(env.data.qpos).all())
             result.box0_z.append(float(env.xpos("box_0")[2]))
+            _box_contacts()
+            _gun_contacts()
             if on_step is not None:
                 on_step(env, result)
 
     can_weld = use_welds and has_equality(env.model, "weld_box_grasp")
 
+    def _box_contacts() -> tuple[int, int, int, int]:
+        nl = hand_object_contacts(env.model, env.data, "left", "box_0")
+        nr = hand_object_contacts(env.model, env.data, "right", "box_0")
+        pl = pad_object_contacts(env.model, env.data, "left", "box_0")
+        pr = pad_object_contacts(env.model, env.data, "right", "box_0")
+        result.n_hand_box_contacts = max(result.n_hand_box_contacts, nl + nr)
+        result.n_pad_box_contacts = max(result.n_pad_box_contacts, pl + pr)
+        return nl, nr, pl, pr
+
+    def _gun_contacts() -> tuple[int, int]:
+        n = hand_object_contacts(env.model, env.data, "right", "scan_gun")
+        p = pad_object_contacts(env.model, env.data, "right", "scan_gun")
+        result.n_hand_gun_contacts = max(result.n_hand_gun_contacts, n)
+        result.n_pad_gun_contacts = max(result.n_pad_gun_contacts, p)
+        return n, p
+
+    def _maybe_weld_box() -> None:
+        nonlocal payload_body, payload_mass
+        if not can_weld:
+            return
+        nl, nr, pl, pr = _box_contacts()
+        # Require pad (or any hand) contact before a constraint weld — otherwise
+        # the carton follows the wrist through empty air (the last-trajectory bug).
+        if max(pl, pr, nl, nr) < 2:
+            result.note += " box_weld_skipped_no_pad_contact."
+            return
+        side = "right" if (pr, nr) >= (pl, nl) else "left"
+        name = "weld_box_grasp_r" if side == "right" else "weld_box_grasp"
+        if not has_equality(env.model, name):
+            name = "weld_box_grasp"
+            side = "left"
+        mujoco.mj_forward(env.model, env.data)
+        set_weld_active(env.model, env.data, name, True)
+        payload_body = "box_0"
+        payload_mass = float(scene.box_mass_kg)
+        result.box_weld_from_contact = True
+        result.box_weld_side = side
+
+    def _maybe_weld_gun() -> None:
+        nonlocal payload_body, payload_mass
+        if not (use_welds and has_equality(env.model, "weld_gun_grasp")):
+            return
+        n, p = _gun_contacts()
+        if max(n, p) < 2:
+            result.note += " gun_weld_skipped_no_contact."
+            return
+        mujoco.mj_forward(env.model, env.data)
+        set_weld_active(env.model, env.data, "weld_gun_grasp", True)
+        payload_body = "scan_gun"
+        payload_mass = 0.38
+        result.gun_weld_from_contact = True
+
+    _phase("raise")
+    _tick(steps_per_phase, raise_l, raise_r, q_open, q_open, max_dq=0.12)
     _phase("approach_box")
     _tick(steps_per_phase, approach_l, approach_r, q_open, q_open)
     _phase("grasp")
     for i in range(steps_per_phase):
         t = (i + 1) / steps_per_phase
         q = (1 - t) * q_open + t * q_power
-        _tick(1, grasp_l, grasp_r, q, q, lerp_cart=False)
-    if can_weld:
-        mujoco.mj_forward(env.model, env.data)
-        set_weld_active(env.model, env.data, "weld_box_grasp", True)
-        payload_body = "box_0"
-        payload_mass = float(scene.box_mass_kg)
+        _tick(1, grasp_l, grasp_r, q, q, kp_scale=1.4)
+    _phase("squeeze")
+    n_sq = max(6, steps_per_phase // 2)
+    _tick(n_sq, grasp_l, grasp_r, q_power, q_power, kp_scale=1.8, body_kp=320.0)
+    _box_contacts()
+    _maybe_weld_box()
     _phase("lift")
     _tick(steps_per_phase, lift_l, lift_r, q_power, q_power)
     _phase("carry")
@@ -243,8 +330,11 @@ def run_physics_industrial(
     result.stack_alignment_m = sample.alignment_xy_m
     result.gap_z_m = sample.gap_z_m
 
-    if can_weld:
-        set_weld_active(env.model, env.data, "weld_box_grasp", False)
+    if result.box_weld_from_contact:
+        if has_equality(env.model, "weld_box_grasp"):
+            set_weld_active(env.model, env.data, "weld_box_grasp", False)
+        if has_equality(env.model, "weld_box_grasp_r"):
+            set_weld_active(env.model, env.data, "weld_box_grasp_r", False)
         payload_body = None
         payload_mass = 0.0
     _phase("release")
@@ -252,24 +342,30 @@ def run_physics_industrial(
     for i in range(n_rel):
         t = (i + 1) / n_rel
         q = (1 - t) * q_power + t * q_open
-        _tick(1, stack_l, stack_r, q, q, lerp_cart=False)
+        _tick(1, stack_l, stack_r, q, q)
     # Let the carton settle on the pallet under gravity + friction.
     hold_after = env.data.qpos.copy()
     for _ in range(max(20, substeps * 4)):
         env.step_mit(q_open, q_open, body_q_des=hold_after)
 
     _phase("approach_gun")
-    _tick(steps_per_phase, park_l, gun_reach, q_open, q_open)
+    _tick(steps_per_phase, park_l, gun_high, q_open, q_open)
     _phase("grip_gun")
     n_grip = max(8, steps_per_phase // 2)
+    _tick(max(4, n_grip // 2), park_l, gun_reach, q_open, q_open, kp_scale=1.2)
     for i in range(n_grip):
         t = (i + 1) / n_grip
-        _tick(1, park_l, gun_reach, q_open, (1 - t) * q_open + t * q_gun, lerp_cart=False)
-    if can_weld and has_equality(env.model, "weld_gun_grasp"):
-        mujoco.mj_forward(env.model, env.data)
-        set_weld_active(env.model, env.data, "weld_gun_grasp", True)
-        payload_body = "scan_gun"
-        payload_mass = 0.38
+        _tick(
+            1,
+            park_l,
+            gun_reach,
+            q_open,
+            (1 - t) * q_open + t * q_gun,
+            kp_scale=1.6,
+        )
+    _tick(max(4, n_grip // 2), park_l, gun_reach, q_open, q_gun, kp_scale=1.8, body_kp=320.0)
+    _gun_contacts()
+    _maybe_weld_gun()
     _phase("scan")
     _tick(steps_per_phase, park_l, scan_r, q_open, q_gun)
 

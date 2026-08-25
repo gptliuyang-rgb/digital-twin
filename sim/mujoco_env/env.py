@@ -90,6 +90,7 @@ class CombinedMujocoEnv(BaseEnv):
         kd_scale: float = 1.0,
         payload_body: str | None = None,
         payload_mass_kg: float = 0.0,
+        max_err_rad: float = 0.25,
     ) -> dict[str, Any]:
         import mujoco
 
@@ -107,6 +108,7 @@ class CombinedMujocoEnv(BaseEnv):
                 body_kp,
                 body_kd,
                 gravity_comp=True,
+                max_err_rad=max_err_rad,
             )
             if payload_body and payload_mass_kg > 0.0:
                 apply_payload_support(
@@ -155,6 +157,14 @@ def _stabilize_plant(model) -> None:
         name = model.joint(j).name or ""
         dadr = int(model.jnt_dofadr[j])
         nv = 6 if int(model.jnt_type[j]) == 0 else 1
+        if int(model.jnt_type[j]) == 0:
+            # Free props (carton, scan gun): linear + angular damping so they
+            # settle on the bench instead of skating from residual penetration.
+            for k in range(3):
+                model.dof_damping[dadr + k] = max(float(model.dof_damping[dadr + k]), 0.8)
+            for k in range(3, 6):
+                model.dof_damping[dadr + k] = max(float(model.dof_damping[dadr + k]), 0.05)
+            continue
         if name.startswith("J"):
             damp, arm = 0.6, 0.0
         elif name.startswith(("l_", "r_")) or "finger" in name or "thumb" in name:

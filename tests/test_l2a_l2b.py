@@ -131,5 +131,9 @@ def test_physics_industrial_flag_smoke_when_cloned() -> None:
     assert result.constraint_weld is True
     assert result.policy_eval_forbidden
     assert "done" in result.phases
+    assert "squeeze" in result.phases
+    assert "raise" in result.phases
     assert "grasp_success_rate" not in result.__dict__
     assert result.finite
+    assert result.n_pad_box_contacts >= 0
+    assert result.box_weld_from_contact in {True, False}

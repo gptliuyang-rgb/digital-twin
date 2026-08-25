@@ -125,6 +125,7 @@ def test_industrial_pipeline_walks_phases() -> None:
     assert "scan_gun_col_body" in names
     assert "scan_gun_col_grip" in names
     env.model.equality("weld_box_grasp")
+    env.model.equality("weld_box_grasp_r")
     env.model.equality("weld_gun_grasp")
     tcp = env.model.site_pos[int(env.model.site("gun_tcp").id)]
     assert 0.10 <= float(tcp[0]) <= 0.15
@@ -133,7 +134,7 @@ def test_industrial_pipeline_walks_phases() -> None:
     gun0 = env.xpos("scan_gun")
     box0 = env.xpos("box_0")
     # Housing origin sits on the pick-bench top, not inside the slab or the carton.
-    assert gun0[2] >= spec.table_height_m
+    assert gun0[2] >= spec.table_height_m + 0.02
     assert abs(gun0[2] - spec.table_height_m) < 0.08
     assert float(np.linalg.norm(gun0[:2] - box0[:2])) > 0.10
 

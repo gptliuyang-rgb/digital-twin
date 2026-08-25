@@ -194,16 +194,18 @@ def _scan_gun_xml(
             "box",
             friction=friction,
             solref=solref,
-            size="0.055 0.026 0.030",
+            size="0.055 0.026 0.032",
             pos="0.055 0.004 0",
         ),
+        # Base matches the lofted housing's −Z extent (~35 mm) so the visual
+        # mesh sits on the bench instead of clipping through the slab.
         _col(
             "scan_gun_col_base",
             "box",
             friction=friction,
             solref=solref,
-            size="0.048 0.022 0.008",
-            pos="0.050 0.002 -0.026",
+            size="0.050 0.024 0.010",
+            pos="0.050 0.002 -0.028",
         ),
         _col(
             "scan_gun_col_grip",
@@ -329,7 +331,7 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
     qr_mat = f"qr_{spec.qr_payload}_mat"
 
     for i in range(spec.n_boxes):
-        x, y = (0.36, -0.12) if i == 0 else (0.42, 0.12)
+        x, y = (0.34, -0.06) if i == 0 else (0.42, 0.12)
         rgba = "0.86 0.68 0.38 1" if i == 0 else "0.70 0.52 0.30 1"
         qr = f"{-hx - 0.001} 0 {hz * 0.15}"
         use_flex = spec.use_flex_box or should_split(full)
@@ -385,10 +387,10 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
             )
         )
 
-    # Scanner fully on the pick slab (+X of the carton). Origin so the base hull
-    # sits in light contact with the top (not a drop that the solver then launches).
-    gun_z = spec.table_height_m + 0.031
-    table_gun = f"0.52 -0.10 {gun_z}"
+    # Scanner on the pick-bench −Y lip, inside the right-arm workspace (not x=0.52).
+    # Origin is housing-centre; +0.038 m puts the −Z hull on the 0.88 m slab.
+    gun_z = spec.table_height_m + 0.038
+    table_gun = f"0.28 -0.20 {gun_z}"
     barrel = spec.gun_barrel_m if spec.gun_barrel_m else spec.gun_length_m
     gun_solref = "0.03 1"
     world.append(
@@ -400,6 +402,12 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
     eq.append(
         ET.fromstring(
             '<weld name="weld_box_grasp" body1="l_wrist" body2="box_0" active="false" '
+            'solref="0.004 1" solimp="0.9 0.95 0.001"/>'
+        )
+    )
+    eq.append(
+        ET.fromstring(
+            '<weld name="weld_box_grasp_r" body1="r_wrist" body2="box_0" active="false" '
             'solref="0.004 1" solimp="0.9 0.95 0.001"/>'
         )
     )

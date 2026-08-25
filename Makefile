@@ -25,7 +25,7 @@ assemble:
 	$(PYTHON) -m assets.combined.assemble --check-compile
 
 view-industrial:
-	$(PYTHON) scripts/view_industrial_twin.py --steps-per-phase 80 --substeps 16 --real-time
+	$(PYTHON) scripts/view_industrial_twin.py --steps-per-phase 80 --substeps 24 --real-time
 
 view-industrial-kinematic:
 	$(PYTHON) scripts/view_industrial_twin.py --kinematic --steps-per-phase 100 --real-time

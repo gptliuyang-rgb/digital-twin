@@ -2,7 +2,7 @@
 
 ## Done
 
-- Feature path: `make eval-l2-physics` → `l2_3_physics_industrial` with **kinematic_assist=false**, `mj_step` + MIT + gravity-compensated arm PD (`qfrc_bias`) + optional payload `Jᵀmg` + constraint welds
+- Feature path: `make eval-l2-physics` → `l2_3_physics_industrial` with **kinematic_assist=false**, `mj_step` + MIT + gravity-compensated arm PD (`qfrc_bias`) + optional payload `Jᵀmg` + **raise-then-overlay** waypoints + contact-gated constraint welds
 - Viewer/GIF default to that physics path; `--kinematic` keeps L2.3 geometry playback
 - Scan gun is a freejoint body with collision hulls (rests on the pick bench); not mocap
 - Kinematic demo (L2.3) still used for `scan_geometry_ok`; it attempts `gun_cam` RGB decode when GL works (`scan_decode_ok` may be null)

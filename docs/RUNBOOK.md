@@ -131,16 +131,17 @@ make view-industrial-kinematic  # mj_forward geometry FSM
 ### Industrial viewer tips
 
 The viewer/GIF default is **physics playback**: `mj_step`, gravity-compensated arm PD,
-and equality welds that snapshot the grasp/gun pose (constraint grasp, not E1/E2).
-`--kinematic` is the L2.3 geometry FSM (`mj_forward` + prop assists). `--no-welds`
-drops the carton under uncalibrated contact (honesty path). Benches have legs to
-the floor; the scanner is a lofted STL barcode-gun with a freejoint hull
-(`assets/objects/scan_gun/`, not vendor CAD). This is not a validated Coulomb
-grasp (ADR-004/006/007).
+and equality welds that snapshot the grasp/gun pose **after DexHand pad contact**
+(constraint grasp, not E1/E2). The first phase **raises** the wrists so hanging
+pads clear the bench (T800 has no wrist pitch). `--kinematic` is the L2.3 geometry
+FSM (`mj_forward` + prop assists). `--no-welds` drops the carton under uncalibrated
+contact (honesty path). Benches have legs to the floor; the scanner is a lofted STL
+barcode-gun with a freejoint hull (`assets/objects/scan_gun/`, not vendor CAD).
+This is not a validated Coulomb grasp (ADR-004/006/007).
 
 ```bash
 make assemble
-python3 scripts/view_industrial_twin.py --steps-per-phase 80 --substeps 16 --real-time
+python3 scripts/view_industrial_twin.py --steps-per-phase 80 --substeps 24 --real-time
 # Kinematic geometry playback:
 python3 scripts/view_industrial_twin.py --kinematic --steps-per-phase 100 --real-time
 # Headless GIF (physics, no window):

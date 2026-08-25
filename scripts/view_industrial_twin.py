@@ -22,7 +22,7 @@ import time
 def main() -> int:
     parser = argparse.ArgumentParser(description="MuJoCo viewer for T800 + DexHand2 industrial pipeline")
     parser.add_argument("--steps-per-phase", type=int, default=80, help="Control ticks per FSM phase")
-    parser.add_argument("--substeps", type=int, default=16, help="mj_step calls per control tick (physics path)")
+    parser.add_argument("--substeps", type=int, default=24, help="mj_step calls per control tick (physics path)")
     parser.add_argument("--real-time", action="store_true", help="Sleep to match sim timestep")
     parser.add_argument("--sync-every", type=int, default=4, help="Update viewer every N sim steps")
     parser.add_argument("--loop", action="store_true", help="Restart pipeline when it finishes")
