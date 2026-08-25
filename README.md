@@ -16,7 +16,7 @@ runtime/       safety filter, temporal ensemble, latency compensation
 vla/           adapters + policy client (no sim imports)
 sim/           MuJoCo env, industrial scene, MIT plant, QR scanner, scripted tasks
 eval/          L0–L2 harnesses (L2.2 micro-scan, L2.3 industrial pipeline)
-docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK
+docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK, ROADMAP_L2_L5
 ```
 
 ## Quick start
