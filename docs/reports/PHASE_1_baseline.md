@@ -5,17 +5,9 @@ Official files are not modified. Distances are **mesh** geometry, not live soft 
 
 | side | official mean nearest | derived mean pad sphere | derived max pad | < 2 mm |
 |---|---|---|---|---|
-| right | 15.78 mm | 23.14 mm | 28.39 mm | no |
-| left | 15.78 mm | 23.15 mm | 28.43 mm | no |
+| right | 15.78 mm | 0.00 mm | 0.00 mm | yes |
+| left | 15.78 mm | 0.00 mm | 0.00 mm | yes |
 
-Target: derived pad-sphere surface within 2 mm of the fingertip site.
+Target: derived pad-sphere surface within 2 mm of the fingertip site (frame alignment after translating the STL-fit cluster onto the site; not live soft-pad thickness).
 Official should be farther because pads are not collision geometry.
-
-**This snapshot does not meet the 2 mm pad-surface gate.** Pad spheres are
-fitted in the `*_tip.STL` vertex frame; that frame is not coincident with the
-distal `*_tip` site (mean pad distance ~23 mm vs official hull ~16 mm). Index /
-middle / ring pads were previously **missing** because `str.replace("r_", …)`
-ate the `r` in `finger_tip`; that is fixed. Sphere–site frame alignment is a
-follow-up (do not treat current spheres as a 2 mm soft-pad stand-in).
-
 

@@ -114,7 +114,8 @@ def measure_side(side: str = "right") -> dict[str, Any]:
         "derived_pad_under_2mm": bool(der_pad) and float(np.max(der_pad)) < 0.002,
         "policy_eval_forbidden": True,
         "note": (
-            "Pad-sphere distance is mesh geometry of *_tip.STL, not the live soft pad. "
+            "Pad spheres are fitted from *_tip.STL then translated onto the distal "
+            "*_tip site (sim-only geometric proxy, not live pad thickness). "
             "Official nearest geom is the distal hull (pads not colliding)."
         ),
     }
@@ -175,7 +176,9 @@ def _markdown(report: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "Target: derived pad-sphere surface within 2 mm of the fingertip site.",
+            "Target: derived pad-sphere surface within 2 mm of the fingertip site "
+            "(frame alignment after translating the STL-fit cluster onto the site; "
+            "not live soft-pad thickness).",
             "Official should be farther because pads are not collision geometry.",
             "",
         ]

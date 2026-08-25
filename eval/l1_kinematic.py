@@ -33,6 +33,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="eval/configs/l1_kinematic.yaml")
     parser.add_argument("--out", default="eval/report/generated/l1.json")
+    parser.add_argument("--dataset", default="", help="Optional recorded npz with qpos")
     args = parser.parse_args()
     spec = load_hand_spec()
     rng = np.random.default_rng(1)
@@ -45,6 +46,18 @@ def main() -> None:
         "self_collision": "skipped_no_fcl",
         "note": "Geometry IK/FCL require Pinocchio/FCL. Limit + coupling checks always run.",
     }
+    try:
+        from eval.l1_mujoco import evaluate_l1_mujoco
+
+        qpos = None
+        if args.dataset:
+            qpos = np.load(args.dataset)["qpos"]
+        report["mujoco"] = evaluate_l1_mujoco(qpos_dataset=qpos)
+        report["ik"] = report["mujoco"]["ik"]
+        report["self_collision"] = report["mujoco"]["self_collision"]
+        report["note"] = "Limits + coupling always. MuJoCo DLS IK + ncon attached when assets compile."
+    except Exception as exc:  # noqa: BLE001
+        report["mujoco"] = {"status": "skipped", "reason": str(exc)}
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")

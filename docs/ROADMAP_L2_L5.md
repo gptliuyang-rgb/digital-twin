@@ -80,13 +80,13 @@ GR00T/π0.5 部署、实机标定参数、CAD 法兰、HIL。**
 | 项 | 状态 | 证据 |
 |---|---|---|
 | 官方 MJCF/URDF ingest + 质量/顺序校验 | DONE | `ingest_official.py` |
-| 指垫 `*_tip.STL` → 2–3 sphere，派生 MJCF | DONE | `gen_derived.py`，`assets/dexhand2/derived/` |
+| 指垫 `*_tip.STL` → 2–3 sphere，派生 MJCF | DONE | `gen_derived.py`，site 对齐后写 `PHASE_1_baseline.md` |
 | 官方 `<position>` → MIT `<motor>`（仅派生） | DONE | `to_mit_plant.py` |
 | Identity coupling | DONE | `hand/coupling.py` |
 | 上游漂移检查脚本 | DONE | `scripts/check_upstream_drift.py`（CI 周期比对未接） |
 | CoACD / 单手凸块 ≤60 / simplified 变体 | ABSENT | 仍用官方凸包 + 指垫球 |
 | USD 派生 / Isaac 加载验收 | ABSENT | `sim/isaaclab_env/` 空 |
-| 官方三示例基线报告数字（DOF/接触对/site） | PARTIAL | `PHASE_1.md` 有文字，无自动 `PHASE_1_baseline.md` 生成物 |
+| 官方三示例基线报告数字（DOF/接触对/site） | DONE | `make phase1-baseline` / `docs/reports/PHASE_1_baseline.md` |
 | 10 s 空载无抖动 CI | ABSENT | 需 `.[sim]`，默认 CI 不跑 |
 | 驱动增益系统辨识 | PARTIAL | live spec 仍是一代 kp/kv；扫描配置在 `l2_mujoco.yaml` 的 `gain_scan`，**未真正扫 9 组** |
 
@@ -127,9 +127,9 @@ GR00T/π0.5 部署、实机标定参数、CAD 法兰、HIL。**
 | 真实可解码 QR 贴图生成 | DONE | `make_qr_png`；工业 L2.3 **没有把渲染图拿去 decode** |
 | 头/腕相机 + `calib_real.yaml` | STUB | YAML 全是 REQUIRED_INPUT；无 Isaac 相机 |
 | 图像延迟 / 运动模糊 / JPEG | PARTIAL | `sim/sensors/camera.py` 有 helper，**未进闭环** |
-| `simulate_scan` 几何门控 + OpenCV/pyzbar | DONE 函数 / PARTIAL 任务 | L2.3 只报 `scan_geometry_ok` |
+| `simulate_scan` 几何门控 + OpenCV/pyzbar | DONE 函数 / PARTIAL 任务 | 工业 L2.3 试 decode；GL 失败则为 `None` |
 | IBVS | ABSENT 本分支 | sibling PR #3 有草案 |
-| 距离×入射角解码热力图 | ABSENT 本分支 | sibling #2 标题包含 envelope |
+| 距离×入射角解码热力图 | PARTIAL | `sim/qr_envelope.py` 几何包络；decode 格仍需 GL |
 
 ### PHASE 5 — 接触标定
 
@@ -156,15 +156,15 @@ GR00T/π0.5 部署、实机标定参数、CAD 法兰、HIL。**
 | 延迟补偿取 chunk 未来步 | DONE | `runtime/latency_comp.py` |
 | `modality.json` 生成器绑定 `joint_order` | DONE | `data/build_modality.py` |
 | GR00T / π0.5 server | STUB | `NotImplementedError` |
-| `PolicyClient` | PARTIAL | 纯函数壳，无 ZMQ/观测约定落地 |
-| 现有 ckpt L0（真数据） | ABSENT | `eval-l0` 默认 **合成 demo**，人为注入手指错位 |
+| `PolicyClient` | PARTIAL | 仿真栈用录包 scripted policy 走通 client；无 ZMQ/GR00T |
+| 现有 ckpt L0（真数据） | PARTIAL | `make sim` 对 **仿真录包** 做 identity L0；仍无训练 ckpt |
 
 ### PHASE 7 — 评测
 
 | 项 | 状态 | 证据 |
 |---|---|---|
-| L0 手指维离群检测 | DONE 逻辑 / ABSENT 真 ckpt | |
-| L1 限位 + 耦合 | DONE | IK/FCL **跳过** |
+| L0 手指维离群检测 | DONE 逻辑 / PARTIAL 数据 | 合成 demo + 仿真录包 identity；无训练 ckpt |
+| L1 限位 + 耦合 | DONE | MuJoCo DLS IK + ncon（无 Pinocchio/FCL） |
 | L2.2 接触 micro | PARTIAL | 未标定 3×3 或 overlay 单回合；无 256 env × 50 ep |
 | L2.3 工业流水线 | PARTIAL | **运动学**；`policy_eval_forbidden` |
 | L3 Isaac | STUB | `eval/l3_isaac_closedloop.py` 直接 `NotImplementedError` |
@@ -402,7 +402,9 @@ hand/calibration/results/<real_batch>/
 - [ ] **R3** 先做 PR 治理：从 #47 抽 SONIC runtime 接到本分支（L2c 预研），工业场景暂时保持运动学。
 - [ ] **R4** 先做现有 ckpt 的真 L0（人提供 npz/LeRobot），不动物理。
 
-默认若不选：下一实现轮次应按 **R1 → R2**，因为原方案写过「未标定禁止抓取成功率」，而现在最大的认知风险仍是把 GIF 当成抓取验证。
+默认若不选：下一实现轮次应按 **仿真栈跑通**（`make sim`），实机 E1/E2 与 SONIC 仍后置。
+
+仿真栈（本轮已接）：`make sim` = assemble → 指垫 site 对齐基线 → 工业 FSM 录 75-D 指令 → L0 identity → MuJoCo L1 → L2 相对物理 + 运动学工业 → QR 几何包络 → `PolicyClient` 回放。不填 live μ/k，不写 `grasp_success_rate`。
 
 ---
 

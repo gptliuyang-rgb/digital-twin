@@ -15,7 +15,7 @@ hand/          controller, coupling, primitives, backends, calibration
 runtime/       safety filter, temporal ensemble, latency compensation
 vla/           adapters + policy client (no sim imports)
 sim/           MuJoCo env, industrial scene, MIT plant, QR scanner, scripted tasks
-eval/          L0–L2 harnesses (μ/solref + gain scan, bimanual micro, kinematic + optional physics industrial)
+eval/          L0–L2 harnesses + sim-stack orchestrator (record / MuJoCo L1 / PolicyClient replay)
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK, ROADMAP_L2_L5
 ```
 
@@ -26,6 +26,7 @@ python3 -m pip install -e ".[dev]"
 ./scripts/bootstrap_resources.sh
 make test
 make assemble   # T800 + both DexHand2, identity flange (needs MuJoCo)
+make sim        # full simulation stack: record → L0–L2 → QR envelope → PolicyClient replay
 make view-industrial   # interactive MuJoCo viewer (needs display / X11)
 ```
 

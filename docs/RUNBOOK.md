@@ -116,8 +116,10 @@ make eval-l2-overlay
 ## Eval
 
 ```bash
-make eval-l0    # works without a ckpt (synthetic demo flags a swapped channel)
-make eval-l1    # limits + coupling; IK skipped without Pinocchio
+make sim        # simulation-only stack (no real robot): assemble, pads, record, L0–L2, QR envelope, replay
+make sim-quick  # same without the L2 μ×solref scan; shorter episode
+make eval-l0    # synthetic demo flags a swapped channel; pass --dataset for a recorded npz
+make eval-l1    # limits + coupling; MuJoCo DLS IK + ncon when assets compile
 make assemble   # T800 + both DexHand2, identity flange, MIT motors, compile check
 make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline (needs MuJoCo)
 make calibrate-synthetic  # E1/E2 CSV→fit→overlay→MuJoCo replay (does not patch live spec)

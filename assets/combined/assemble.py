@@ -92,30 +92,14 @@ def convert_position_actuators(xml_text: str) -> tuple[str, list[dict[str, Any]]
 
 
 def _inject_pad_spheres(xml_text: str, side: str, spec_raw: dict[str, Any] | None = None) -> str:
-    from assets.dexhand2.build.gen_derived import (
-        fit_pad_spheres,
-        inject_spheres,
-        parse_sites,
-        read_stl_vertices,
-    )
-    from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM
-    from hand.calibration.contact_mujoco import apply_contact_to_xml
+    from assets.dexhand2.build.pad_inject import inject_pads_for_side, official_mesh_dir
 
-    prefix = "r" if side == "right" else "l"
-    mesh_dir = DEFAULT_UPSTREAM / "hand2/hand2_beta1/body/meshes" / side
-    src = official_mjcf(side, with_mount=True)
-    for site in parse_sites(src):
-        # site name is {l|r}_{finger}_tip
-        finger = site["name"][len(prefix) + 1 :].replace("_tip", "")
-        stl = mesh_dir / f"{prefix}_{finger}_tip.STL"
-        if not stl.is_file():
-            continue
-        try:
-            xml_text = inject_spheres(xml_text, site["name"], fit_pad_spheres(read_stl_vertices(stl)))
-        except ValueError:
-            continue
-    if spec_raw:
-        xml_text = apply_contact_to_xml(xml_text, spec_raw)
+    xml_text, _n = inject_pads_for_side(
+        xml_text,
+        side,
+        mesh_dir=official_mesh_dir(side),
+        spec_raw=spec_raw,
+    )
     return xml_text
 
 

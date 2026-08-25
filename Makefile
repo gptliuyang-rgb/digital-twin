@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh phase1-baseline eval-l2-physics eval-l2-gains
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh phase1-baseline eval-l2-physics eval-l2-gains sim sim-quick
 
 PYTHON ?= python3
 
@@ -61,3 +61,9 @@ eval-l2-physics:
 
 eval-l2-gains:
 	$(PYTHON) -m eval.l2_mujoco_closedloop --gain-scan-mode full --out eval/report/generated/l2_gains.json
+
+sim:
+	$(PYTHON) -m eval.run_sim_stack
+
+sim-quick:
+	$(PYTHON) -m eval.run_sim_stack --quick
