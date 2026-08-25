@@ -13,7 +13,7 @@
 
 ## Honest limits
 
-- Welds are **constraint grasps**, not E1/E2 Coulomb. `--no-welds` / `use_welds=false` is the honesty path (box expected to drop).
+- Welds are **constraint grasps**, not E1/E2 Coulomb, and they fire **only after pad/hull contact**. `--no-welds` / `use_welds=false` is the honesty path (box expected to drop). A hang→box straight reach drives DexHand pads through the bench (looks like a no-touch lift); playback **raises** first.
 - Scan decode in physics is whatever the held/welded gun actually sees.
 - Still **forbidden** to publish `grasp_success_rate` (ADR-004).
 - Identity flange still `policy_eval_forbidden` (ADR-006).

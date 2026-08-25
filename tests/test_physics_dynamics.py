@@ -74,6 +74,7 @@ def test_hand_object_contact_counter() -> None:
           <geom name="r_palm" type="sphere" size="0.02" pos="0 0 0.12"/>
         </body>
         <body name="box_0" pos="0 0 0.1">
+          <freejoint/>
           <geom name="box_0_geom" type="sphere" size="0.02"/>
         </body>
       </worldbody>

@@ -153,11 +153,13 @@ def run_physics_industrial(
     # Straight up first: pads hang ~0.15 m below the wrist, bench top is 0.88 m.
     raise_l = hang_l + np.array([0.0, 0.0, 0.26])
     raise_r = hang_r + np.array([0.0, 0.0, 0.26])
-    # Overhead wrap (pads curl −Z onto the carton). Side-grasp IK leaves empty air.
-    approach_l = box0 + np.array([-0.08, 0.10, 0.22])
-    approach_r = box0 + np.array([-0.08, -0.10, 0.22])
-    grasp_l = box0 + np.array([-0.08, 0.08, 0.18])
-    grasp_r = box0 + np.array([-0.08, -0.08, 0.18])
+    # Overhead wrap: IK rotates the dummy wrist, so hang-frame "pads 15 cm
+    # below" is false at the carton. Approach stays high (open, no hit);
+    # grasp is a tighter, lower overlay that puts pads on the top face.
+    approach_l = box0 + np.array([-0.08, 0.08, 0.22])
+    approach_r = box0 + np.array([-0.08, -0.08, 0.22])
+    grasp_l = box0 + np.array([-0.08, 0.04, 0.08])
+    grasp_r = box0 + np.array([-0.08, -0.04, 0.08])
     lift_l = grasp_l + np.array([0.0, 0.0, 0.16])
     lift_r = grasp_r + np.array([0.0, 0.0, 0.16])
     mid = 0.5 * (box0 + stack)
@@ -262,9 +264,9 @@ def run_physics_industrial(
         if not can_weld:
             return
         nl, nr, pl, pr = _box_contacts()
-        # Require pad (or any hand) contact before a constraint weld — otherwise
-        # the carton follows the wrist through empty air (the last-trajectory bug).
-        if max(pl, pr, nl, nr) < 2:
+        # Dual-arm wrap often has 1 pad per hand; require two DexHand–carton
+        # contacts in the same tick. Empty-air lift was the last-trajectory bug.
+        if (pl + pr) < 2 and (nl + nr) < 2:
             result.note += " box_weld_skipped_no_pad_contact."
             return
         side = "right" if (pr, nr) >= (pl, nl) else "left"
@@ -284,7 +286,7 @@ def run_physics_industrial(
         if not (use_welds and has_equality(env.model, "weld_gun_grasp")):
             return
         n, p = _gun_contacts()
-        if max(n, p) < 2:
+        if (n + p) < 2:
             result.note += " gun_weld_skipped_no_contact."
             return
         mujoco.mj_forward(env.model, env.data)
@@ -303,10 +305,15 @@ def run_physics_industrial(
         q = (1 - t) * q_open + t * q_power
         _tick(1, grasp_l, grasp_r, q, q, kp_scale=1.4)
     _phase("squeeze")
-    n_sq = max(6, steps_per_phase // 2)
-    _tick(n_sq, grasp_l, grasp_r, q_power, q_power, kp_scale=1.8, body_kp=320.0)
-    _box_contacts()
-    _maybe_weld_box()
+    n_sq = max(8, steps_per_phase)
+    for _ in range(n_sq):
+        _tick(1, grasp_l, grasp_r, q_power, q_power, kp_scale=1.8, body_kp=320.0)
+        nl, nr, pl, pr = _box_contacts()
+        if (pl + pr) >= 2 or (nl + nr) >= 2:
+            _maybe_weld_box()
+            break
+    else:
+        _maybe_weld_box()
     _phase("lift")
     _tick(steps_per_phase, lift_l, lift_r, q_power, q_power)
     _phase("carry")
@@ -364,8 +371,14 @@ def run_physics_industrial(
             kp_scale=1.6,
         )
     _tick(max(4, n_grip // 2), park_l, gun_reach, q_open, q_gun, kp_scale=1.8, body_kp=320.0)
-    _gun_contacts()
-    _maybe_weld_gun()
+    for _ in range(max(6, n_grip)):
+        _tick(1, park_l, gun_reach, q_open, q_gun, kp_scale=1.8, body_kp=320.0)
+        n, p = _gun_contacts()
+        if (n + p) >= 2:
+            _maybe_weld_gun()
+            break
+    else:
+        _maybe_weld_gun()
     _phase("scan")
     _tick(steps_per_phase, park_l, scan_r, q_open, q_gun)
 
