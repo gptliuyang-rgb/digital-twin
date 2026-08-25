@@ -44,11 +44,13 @@
 - **Forbidden:** publishing SONIC/VLA/sim2real numbers, or a `grasp_success_rate`, from this weld or from the uncalibrated μ/solref scan. Replace the weld with CAD SE(3) before any policy-eval claim.
 - **Consequences:** Box-handling palm orientation is the T800 elbow-yaw dummy frame (ADR-001). The scripted industrial FSM is a digital-twin playback, not a trained policy.
 
-## ADR-007 — Industrial demo is kinematic playback until E1/E2
+## ADR-007 — Industrial demo: kinematic geometry vs physics playback
 
 - **Status:** accepted for simulation-only digital twin
-- **Context:** Uncalibrated hand–object contact (ADR-004) cannot support a believable physics grasp; floating prop slabs also read as unfinished set dressing.
-- **Decision:** The scripted industrial FSM (`sim/tasks/industrial_pipeline.py`) plays back with `mj_forward` + IK + explicit carton/gun assists. Scene benches are grounded (legs to floor). The scan gun is a **lofted industrial barcode-scanner STL** (body/accent/window meshes under `assets/objects/scan_gun/`), not vendor CAD.
-- **Forbidden:** treating lift/carry/scan visuals as contact-validated sim2real evidence or publishing `grasp_success_rate`.
-- **Consequences:** Demo answers “does the twin look like the cell?” not “does the hand pick?”. Replace assists with E1/E2 friction/stiffness and a real scanner mesh when available.
+- **Context:** Uncalibrated hand–object contact (ADR-004) cannot support a Coulomb grasp; floating prop slabs also read as unfinished set dressing.
+- **Decision:** Two playback paths share the same cell:
+  1. **L2.3 geometry** (`sim/tasks/industrial_pipeline.py`): `mj_forward` + IK + explicit carton/gun assists. Used for QR envelope / `scan_geometry_ok`.
+  2. **Physics cell** (`sim/tasks/physics_industrial.py`, default viewer/GIF): `mj_step` + gravity-compensated arm PD (`qfrc_bias` + optional `Jᵀmg` payload) + equality **welds** that snapshot the current relative pose at grasp/gun-grip. Welds are **constraint grasps**, not E1/E2 friction. `--no-welds` is the honesty path (carton/gun only move via contact; the box is expected to drop). Scene benches are grounded. The scan gun is a **lofted industrial barcode-scanner STL** with a freejoint + collision hull, not vendor CAD.
+- **Forbidden:** treating lift/carry/scan visuals (kinematic or welded) as contact-validated sim2real evidence or publishing `grasp_success_rate`. Welds are not live E1/E2.
+- **Consequences:** Viewer answers “does the cell move under rigid-body dynamics?” Geometry metrics still come from the kinematic FSM. Replace welds with calibrated pad friction when E1/E2 exist.
 

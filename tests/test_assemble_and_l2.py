@@ -113,6 +113,30 @@ def test_industrial_pipeline_walks_phases() -> None:
     from sim.tasks.industrial_pipeline import PHASES, run_industrial_pipeline
 
     env = CombinedMujocoEnv(scene="industrial")
+    env.reset()
+    from sim.mujoco_env.scene import SceneSpec
+
+    spec = SceneSpec()
+    names = {env.model.geom(i).name for i in range(env.model.ngeom)}
+    assert "scan_gun_window" in names
+    assert "scan_gun_trigger" in names
+    assert "scan_gun_bumper" in names
+    assert "scan_gun_housing" in names
+    assert "scan_gun_col_body" in names
+    assert "scan_gun_col_grip" in names
+    env.model.equality("weld_box_grasp")
+    env.model.equality("weld_gun_grasp")
+    tcp = env.model.site_pos[int(env.model.site("gun_tcp").id)]
+    assert 0.10 <= float(tcp[0]) <= 0.15
+    jnt = int(env.model.body("scan_gun").jntadr[0])
+    assert int(env.model.jnt_type[jnt]) == 0  # freejoint, not mocap
+    gun0 = env.xpos("scan_gun")
+    box0 = env.xpos("box_0")
+    # Housing origin sits on the pick-bench top, not inside the slab or the carton.
+    assert gun0[2] >= spec.table_height_m
+    assert abs(gun0[2] - spec.table_height_m) < 0.08
+    assert float(np.linalg.norm(gun0[:2] - box0[:2])) > 0.10
+
     result = run_industrial_pipeline(env, steps_per_phase=40)
     assert result.policy_eval_forbidden
     assert result.kinematic_assist
@@ -123,17 +147,9 @@ def test_industrial_pipeline_walks_phases() -> None:
     assert result.scan_geometry_ok
     assert result.scan_distance_m is not None
     assert 0.05 <= result.scan_distance_m <= 0.35
-    # Industrial scene bodies exist
     env.model.body("box_0")
     env.model.body("scan_gun")
     env.model.site("gun_tcp")
-    names = {env.model.geom(i).name for i in range(env.model.ngeom)}
-    assert "scan_gun_window" in names
-    assert "scan_gun_trigger" in names
-    assert "scan_gun_bumper" in names
-    assert "scan_gun_housing" in names
-    tcp = env.model.site_pos[int(env.model.site("gun_tcp").id)]
-    assert 0.10 <= float(tcp[0]) <= 0.15
 
 
 def test_l2_report_omits_computed_success_rate(tmp_path: Path) -> None:

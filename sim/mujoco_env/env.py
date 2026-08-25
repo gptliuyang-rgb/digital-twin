@@ -50,6 +50,11 @@ class CombinedMujocoEnv(BaseEnv):
         self.model = mujoco.MjModel.from_xml_string(xml)
         self.data = mujoco.MjData(self.model)
         self.dt = float(self.model.opt.timestep)
+        _stabilize_plant(self.model)
+        if scene == "industrial":
+            # Stiffer constraint solve for welds + elliptic friction on the cell.
+            self.model.opt.iterations = max(int(self.model.opt.iterations), 60)
+            self.model.opt.ls_iterations = max(int(self.model.opt.ls_iterations), 40)
         gains = manifest["hand_mit_gains"]
         self.handles = TwinHandles(
             left_hand=lookup_hand_actuators(self.model, gains, "left"),
@@ -79,17 +84,38 @@ class CombinedMujocoEnv(BaseEnv):
         right_q: np.ndarray,
         *,
         body_q_des: np.ndarray | None = None,
-        body_kp: float = 12.0,
-        body_kd: float = 4.0,
+        body_kp: float = 90.0,
+        body_kd: float = 12.0,
         kp_scale: float = 1.0,
         kd_scale: float = 1.0,
+        payload_body: str | None = None,
+        payload_mass_kg: float = 0.0,
     ) -> dict[str, Any]:
         import mujoco
+
+        from sim.mujoco_env.dynamics import apply_body_pd, apply_payload_support
 
         apply_mit(self.model, self.data, self.handles.left_hand, left_q, kp_scale=kp_scale, kd_scale=kd_scale)
         apply_mit(self.model, self.data, self.handles.right_hand, right_q, kp_scale=kp_scale, kd_scale=kd_scale)
         if body_q_des is not None:
-            _apply_body_pd(self.model, self.data, self.handles.body_actuator_ids, body_q_des, body_kp, body_kd)
+            mujoco.mj_forward(self.model, self.data)
+            apply_body_pd(
+                self.model,
+                self.data,
+                self.handles.body_actuator_ids,
+                body_q_des,
+                body_kp,
+                body_kd,
+                gravity_comp=True,
+            )
+            if payload_body and payload_mass_kg > 0.0:
+                apply_payload_support(
+                    self.model,
+                    self.data,
+                    self.handles.body_actuator_ids,
+                    payload_body,
+                    payload_mass_kg,
+                )
         mujoco.mj_step(self.model, self.data)
         return self._obs()
 
@@ -118,11 +144,28 @@ def _t800_actuator_ids(model) -> np.ndarray:
     return np.asarray(ids, dtype=np.int32)
 
 
-def _apply_body_pd(model, data, act_ids: np.ndarray, q_des_full: np.ndarray, kp: float, kd: float) -> None:
-    for act_id in act_ids:
-        jnt = int(model.actuator_trnid[act_id, 0])
-        qadr = int(model.jnt_qposadr[jnt])
-        dadr = int(model.jnt_dofadr[jnt])
-        tau = kp * (q_des_full[qadr] - data.qpos[qadr]) - kd * data.qvel[dadr]
-        lo, hi = model.actuator_ctrlrange[act_id]
-        data.ctrl[act_id] = float(np.clip(tau, lo, hi))
+def _stabilize_plant(model) -> None:
+    """Viscous damping + armature so massless coupled finger dofs do not explode.
+
+    Official Hand 2 MJCF has DIP/IP mimic joints with ~0 inertia. Forward dynamics
+    (mj_step) needs a little armature/damping; kinematic mj_forward does not.
+    T800 serial joints also ship with empty damping in the included links file.
+    """
+    for j in range(model.njnt):
+        name = model.joint(j).name or ""
+        dadr = int(model.jnt_dofadr[j])
+        nv = 6 if int(model.jnt_type[j]) == 0 else 1
+        if name.startswith("J"):
+            damp, arm = 0.6, 0.0
+        elif name.startswith(("l_", "r_")) or "finger" in name or "thumb" in name:
+            damp, arm = 0.04, 2e-4
+        else:
+            continue
+        for k in range(nv):
+            model.dof_damping[dadr + k] = max(float(model.dof_damping[dadr + k]), damp)
+            if arm > 0.0:
+                model.dof_armature[dadr + k] = max(float(model.dof_armature[dadr + k]), arm)
+    for i in range(model.nv):
+        if float(model.dof_invweight0[i]) > 1e3:
+            model.dof_armature[i] = max(float(model.dof_armature[i]), 3e-4)
+            model.dof_damping[i] = max(float(model.dof_damping[i]), 0.05)

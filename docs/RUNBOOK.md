@@ -16,7 +16,7 @@ Optional: `pip install -e ".[sim]"` for MuJoCo, `".[vision]"` for OpenCV QR deco
 ```bash
 make phase1-baseline          # official vs pad-sphere site distances
 make eval-l2                  # μ×solref + gain corners + bimanual + kinematic industrial
-make eval-l2-physics          # also mj_step industrial (assists off)
+make eval-l2-physics          # mj_step industrial (gravity-comp PD + constraint welds)
 make eval-l2-gains            # full 3×3 kp/kv scan
 ```
 
@@ -124,25 +124,29 @@ make assemble   # T800 + both DexHand2, identity flange, MIT motors, compile che
 make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline (needs MuJoCo)
 make calibrate-synthetic  # E1/E2 CSV→fit→overlay→MuJoCo replay (does not patch live spec)
 make eval-l2-overlay      # L2 against the synthetic overlay spec (still no grasp_success_rate)
-make view-industrial   # MuJoCo GUI: pallet, boxes, gun, full FSM playback (needs display)
+make view-industrial   # MuJoCo GUI: physics industrial (PD + welds; needs display)
+make view-industrial-kinematic  # mj_forward geometry FSM
 ```
 
 ### Industrial viewer tips
 
-While contact is uncalibrated, the pipeline uses **kinematic demo playback**
-(`mj_forward` only — no contact physics): the carton tracks the wrists during
-carry/stack, and the scan gun mocap sticks to the right hand during scan.
-Benches have legs to the floor; the scanner is a lofted STL barcode-gun
-mesh (`assets/objects/scan_gun/`, not vendor CAD). This is not a validated
+The viewer/GIF default is **physics playback**: `mj_step`, gravity-compensated arm PD,
+and equality welds that snapshot the grasp/gun pose (constraint grasp, not E1/E2).
+`--kinematic` is the L2.3 geometry FSM (`mj_forward` + prop assists). `--no-welds`
+drops the carton under uncalibrated contact (honesty path). Benches have legs to
+the floor; the scanner is a lofted STL barcode-gun with a freejoint hull
+(`assets/objects/scan_gun/`, not vendor CAD). This is not a validated Coulomb
 grasp (ADR-004/006/007).
 
 ```bash
 make assemble
-python3 scripts/view_industrial_twin.py --steps-per-phase 100 --real-time --sync-every 8
-# Headless GIF (no window):
+python3 scripts/view_industrial_twin.py --steps-per-phase 80 --substeps 16 --real-time
+# Kinematic geometry playback:
+python3 scripts/view_industrial_twin.py --kinematic --steps-per-phase 100 --real-time
+# Headless GIF (physics, no window):
 make render-industrial-gif
 # → artifacts/industrial_demo.gif
-# Scanner still (bench rest pose):
+# Scanner still (bench rest pose after a short settle):
 python3 scripts/render_industrial_gif.py --skip-gif --gun-closeup artifacts/scan_gun_closeup.png
 # Overlay L2 (contact numbers from synthetic E1/E2; still no grasp_success_rate):
 make eval-l2-overlay

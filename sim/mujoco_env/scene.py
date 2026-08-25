@@ -29,7 +29,8 @@ class SceneSpec:
     top_thickness_m: float = 0.05
     leg_size_m: float = 0.04
     # Stack-bench top footprint (not a floating Euro pallet slab).
-    pad_size_m: tuple[float, float, float] = (0.40, 0.32, 0.04)
+    # Stack-bench top footprint (between the hanging arms, not over the feet).
+    pad_size_m: tuple[float, float, float] = (0.36, 0.24, 0.04)
     # Origin → scan window along +X. Real handheld scanners are ~12 cm, not a rifle.
     gun_barrel_m: float = 0.13
     gun_length_m: float = 0.13  # alias used by older callers
@@ -129,11 +130,29 @@ def _scan_gun_mesh_assets() -> list[str]:
     ]
 
 
-def _scan_gun_xml(*, barrel_m: float, table_pos: str) -> str:
+def _col(name: str, gtype: str, *, friction: str, solref: str, **kw: object) -> str:
+    """Colliding hull (group 3). Visual meshes stay contype=0."""
+    parts = [f'<geom name="{name}" type="{gtype}"']
+    for key, value in kw.items():
+        parts.append(f'{key}="{value}"')
+    parts.append(
+        f'friction="{friction}" solref="{solref}" solimp="0.8 0.9 0.001" condim="3" group="3" '
+        f'contype="1" conaffinity="1" rgba="0.2 0.7 0.3 0"/>'
+    )
+    return " ".join(parts)
+
+
+def _scan_gun_xml(
+    *,
+    barrel_m: float,
+    table_pos: str,
+    friction: str = "0.8 0.08 0.001",
+    solref: str = "0.01 0.02",
+) -> str:
     """Lofted industrial barcode-scanner mesh. Not vendor CAD.
 
     Gun frame is unchanged: optical axis +X, grip −Y, ``gun_tcp`` +Z = +X.
-    ``barrel_m`` is accepted for API compatibility; the committed STL is ~13 cm.
+    Freejoint + convex hulls so the gun can rest on the bench (ADR-007 physics path).
     """
     _ = barrel_m
     tip = SCAN_GUN_TIP_X
@@ -170,11 +189,36 @@ def _scan_gun_xml(*, barrel_m: float, table_pos: str) -> str:
             size="0.0055",
             material="scan_gun_metal",
         ),
+        _col(
+            "scan_gun_col_body",
+            "box",
+            friction=friction,
+            solref=solref,
+            size="0.055 0.026 0.030",
+            pos="0.055 0.004 0",
+        ),
+        _col(
+            "scan_gun_col_base",
+            "box",
+            friction=friction,
+            solref=solref,
+            size="0.048 0.022 0.008",
+            pos="0.050 0.002 -0.026",
+        ),
+        _col(
+            "scan_gun_col_grip",
+            "capsule",
+            friction=friction,
+            solref=solref,
+            fromto="0.028 -0.016 0 -0.006 -0.115 0",
+            size="0.017",
+        ),
     ]
     inner = "".join(geoms)
     return (
-        f'<body name="scan_gun" mocap="true" pos="{table_pos}">'
-        '<inertial pos="0.04 -0.04 0" mass="0.28" diaginertia="0.00055 0.00065 0.00028"/>'
+        f'<body name="scan_gun" pos="{table_pos}">'
+        "<freejoint/>"
+        '<inertial pos="0.04 -0.02 0" mass="0.38" diaginertia="0.0012 0.0014 0.0006"/>'
         f"{inner}"
         f'<site name="gun_tcp" pos="{tip:.4f} {y0} 0" size="0.003" rgba="0 0 0 0" '
         'xyaxes="0 1 0 0 0 1"/>'
@@ -199,7 +243,8 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
     for xml in (*_scan_gun_mesh_assets(), *_SCAN_GUN_MATERIALS, *qr_assets):
         asset.append(ET.fromstring(xml))
     world = find_or_create(robot_root, "worldbody")
-    solref = f"{spec.solref_timeconst_s} {spec.solref_timeconst_s * 2}"
+    # solref = (timeconst, dampratio). dampratio=1 is critical; do not pass timeconst*2.
+    solref = f"{spec.solref_timeconst_s} 1"
     friction = f"{spec.friction} {spec.friction * 0.1} 0.001"
     top_t = spec.top_thickness_m
     leg = spec.leg_size_m
@@ -229,17 +274,24 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
             'castshadow="false"/>'
         )
     )
+    option = find_or_create(robot_root, "option")
+    option.set("gravity", "0 0 -9.81")
+    option.set("integrator", "implicitfast")
+    option.set("cone", "elliptic")
+    option.set("impratio", "3")
+    option.set("iterations", "60")
+    option.set("ls_iterations", "40")
 
-    # --- pick bench (wood) @ robot right-front ---
+    # --- pick bench (wood) between the arms, forward of hanging hands (x≲0.14) ---
     world.append(
         ET.fromstring(
             _bench_xml(
                 name="pick_table",
-                cx=0.30,
-                cy=-0.24,
+                cx=0.42,
+                cy=-0.12,
                 top_h=spec.table_height_m,
-                half_x=0.18,
-                half_y=0.16,
+                half_x=0.22,
+                half_y=0.12,
                 top_t=top_t,
                 leg=leg,
                 top_rgba="0.55 0.38 0.20 1",
@@ -249,14 +301,14 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
         )
     )
 
-    # --- stack bench (green industrial) @ robot left-front ---
+    # --- stack bench (green industrial) mirrored on the left ---
     px, py, _ = spec.pad_size_m
     world.append(
         ET.fromstring(
             _bench_xml(
                 name="pallet",
-                cx=0.30,
-                cy=0.24,
+                cx=0.42,
+                cy=0.12,
                 top_h=spec.table_height_m,
                 half_x=px / 2,
                 half_y=py / 2,
@@ -277,7 +329,7 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
     qr_mat = f"qr_{spec.qr_payload}_mat"
 
     for i in range(spec.n_boxes):
-        x, y = (0.30, -0.24) if i == 0 else (0.30, 0.28)
+        x, y = (0.36, -0.12) if i == 0 else (0.42, 0.12)
         rgba = "0.86 0.68 0.38 1" if i == 0 else "0.70 0.52 0.30 1"
         qr = f"{-hx - 0.001} 0 {hz * 0.15}"
         use_flex = spec.use_flex_box or should_split(full)
@@ -333,11 +385,30 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
             )
         )
 
-    # Rest the scanner on the pick-bench edge, window +X, grip hanging −Y off the apron.
-    gun_z = spec.table_height_m + 0.038
-    table_gun = f"0.24 -0.38 {gun_z}"
+    # Scanner fully on the pick slab (+X of the carton). Origin so the base hull
+    # sits in light contact with the top (not a drop that the solver then launches).
+    gun_z = spec.table_height_m + 0.031
+    table_gun = f"0.52 -0.10 {gun_z}"
     barrel = spec.gun_barrel_m if spec.gun_barrel_m else spec.gun_length_m
-    world.append(ET.fromstring(_scan_gun_xml(barrel_m=barrel, table_pos=table_gun)))
+    gun_solref = "0.03 1"
+    world.append(
+        ET.fromstring(
+            _scan_gun_xml(barrel_m=barrel, table_pos=table_gun, friction=friction, solref=gun_solref)
+        )
+    )
+    eq = find_or_create(robot_root, "equality")
+    eq.append(
+        ET.fromstring(
+            '<weld name="weld_box_grasp" body1="l_wrist" body2="box_0" active="false" '
+            'solref="0.004 1" solimp="0.9 0.95 0.001"/>'
+        )
+    )
+    eq.append(
+        ET.fromstring(
+            '<weld name="weld_gun_grasp" body1="r_wrist" body2="scan_gun" active="false" '
+            'solref="0.004 1" solimp="0.9 0.95 0.001"/>'
+        )
+    )
     return robot_root
 
 

@@ -15,14 +15,26 @@ from sim.qr_scanner import decode_image, make_qr_png, simulate_scan
 
 
 def test_scan_gun_xml_is_scanner_not_rifle() -> None:
-    root = ET.fromstring(_scan_gun_xml(barrel_m=0.16, table_pos="0 0 1"))
+    root = ET.fromstring(
+        _scan_gun_xml(
+            barrel_m=0.16,
+            table_pos="0 0 1",
+            friction="0.8 0.08 0.001",
+            solref="0.01 0.02",
+        )
+    )
     names = [g.get("name") for g in root.iter("geom")]
     assert "scan_gun_window" in names
     assert "scan_gun_trigger" in names
     assert "scan_gun_bumper" in names
+    assert "scan_gun_col_body" in names
+    assert "scan_gun_col_grip" in names
+    assert "scan_gun_col_base" in names
     assert not any("barrel" in (n or "") for n in names)
     housing = next(g for g in root.iter("geom") if g.get("name") == "scan_gun_housing")
     assert housing.get("type") == "mesh"
+    assert root.find("freejoint") is not None
+    assert root.get("mocap") in (None, "false")
     tcp = root.find("site")
     assert tcp is not None and tcp.get("name") == "gun_tcp"
     x = float(tcp.get("pos", "0 0 0").split()[0])

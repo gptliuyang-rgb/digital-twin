@@ -19,7 +19,7 @@ from sim.mujoco_env.kinematic_assist import (
     attach_gun_to_right_wrist,
     place_box_on_pallet,
     set_free_body_pose,
-    set_mocap_pose,
+    set_prop_pose,
     snap_gun_tcp_for_geometry,
     stack_center_on_pallet,
 )
@@ -225,7 +225,7 @@ def run_industrial_pipeline(
             if gun_mode == "hand":
                 attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
             elif gun_mode == "table":
-                set_mocap_pose(
+                set_prop_pose(
                     env.model,
                     env.data,
                     "scan_gun",

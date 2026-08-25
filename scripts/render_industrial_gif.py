@@ -44,18 +44,22 @@ def _label_frame(img, text: str):
 def render_gif(
     *,
     out_path: Path,
-    steps_per_phase: int = 60,
-    frame_stride: int = 20,
+    steps_per_phase: int = 48,
+    frame_stride: int = 8,
     width: int = 960,
     height: int = 540,
     fps: float = 12.0,
     duration_ms: int | None = None,
+    physics: bool = True,
+    substeps: int = 12,
+    use_welds: bool = True,
 ) -> dict:
     import mujoco
     from PIL import Image
 
     from sim.mujoco_env.env import CombinedMujocoEnv
     from sim.tasks.industrial_pipeline import run_industrial_pipeline
+    from sim.tasks.physics_industrial import run_physics_industrial
 
     env = CombinedMujocoEnv(scene="industrial")
     env.model.vis.global_.offwidth = max(int(env.model.vis.global_.offwidth), width)
@@ -86,12 +90,22 @@ def render_gif(
             return
         _capture()
 
-    result = run_industrial_pipeline(
-        env,
-        steps_per_phase=steps_per_phase,
-        on_phase=on_phase,
-        on_step=on_step,
-    )
+    if physics:
+        result = run_physics_industrial(
+            env,
+            steps_per_phase=steps_per_phase,
+            substeps=substeps,
+            use_welds=use_welds,
+            on_phase=on_phase,
+            on_step=on_step,
+        )
+    else:
+        result = run_industrial_pipeline(
+            env,
+            steps_per_phase=steps_per_phase,
+            on_phase=on_phase,
+            on_step=on_step,
+        )
 
     if not frames:
         _capture("done")
@@ -116,6 +130,9 @@ def render_gif(
         "scan_geometry_ok": result.scan_geometry_ok,
         "scan_distance_m": result.scan_distance_m,
         "phases": phase_labels,
+        "physics": physics,
+        "constraint_weld": bool(getattr(result, "constraint_weld", False)),
+        "kinematic_assist": bool(getattr(result, "kinematic_assist", not physics)),
     }
 
 
@@ -134,6 +151,14 @@ def render_gun_closeup(
 
     env = CombinedMujocoEnv(scene="industrial")
     env.reset()
+    # Let the freejoint scanner settle on the bench before the still.
+    q_hold = env.data.qpos.copy()
+    from hand.grasp_primitives import GraspLibrary
+    from interface.schema import load_hand_spec
+
+    q_open = GraspLibrary(load_hand_spec()).q_active("open", 0.0)
+    for _ in range(180):
+        env.step_mit(q_open, q_open, body_q_des=q_hold)
     env.model.vis.global_.offwidth = max(int(env.model.vis.global_.offwidth), width)
     env.model.vis.global_.offheight = max(int(env.model.vis.global_.offheight), height)
     renderer = mujoco.Renderer(env.model, width=width, height=height)
@@ -153,7 +178,7 @@ def render_gun_closeup(
     _shot([gun[0] + 0.03, gun[1] - 0.05, gun[2]], 0.40, -52.0, 155.0, out_path)
     saved = {"out": str(out_path.resolve()), "lookat": gun.tolist()}
     if in_hand_path is not None:
-        from sim.tasks.industrial_pipeline import run_industrial_pipeline
+        from sim.tasks.physics_industrial import run_physics_industrial
 
         def on_phase(name: str, _env, _result) -> None:
             if name not in {"grip_gun", "scan"}:
@@ -161,7 +186,7 @@ def render_gun_closeup(
             g = env.xpos("scan_gun")
             _shot([g[0] + 0.02, g[1], g[2] + 0.02], 0.32, -14.0, 142.0, in_hand_path)
 
-        run_industrial_pipeline(env, steps_per_phase=40, on_phase=on_phase)
+        run_physics_industrial(env, steps_per_phase=16, substeps=8, on_phase=on_phase)
         saved["in_hand"] = str(in_hand_path.resolve())
     renderer.close()
     return saved
@@ -175,12 +200,23 @@ def main() -> int:
         default=Path("artifacts/industrial_demo.gif"),
         help="Output GIF path",
     )
-    parser.add_argument("--steps-per-phase", type=int, default=60)
+    parser.add_argument("--steps-per-phase", type=int, default=48)
     parser.add_argument(
         "--frame-stride",
         type=int,
-        default=20,
-        help="Capture one frame every N kinematic ticks",
+        default=8,
+        help="Capture one frame every N control ticks",
+    )
+    parser.add_argument("--substeps", type=int, default=12, help="mj_step per tick (physics path)")
+    parser.add_argument(
+        "--kinematic",
+        action="store_true",
+        help="Use mj_forward kinematic playback instead of physics",
+    )
+    parser.add_argument(
+        "--no-welds",
+        action="store_true",
+        help="Physics path: disable constraint welds",
     )
     parser.add_argument("--width", type=int, default=960)
     parser.add_argument("--height", type=int, default=540)
@@ -226,6 +262,9 @@ def main() -> int:
         width=args.width,
         height=args.height,
         fps=args.fps,
+        physics=not args.kinematic,
+        substeps=args.substeps,
+        use_welds=not args.no_welds,
     )
     print(
         f"[saved] {info['out']} ({info['n_frames']} frames @ {info['fps']} fps, "

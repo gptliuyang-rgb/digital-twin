@@ -44,6 +44,15 @@ def set_mocap_pose(model, data, body_name: str, pos: np.ndarray, quat_wxyz: np.n
     data.mocap_quat[mid] = np.asarray(quat_wxyz, dtype=np.float64)
 
 
+def set_prop_pose(model, data, body_name: str, pos: np.ndarray, quat_wxyz: np.ndarray) -> None:
+    """Place a mocap body or a freejoint body (scan gun is freejoint)."""
+    mid = int(model.body(body_name).mocapid[0])
+    if mid >= 0:
+        set_mocap_pose(model, data, body_name, pos, quat_wxyz)
+    else:
+        set_free_body_pose(model, data, body_name, pos, quat_wxyz)
+
+
 def mat_to_quat_wxyz(R: np.ndarray) -> np.ndarray:
     """Rotation matrix → quaternion wxyz (MuJoCo convention)."""
     m = np.asarray(R, dtype=np.float64).reshape(3, 3)
@@ -124,7 +133,7 @@ def attach_gun_to_right_wrist(model, data, gun_body: str = "scan_gun") -> None:
     z /= zn
     y = np.cross(z, x)
     Rg = np.column_stack([x, y, z])
-    set_mocap_pose(model, data, gun_body, handle, mat_to_quat_wxyz(Rg))
+    set_prop_pose(model, data, gun_body, handle, mat_to_quat_wxyz(Rg))
 
 
 def snap_gun_tcp_for_geometry(
@@ -152,7 +161,7 @@ def snap_gun_tcp_for_geometry(
     gun_sid = int(model.site("gun_tcp").id)
     tcp_local = model.site_pos[gun_sid].copy()
     grip = tcp_target - Rg @ tcp_local
-    set_mocap_pose(model, data, gun_body, grip, mat_to_quat_wxyz(Rg))
+    set_prop_pose(model, data, gun_body, grip, mat_to_quat_wxyz(Rg))
 
 
 def aim_gun_at_site(model, data, gun_body: str, site_name: str, *, standoff_m: float = 0.16) -> None:
@@ -164,10 +173,10 @@ def aim_gun_at_site(model, data, gun_body: str, site_name: str, *, standoff_m: f
     sid = int(model.site(site_name).id)
     qr = data.site_xpos[sid].copy()
     tcp = data.site_xpos[int(model.site("gun_tcp").id)].copy()
-    mid = int(model.body(gun_body).mocapid[0])
     delta = qr - tcp
     dist = float(np.linalg.norm(delta))
     if dist < 1e-4:
         return
     nudge = np.clip(dist - standoff_m, -0.05, 0.05) * (delta / dist)
-    data.mocap_pos[mid] = data.mocap_pos[mid] + 0.4 * nudge
+    pos, mat = body_pos_mat(model, data, gun_body)
+    set_prop_pose(model, data, gun_body, pos + 0.4 * nudge, mat_to_quat_wxyz(mat))

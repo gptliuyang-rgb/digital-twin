@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh phase1-baseline eval-l2-physics eval-l2-gains sim sim-quick
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial view-industrial-kinematic render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh phase1-baseline eval-l2-physics eval-l2-gains sim sim-quick
 
 PYTHON ?= python3
 
@@ -25,10 +25,13 @@ assemble:
 	$(PYTHON) -m assets.combined.assemble --check-compile
 
 view-industrial:
-	$(PYTHON) scripts/view_industrial_twin.py --steps-per-phase 100 --real-time
+	$(PYTHON) scripts/view_industrial_twin.py --steps-per-phase 80 --substeps 16 --real-time
+
+view-industrial-kinematic:
+	$(PYTHON) scripts/view_industrial_twin.py --kinematic --steps-per-phase 100 --real-time
 
 render-industrial-gif:
-	$(PYTHON) scripts/render_industrial_gif.py --out artifacts/industrial_demo.gif --steps-per-phase 60 --frame-stride 20 --fps 12
+	$(PYTHON) scripts/render_industrial_gif.py --out artifacts/industrial_demo.gif --steps-per-phase 48 --substeps 12 --frame-stride 8 --fps 12
 
 eval-l0:
 	$(PYTHON) -m eval.l0_offline_replay --config eval/configs/l0_offline.yaml

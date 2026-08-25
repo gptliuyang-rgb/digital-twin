@@ -126,8 +126,10 @@ def test_physics_industrial_flag_smoke_when_cloned() -> None:
         have_t800 = False
     if not official_mjcf("left", with_mount=True).is_file() or not have_t800:
         pytest.skip("official trees not cloned")
-    result = run_physics_industrial(steps_per_phase=4, substeps=2)
+    result = run_physics_industrial(steps_per_phase=4, substeps=2, settle_steps=20)
     assert result.kinematic_assist is False
+    assert result.constraint_weld is True
     assert result.policy_eval_forbidden
     assert "done" in result.phases
     assert "grasp_success_rate" not in result.__dict__
+    assert result.finite

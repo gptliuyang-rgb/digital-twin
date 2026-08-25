@@ -6,7 +6,7 @@ When MuJoCo and official assets are present this runs:
   - L2.2b: kp/kv corner gain scan (optional full 3×3)
   - L2.2c: bimanual squeeze micro (relative)
   - L2.3: kinematic industrial pipeline
-  - L2.3b: physics industrial (no assists) when enabled
+  - L2.3b: physics industrial (mj_step + gravity-comp PD + optional welds) when enabled
 Relative metrics only. grasp_success_rate is never written (ADR-004).
 """
 
@@ -130,7 +130,9 @@ def _physics_bundle(cfg: dict, scan_cfg: dict | None, spec_raw: dict, *, physics
                 "stack_alignment_m": phys.stack_alignment_m,
                 "gap_z_m": phys.gap_z_m,
                 "box_drop_m": phys.box_drop_m,
+                "max_abs_tau_nm": phys.max_abs_tau_nm,
                 "kinematic_assist": False,
+                "constraint_weld": phys.constraint_weld,
                 "policy_eval_forbidden": True,
                 "note": phys.note,
             }
@@ -149,7 +151,7 @@ def main() -> None:
     parser.add_argument(
         "--physics-industrial",
         action="store_true",
-        help="Also run mj_step industrial cell with kinematic assists off",
+        help="Also run mj_step industrial cell (gravity-comp PD + optional welds)",
     )
     parser.add_argument(
         "--gain-scan-mode",
