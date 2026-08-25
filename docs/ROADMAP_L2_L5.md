@@ -397,8 +397,8 @@ hand/calibration/results/<real_batch>/
 
 请在下面三选一，作为下一轮 agent 的开工指令：
 
-- [ ] **R1** 只做 L2a：接真实 E1/E2（人提供 CSV 或先把实验台搭起来），live spec 提交流程，增益扫描跑实。
-- [ ] **R2** L2a 并行 L2b：关 assist 的物理抱箱原型（标定可用扫描档，报告标 uncalibrated）。
+- [x] **R1** L2a 骨架已落地（增益扫描 / E3 拟合 / 指垫基线 / 成功率门禁）。**实机 CSV 仍缺。**
+- [x] **R2** L2b 骨架已落地（关 assist 的 mj_step 工业尝试 / 双臂 micro / 柔性箱 / QR 贴图）。**未达物理抓取门限。**
 - [ ] **R3** 先做 PR 治理：从 #47 抽 SONIC runtime 接到本分支（L2c 预研），工业场景暂时保持运动学。
 - [ ] **R4** 先做现有 ckpt 的真 L0（人提供 npz/LeRobot），不动物理。
 

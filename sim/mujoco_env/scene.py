@@ -10,8 +10,10 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
 from assets.combined.mjcf_xml import dump_mjcf, find_or_create
+from assets.objects.boxes import write_qr_texture
 from assets.objects.scan_gun.generate import OUT_DIR as SCAN_GUN_DIR
 from assets.objects.scan_gun.generate import TIP_X as SCAN_GUN_TIP_X
+from interface.schema import REPO_ROOT
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,8 @@ class SceneSpec:
     # Origin → scan window along +X. Real handheld scanners are ~12 cm, not a rifle.
     gun_barrel_m: float = 0.13
     gun_length_m: float = 0.13  # alias used by older callers
+    qr_payload: str = "BOX-0"
+    use_flex_box: bool = False
 
 
 def _box_inertial(mass: float, size: tuple[float, float, float]) -> str:
@@ -179,10 +183,20 @@ def _scan_gun_xml(*, barrel_m: float, table_pos: str) -> str:
     )
 
 
+def _qr_texture_xml(payload: str) -> list[str]:
+    path = REPO_ROOT / "assets" / "objects" / "generated" / f"qr_{payload}.png"
+    write_qr_texture(payload, path, module_px=16)
+    return [
+        f'<texture name="qr_{payload}" type="2d" file="{path.resolve().as_posix()}"/>',
+        f'<material name="qr_{payload}_mat" texture="qr_{payload}" texrepeat="1 1" reflectance="0"/>',
+    ]
+
+
 def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = None) -> ET.Element:
     spec = spec or SceneSpec()
     asset = find_or_create(robot_root, "asset")
-    for xml in (*_scan_gun_mesh_assets(), *_SCAN_GUN_MATERIALS):
+    qr_assets = _qr_texture_xml(spec.qr_payload)
+    for xml in (*_scan_gun_mesh_assets(), *_SCAN_GUN_MATERIALS, *qr_assets):
         asset.append(ET.fromstring(xml))
     world = find_or_create(robot_root, "worldbody")
     solref = f"{spec.solref_timeconst_s} {spec.solref_timeconst_s * 2}"
@@ -255,16 +269,54 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
         )
     )
 
+    from assets.objects.flex import FlexBoxSpec, flex_box_xml, should_split
+
     full = spec.box_size_m
     hx, hy, hz = (full[0] / 2, full[1] / 2, full[2] / 2)
     z0 = spec.table_height_m + hz
+    qr_mat = f"qr_{spec.qr_payload}_mat"
 
     for i in range(spec.n_boxes):
         x, y = (0.30, -0.24) if i == 0 else (0.30, 0.28)
         rgba = "0.86 0.68 0.38 1" if i == 0 else "0.70 0.52 0.30 1"
-        inertial = _box_inertial(spec.box_mass_kg, full)
-        # QR sticker on −X face (toward the robot / scanner approach).
         qr = f"{-hx - 0.001} 0 {hz * 0.15}"
+        use_flex = spec.use_flex_box or should_split(full)
+        if use_flex and i == 0:
+            world.append(
+                ET.fromstring(
+                    flex_box_xml(
+                        FlexBoxSpec(
+                            size_m=full,
+                            mass_kg=spec.box_mass_kg,
+                            pos_m=(x, y, z0),
+                            name=f"box_{i}",
+                            friction=friction,
+                            solref=solref,
+                            rgba=rgba,
+                        )
+                    )
+                )
+            )
+            # QR plate stays a visual child of the parent body.
+            parent = None
+            for body in world.findall("body"):
+                if body.get("name") == f"box_{i}":
+                    parent = body
+                    break
+            if parent is not None:
+                parent.append(
+                    ET.fromstring(
+                        f'<site name="box_{i}_qr" pos="{qr}" size="0.010" rgba="0.05 0.05 0.05 1"/>'
+                    )
+                )
+                parent.append(
+                    ET.fromstring(
+                        f'<geom name="box_{i}_qr_plate" type="box" size="0.032 0.032 0.0015" '
+                        f'pos="{qr}" material="{qr_mat}" contype="0" conaffinity="0"/>'
+                    )
+                )
+            continue
+        inertial = _box_inertial(spec.box_mass_kg, full)
         free = "<freejoint/>" if i == 0 else ""
         world.append(
             ET.fromstring(
@@ -276,9 +328,7 @@ def attach_industrial_scene(robot_root: ET.Element, spec: SceneSpec | None = Non
                 f'pos="0 0 0" rgba="0.55 0.40 0.22 1" contype="0" conaffinity="0"/>'
                 f'<site name="box_{i}_qr" pos="{qr}" size="0.010" rgba="0.05 0.05 0.05 1"/>'
                 f'<geom name="box_{i}_qr_plate" type="box" size="0.032 0.032 0.0015" '
-                f'pos="{qr}" rgba="0.95 0.95 0.95 1" contype="0" conaffinity="0"/>'
-                f'<geom name="box_{i}_qr_ink" type="box" size="0.024 0.024 0.0018" '
-                f'pos="{qr}" rgba="0.05 0.05 0.05 1" contype="0" conaffinity="0"/>'
+                f'pos="{qr}" material="{qr_mat}" contype="0" conaffinity="0"/>'
                 "</body>"
             )
         )

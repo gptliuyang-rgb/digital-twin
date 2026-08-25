@@ -46,6 +46,7 @@ class PipelineResult:
     ik_err_m: list[float] = field(default_factory=list)
     box0_z: list[float] = field(default_factory=list)
     scan_geometry_ok: bool = False
+    scan_decode_ok: bool | None = None
     scan_distance_m: float | None = None
     finite: bool = True
     n_steps: int = 0
@@ -373,7 +374,7 @@ def run_industrial_pipeline(
                 spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(70.0)),
             )
         if not scan.geometry_ok:
-            # Metric assist: aim TCP at QR standoff, then restore hand-held look.
+            # Metric assist: aim TCP at QR standoff for the geometry/decode measurement.
             snap_gun_tcp_for_geometry(env.model, env.data, "scan_gun", "box_0_qr")
             mujoco.mj_forward(env.model, env.data)
             scan = simulate_scan(
@@ -385,10 +386,29 @@ def run_industrial_pipeline(
                 rel_speed_m_s=0.0,
                 spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(55.0)),
             )
-            attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
-            mujoco.mj_forward(env.model, env.data)
         result.scan_geometry_ok = scan.geometry_ok
         result.scan_distance_m = scan.distance_m
+        try:
+            from sim.mujoco_env.render_cam import render_camera
+
+            rgb, meta = render_camera(env.model, env.data, "gun_cam")
+            if meta.get("ok") and rgb is not None:
+                scan2 = simulate_scan(
+                    rgb,
+                    gun_tcp_pos_m=env.site_xpos("gun_tcp"),
+                    gun_tcp_z=_site_z(env, "gun_tcp"),
+                    qr_pos_m=qr_pos,
+                    qr_normal=np.array([-1.0, 0.0, 0.0]),
+                    rel_speed_m_s=0.0,
+                    spec=ScanSpec(d_min_m=0.05, d_max_m=0.35, theta_max_rad=np.deg2rad(55.0)),
+                )
+                result.scan_decode_ok = scan2.decode_ok
+            else:
+                result.scan_decode_ok = None
+        except Exception:
+            result.scan_decode_ok = None
+        attach_gun_to_right_wrist(env.model, env.data, "scan_gun")
+        mujoco.mj_forward(env.model, env.data)
 
     _phase("done")
     return result

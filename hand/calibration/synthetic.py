@@ -42,6 +42,19 @@ E1_FIELDS = [
     "notes",
 ]
 E2_FIELDS = ["trial", "finger", "skin", "disp_m", "force_n", "k_n_per_m", "batch", "fw"]
+E3_FIELDS = [
+    "trial",
+    "closure",
+    "mass_kg",
+    "held_s",
+    "slipped",
+    "max_current_a",
+    "finger",
+    "batch",
+    "fw",
+]
+E3_MAX_HELD_KG = 10.0
+E3_FIRST_SLIP_KG = 12.0
 
 
 def write_synthetic_csvs(
@@ -106,6 +119,29 @@ def write_synthetic_csvs(
                         }
                     )
 
+    e3 = out_dir / "e3.csv"
+    with e3.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=E3_FIELDS)
+        writer.writeheader()
+        trial = 0
+        for mass in (2, 4, 6, 8, 10, 12, 14):
+            for closure in (0.70, 0.85, 1.0):
+                trial += 1
+                slipped = mass >= E3_FIRST_SLIP_KG
+                writer.writerow(
+                    {
+                        "trial": trial,
+                        "closure": f"{closure:.2f}",
+                        "mass_kg": mass,
+                        "held_s": 5.0 if not slipped else 1.2,
+                        "slipped": "1" if slipped else "0",
+                        "max_current_a": f"{0.4 + 0.05 * mass:.3f}",
+                        "finger": "power_grasp",
+                        "batch": BATCH_ID,
+                        "fw": FIRMWARE,
+                    }
+                )
+
     meta = (out_dir.parent / "meta.yaml")
     meta.write_text(
         "\n".join(
@@ -117,13 +153,15 @@ def write_synthetic_csvs(
                 f"mu_s_true: {MU_S_TRUE}",
                 f"mu_d_true: {MU_D_TRUE}",
                 f"k_n_per_m_true: {K_TRUE_N_PER_M}",
+                f"e3_max_held_kg_true: {E3_MAX_HELD_KG}",
+                f"e3_first_slip_kg_true: {E3_FIRST_SLIP_KG}",
                 "note: Pipeline fixture. Never copy into live dexhand2_spec.yaml as hardware.",
                 "",
             ]
         ),
         encoding="utf-8",
     )
-    return {"e1": e1, "e2": e2, "meta": meta}
+    return {"e1": e1, "e2": e2, "e3": e3, "meta": meta}
 
 
 def main() -> None:

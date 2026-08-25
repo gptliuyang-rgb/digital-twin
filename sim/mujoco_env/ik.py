@@ -61,7 +61,6 @@ def smooth_move_wrist(
     alpha: float = 0.12,
 ) -> dict:
     """One small IK step toward target — call every control tick for smooth motion."""
-    import mujoco
 
     bid = int(model.body(body_name).id)
     pos = data.xpos[bid].copy()

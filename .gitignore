@@ -18,7 +18,7 @@ dist/
 .venv/
 venv/
 
-# Generated / local eval
+assets/objects/generated/
 assets/dexhand2/derived/
 assets/combined/generated/
 eval/report/generated/

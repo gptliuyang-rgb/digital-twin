@@ -96,7 +96,11 @@ def generate(side: str = "right", root: Path | None = None, spec_path: Path | No
     prefix = "r" if side == "right" else "l"
     sites = parse_sites(src)
     for site in sites:
-        finger = site["name"].replace(f"{prefix}_", "").replace("_tip", "")
+        name = site["name"]
+        pre = f"{prefix}_"
+        if not name.startswith(pre) or not name.endswith("_tip"):
+            continue
+        finger = name[len(pre) : -len("_tip")]
         stl = mesh_dir / f"{prefix}_{finger}_tip.STL"
         if not stl.is_file():
             # pinky file is r_pinky_tip.STL; site is r_pinky_tip. Already handled.

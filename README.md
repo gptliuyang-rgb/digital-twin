@@ -15,7 +15,7 @@ hand/          controller, coupling, primitives, backends, calibration
 runtime/       safety filter, temporal ensemble, latency compensation
 vla/           adapters + policy client (no sim imports)
 sim/           MuJoCo env, industrial scene, MIT plant, QR scanner, scripted tasks
-eval/          L0–L2 harnesses (L2.2 micro-scan, L2.3 industrial pipeline)
+eval/          L0–L2 harnesses (μ/solref + gain scan, bimanual micro, kinematic + optional physics industrial)
 docs/          SPEC_INTAKE, DECISIONS, HW_INTEGRATION, RUNBOOK, ROADMAP_L2_L5
 ```
 

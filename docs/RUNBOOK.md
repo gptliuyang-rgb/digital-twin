@@ -11,6 +11,24 @@ make check-spec                    # expected to FAIL until REQUIRED_INPUT is fi
 
 Optional: `pip install -e ".[sim]"` for MuJoCo, `".[vision]"` for OpenCV QR decode.
 
+## L2a / L2b (relative physics)
+
+```bash
+make phase1-baseline          # official vs pad-sphere site distances
+make eval-l2                  # μ×solref + gain corners + bimanual + kinematic industrial
+make eval-l2-physics          # also mj_step industrial (assists off)
+make eval-l2-gains            # full 3×3 kp/kv scan
+```
+
+E3 synthetic template (not a payload rating):
+
+```bash
+python3 -c "from hand.calibration.synthetic import write_synthetic_csvs, SKIN_ON_DIR; print(write_synthetic_csvs(SKIN_ON_DIR)['e3'])"
+python3 -m hand.calibration.fit_params --e3 hand/calibration/results/synthetic_batch_v1.0/skin_on/e3.csv --out /tmp/e3_fragment.yaml
+```
+
+Do not copy E3 mass into `motor_max_torque_nm`.
+
 ## After filling a spec field
 
 1. Edit `assets/dexhand2/meta/dexhand2_spec.yaml` (or mount / calib YAML).

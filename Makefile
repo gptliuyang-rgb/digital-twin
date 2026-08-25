@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh phase1-baseline eval-l2-physics eval-l2-gains
 
 PYTHON ?= python3
 
@@ -52,3 +52,12 @@ eval-l2-overlay:
 
 scan-gun-mesh:
 	$(PYTHON) -m assets.objects.scan_gun.generate
+
+phase1-baseline:
+	$(PYTHON) -m assets.dexhand2.build.pad_metrics
+
+eval-l2-physics:
+	$(PYTHON) -m eval.l2_mujoco_closedloop --physics-industrial --out eval/report/generated/l2_physics.json
+
+eval-l2-gains:
+	$(PYTHON) -m eval.l2_mujoco_closedloop --gain-scan-mode full --out eval/report/generated/l2_gains.json

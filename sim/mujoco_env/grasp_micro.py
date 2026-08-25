@@ -194,6 +194,59 @@ def run_scan_grid(cfg: dict, *, n_close: int = 80, n_hold: int = 80) -> list[dic
     return rows
 
 
+def run_gain_scan(
+    cfg: dict,
+    *,
+    n_close: int = 40,
+    n_hold: int = 40,
+    mode: str = "corners",
+) -> list[dict]:
+    """kp/kv scale grid at the mid μ/solref cell. Relative only (ADR-004)."""
+    mus = [float(x) for x in cfg["friction_static"]]
+    sols = [float(x) for x in cfg["solref_timeconst_s"]]
+    mu = mus[len(mus) // 2]
+    sol = sols[len(sols) // 2]
+    kps = [float(x) for x in cfg.get("kp_scale", [1.0])]
+    kds = [float(x) for x in cfg.get("kv_scale", [1.0])]
+    pairs: list[tuple[float, float]] = []
+    if mode == "full":
+        pairs = [(kp, kd) for kp in kps for kd in kds]
+    elif mode == "corners":
+        seen: set[tuple[float, float]] = set()
+        for kp in (kps[0], kps[-1]):
+            for kd in (kds[0], kds[-1]):
+                seen.add((kp, kd))
+        pairs = sorted(seen)
+    else:
+        return []
+    rows = []
+    for kp, kd in pairs:
+        m = run_micro_episode(
+            mu,
+            sol,
+            n_close=n_close,
+            n_hold=n_hold,
+            lift_m=float(cfg.get("lift_m", 0.08)),
+            kp_scale=kp,
+            kd_scale=kd,
+        )
+        rows.append(
+            {
+                "friction_static": m.friction,
+                "solref_timeconst_s": m.solref_timeconst_s,
+                "kp_scale": kp,
+                "kd_scale": kd,
+                "uncalibrated_slip_m": m.slip_m,
+                "uncalibrated_cube_drop_m": m.cube_drop_m,
+                "uncalibrated_n_contacts": m.n_contacts,
+                "max_abs_tau_nm": m.max_abs_tau,
+                "finite": m.finite,
+                "label": "GAIN_SCAN_PLACEHOLDER",
+            }
+        )
+    return rows
+
+
 def run_calibrated_micro(spec_raw: dict, *, n_close: int = 80, n_hold: int = 80, lift_m: float = 0.08) -> dict:
     """Single micro episode at E1/E2 μ and proposed solref. Never writes grasp_success_rate."""
     if not contact_is_calibrated(spec_raw):

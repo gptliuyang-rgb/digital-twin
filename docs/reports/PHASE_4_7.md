@@ -31,6 +31,7 @@
 
 - L0 flags a swapped finger channel
 - L1 limit/coupling checks
-- L2 runs uncalibrated physics when MuJoCo is present; still `blocked_uncalibrated` / no `grasp_success_rate`
+- L2 runs uncalibrated physics when MuJoCo is present; still `blocked_uncalibrated` / no `grasp_success_rate`. Gain-scan corners, bimanual micro, and optional `--physics-industrial` are relative only.
+- L3 reserved (Isaac / IBVS / GR00T deploy)
 - L3 reserved (Isaac / IBVS / GR00T deploy)
 - L4 HIL and real-robot trials are **out of scope** until this sim twin is accepted

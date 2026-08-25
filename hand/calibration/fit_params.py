@@ -98,6 +98,41 @@ def _fit_k_from_trial(rows: list[dict], *, disp_lo_m: float = 0.0002, disp_hi_m:
     return k if k > 0 else None
 
 
+def fit_e3(path: Path, *, hold_s: float = 5.0) -> dict:
+    """Largest mass held without slip for ``hold_s`` seconds.
+
+    Does **not** invent ``motor_max_torque_nm``. Writes an observed mass only.
+    """
+    held: list[float] = []
+    slipped: list[float] = []
+    batch = fw = None
+    with path.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            mass = float(row["mass_kg"])
+            held_t = float(row.get("held_s") or 0.0)
+            flag = str(row.get("slipped", "")).strip().lower()
+            did_slip = flag in {"1", "true", "yes", "slip"}
+            batch = batch or row.get("batch")
+            fw = fw or row.get("fw")
+            if (not did_slip) and held_t + 1e-9 >= hold_s:
+                held.append(mass)
+            if did_slip:
+                slipped.append(mass)
+    out = {
+        "e3_max_held_mass_kg": max(held) if held else float("nan"),
+        "e3_first_slip_mass_kg": min(slipped) if slipped else float("nan"),
+        "n_hold": len(held),
+        "n_slip": len(slipped),
+        "hold_s": hold_s,
+        "do_not_treat_as_payload_rating": True,
+    }
+    if batch:
+        out["soft_body_batch_id"] = batch
+    if fw:
+        out["firmware_version"] = fw
+    return out
+
+
 def fit_e2(path: Path, *, m_eff_kg: float = DEFAULT_PAD_M_EFF_KG) -> dict:
     ks: list[float] = []
     by_trial: dict[str, list[dict]] = defaultdict(list)
@@ -139,6 +174,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--e1", default="")
     parser.add_argument("--e2", default="")
+    parser.add_argument("--e3", default="")
     parser.add_argument("--out", default="hand/calibration/results/fragment.yaml")
     parser.add_argument("--m-eff-kg", type=float, default=DEFAULT_PAD_M_EFF_KG)
     parser.add_argument(
@@ -157,6 +193,8 @@ def main() -> None:
     if args.e2:
         fragment.update(fit_e2(Path(args.e2), m_eff_kg=args.m_eff_kg))
         fragment["human_must_accept_solref"] = True
+    if args.e3:
+        fragment.update(fit_e3(Path(args.e3)))
     if args.fit_tip_radius:
         r = fit_fingertip_radius()
         if r is not None:
