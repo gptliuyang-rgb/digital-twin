@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial view-industrial-kinematic render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh phase1-baseline eval-l2-physics eval-l2-gains sim sim-quick
+.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official assemble view-industrial view-industrial-kinematic render-industrial-gif calibrate-synthetic eval-l2-overlay scan-gun-mesh phase1-baseline eval-l2-physics eval-l2-gains sim sim-quick frame-report
 
 PYTHON ?= python3
 
@@ -23,6 +23,9 @@ build-assets:
 
 assemble:
 	$(PYTHON) -m assets.combined.assemble --check-compile
+
+frame-report:
+	$(PYTHON) -m eval.frame_alignment
 
 view-industrial:
 	$(PYTHON) scripts/view_industrial_twin.py --steps-per-phase 80 --substeps 24 --real-time

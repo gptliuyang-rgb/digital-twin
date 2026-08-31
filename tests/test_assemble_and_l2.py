@@ -57,11 +57,17 @@ def test_assemble_mjcf_compiles_both_hands() -> None:
         pytest.skip("official T800/Hand 2 trees not cloned")
     xml, manifest = assemble_mjcf(pad_spheres=False)
     assert manifest["policy_eval_forbidden"] is True
+    assert manifest["flange"] == "kinematic_bringup_identity"
+    assert manifest["flange_policy_eval_forbidden"] is True
     assert manifest["n_hand_actuators"] == 40
     model = mujoco.MjModel.from_xml_string(xml)
     names = {model.body(i).name for i in range(model.nbody)}
     assert "l_mount" in names and "r_mount" in names
     assert "l_wrist" in names and "r_wrist" in names
+    sites = {model.site(i).name for i in range(model.nsite)}
+    assert "frame_LINK_BASE_x" in sites
+    assert "frame_l_wrist_z" in sites
+    assert "frame_LINK_WRIST_END_R_y" in sites
     # pinned base: no freejoint on the robot (nq = 25 body + 40 hand)
     assert model.nq == 65
     assert model.nu == 65
@@ -77,6 +83,21 @@ def test_assemble_urdf_welds_mounts() -> None:
     assert "weld_left_hand_kinematic_bringup" in urdf
     assert "weld_right_hand_kinematic_bringup" in urdf
     assert "l_mount" in urdf and "r_mount" in urdf
+
+
+def test_yaml_flange_matches_assembled_left_wrist() -> None:
+    if not official_mjcf("left", with_mount=True).is_file() or not _have_t800():
+        pytest.skip("official trees not cloned")
+    from assets.combined.flange import wrist_end_to_palm_se3
+    from sim.mujoco_env.frames import relative_se3
+
+    xml, _manifest = assemble_mjcf(pad_spheres=False)
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    live = relative_se3(model, data, "LINK_WRIST_END_L", "l_wrist")
+    yaml_t = wrist_end_to_palm_se3()
+    assert float(np.linalg.norm(live[:3, 3] - yaml_t[:3, 3])) < 2e-4
 
 
 def test_l22_micro_metrics_have_no_success_rate() -> None:

@@ -54,3 +54,16 @@
 - **Forbidden:** treating lift/carry/scan visuals (kinematic or welded) as contact-validated sim2real evidence or publishing `grasp_success_rate`. Welds are not live E1/E2.
 - **Consequences:** Viewer answers “does the cell move under rigid-body dynamics?” Geometry metrics still come from the kinematic FSM. Replace welds with calibrated pad friction when E1/E2 exist.
 
+## ADR-008 — DexHand frames in the T800 robot base
+
+- **Status:** accepted for simulation-only digital twin
+- **Context:** The last physics trajectory could lift a carton without pad contact because the identity flange (ADR-006) plus a dummy wrist (ADR-001) put DexHand pads in a different place in `LINK_BASE` than a hang-frame “fingers point −Z” mental model. Aligning the hand to the robot base is the first mechanical question, before more contact tuning.
+- **Decision:** The palm pose in the robot base is the product
+
+      T_base_palm = T_base_wrist_end · T_flange · T_mount_wrist
+
+  where `T_base_wrist_end` is T800 FK of `LINK_WRIST_END_*` in `LINK_BASE` (pinned-base sim: base ≡ world; SONIC uses yaw-normalized `robot_heading_frame`), `T_mount_wrist` is the official with-mount offset, and `T_flange` is `t800_wrist_to_hand_mount` from CAD when filled, else the identity kinematic-bringup weld. `assets/combined/flange.py` is the resolver; `make frame-report` prints the chain; RGB axis sites (group 4) sit on base / wrist-end / mount / palm. Filling CAD is a mechanical measurement — **do not invent** the rotation that would make the palm face the carton.
+- **Forbidden:** treating the identity weld, or any guessed 90° “palm-forward” rotation, as CAD; publishing SONIC/VLA numbers until `t800_wrist_to_hand_mount` is filled from flange CAD × Hand 2 mount STEP.
+- **Consequences:** Contact-gated industrial playback still runs on the identity flange. Palm axes at hang follow the dummy elbow-yaw frame. Replace `T_flange` with CAD, then re-tune overlay waypoints.
+
+

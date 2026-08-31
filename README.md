@@ -26,6 +26,7 @@ python3 -m pip install -e ".[dev]"
 ./scripts/bootstrap_resources.sh
 make test
 make assemble   # T800 + both DexHand2, identity flange (needs MuJoCo)
+make frame-report  # DexHand in LINK_BASE (does not invent CAD)
 make sim        # full simulation stack: record → L0–L2 → QR envelope → PolicyClient replay
 make view-industrial   # interactive MuJoCo viewer (needs display / X11)
 ```

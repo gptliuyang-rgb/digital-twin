@@ -52,3 +52,7 @@ notes:
   - T800 (non-Pro) Native SDK URDF has no wrist pitch/roll. LINK_WRIST_END_* is a 1 g dummy sphere fixed to elbow yaw.
   - T800 Pro has J18/J19 (left) and J32/J33 (right) wrist pitch/roll. Prefer T800 Pro if available for box handling.
   - Hand 2 with-mount variant parents {l,r}_wrist under {l,r}_mount with a fixed offset recorded in mount_transform.yaml.
+  - >
+      DexHand in the robot base: T_base_palm = T_base_wrist_end * T_flange * T_mount_wrist.
+      T_base_wrist_end is T800 FK (LINK_WRIST_END_* in LINK_BASE). T_flange is CAD or identity bring-up.
+      robot_heading_frame is LINK_BASE yaw-normalized (Z up) for SONIC/VLA wrist poses.

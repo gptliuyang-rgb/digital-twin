@@ -5,6 +5,7 @@
 - `assets/engineai/meta/t800_joints.yaml` from Native SDK URDF (25 revolute)
 - `assets/dexhand2/meta/mount_transform.yaml` with official mount→wrist offset
 - **Kinematic-bringup assembly** (`assets/combined/assemble.py`): identity weld of `{l,r}_mount` onto `LINK_WRIST_END_*` (ADR-006). CAD flange remains `REQUIRED_INPUT` / `policy_eval_forbidden`.
+- DexHand in robot base (ADR-008): `T_base_palm = T_base_wrist_end · T_flange · T_mount_wrist`. `make frame-report`. RGB axis sites on the chain.
 - Combined MJCF compiles: nq=65 (pinned base), nu=65 (25 body motors + 40 MIT hand motors), nbody=75
 - Combined URDF concatenates official T800 + both with-mount Hand 2 URDFs
 - `sim/payload.py` mass/CoM API for later SONIC load randomization

@@ -25,6 +25,10 @@ humanoid:
 # Official Hand 2 mount STEP now exists:
 #   hand2/hand2_beta1/attachment/wuji-hand2-description-{left,right}-mount_beta1_step.STEP
 # T800 wrist flange CAD is still required to fill this SE(3).
+#
+# Alignment in the robot base (LINK_BASE):
+#   T_base_palm = T_base_wrist_end * T_flange * T_mount_wrist
+# Do not guess T_flange. Identity kinematic_bringup is sim-only.
 t800_wrist_to_hand_mount:
   pos_m: REQUIRED_INPUT
   quat_wxyz: REQUIRED_INPUT

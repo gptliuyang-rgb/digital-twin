@@ -1,9 +1,10 @@
 """Assemble EngineAI T800 + Wuji Hand 2 into one MJCF/URDF digital twin.
 
-CAD flange SE(3) is still REQUIRED_INPUT. This welds `{l,r}_mount` onto
-`LINK_WRIST_END_*` with the identity listed under `kinematic_bringup_identity`.
-That weld is forbidden as a CAD substitute for SONIC / VLA / sim2real claims
-(ADR-004, ADR-006).
+CAD flange SE(3) is still REQUIRED_INPUT. Assembly welds `{l,r}_mount` onto
+`LINK_WRIST_END_*` using ``active_flange()``: CAD when
+``t800_wrist_to_hand_mount`` is filled, otherwise the identity listed under
+``kinematic_bringup_identity`` (ADR-006/008). That identity weld is forbidden
+as a CAD substitute for SONIC / VLA / sim2real claims.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from typing import Any
 
 import yaml
 
+from assets.combined.flange import active_flange, rgb_axis_site_xml
 from assets.combined.mjcf_xml import dump_mjcf, find_body, find_or_create, load_mjcf
 from assets.dexhand2.build.ingest_official import official_mjcf, official_urdf
 from assets.engineai.paths import t800_mjcf, t800_root, t800_urdf
@@ -140,13 +142,13 @@ def assemble_mjcf(
 ) -> tuple[str, dict[str, Any]]:
     from interface.schema import load_hand_spec
 
-    bringup = kinematic_bringup()
+    flange = active_flange()
     spec_raw = load_hand_spec(spec_path).raw if spec_path is not None else load_hand_spec().raw
-    pos = " ".join(str(x) for x in bringup["pos_m"])
-    quat = " ".join(str(x) for x in bringup["quat_wxyz"])
+    pos = flange.pos_attr()
+    quat = flange.quat_attr()
 
     robot = load_mjcf(t800_mjcf())
-    robot.set("model", "t800_dexhand2_kinematic_bringup")
+    robot.set("model", f"t800_dexhand2_{flange.kind}")
     option = find_or_create(robot, "option")
     option.set("timestep", str(timestep_s))
 
@@ -201,12 +203,15 @@ def assemble_mjcf(
             for child in list(hand_contact):
                 contact.append(child)
 
+    _attach_frame_axes(robot)
+
     xml = dump_mjcf(robot)
     manifest = {
         "kind": "t800_dexhand2_combined",
         "policy_eval_forbidden": True,
-        "flange": "kinematic_bringup_identity",
-        "cad_ready": mount_ready(),
+        "flange": flange.kind,
+        "flange_policy_eval_forbidden": flange.policy_eval_forbidden,
+        "cad_ready": flange.cad_ready,
         "pin_base": pin_base,
         "mit_motors": mit_motors,
         "pad_spheres": pad_spheres,
@@ -219,11 +224,27 @@ def assemble_mjcf(
     return xml, manifest
 
 
+def _attach_frame_axes(robot: ET.Element) -> None:
+    """RGB triads on the base → wrist → mount → palm chain (visual, group 4)."""
+    for body_name in (
+        "LINK_BASE",
+        "LINK_WRIST_END_L",
+        "LINK_WRIST_END_R",
+        "l_mount",
+        "r_mount",
+        "l_wrist",
+        "r_wrist",
+    ):
+        body = find_body(robot, body_name)
+        for xml in rgb_axis_site_xml(body_name):
+            body.append(ET.fromstring(xml))
+
+
 def assemble_urdf(*, disable_wrist_collision: bool = True) -> str:
-    bringup = kinematic_bringup()
-    xyz = " ".join(str(x) for x in bringup["pos_m"])
-    # Identity quat → rpy 0 0 0. CAD rpy must replace this.
-    rpy = "0 0 0"
+    flange = active_flange()
+    xyz = flange.pos_attr()
+    rpy = flange.rpy_attr()
+    weld_tag = "kinematic_bringup" if flange.kind == "kinematic_bringup_identity" else "cad"
     t800_path = t800_urdf()
     text = t800_path.read_text(encoding="utf-8")
     mesh_root = t800_root() / "meshes"
@@ -258,7 +279,7 @@ def assemble_urdf(*, disable_wrist_collision: bool = True) -> str:
         extras.append(inner)
         extras.append(
             f"""
-  <joint name="weld_{side}_hand_kinematic_bringup" type="fixed">
+  <joint name="weld_{side}_hand_{weld_tag}" type="fixed">
     <origin xyz="{xyz}" rpy="{rpy}"/>
     <parent link="{wrist}"/>
     <child link="{mount}"/>
@@ -269,8 +290,9 @@ def assemble_urdf(*, disable_wrist_collision: bool = True) -> str:
         raise ValueError("T800 URDF missing closing </robot>")
     text = text.replace("</robot>", "\n".join(extras) + "\n</robot>")
     header = (
-        "<!-- GENERATED T800 + DexHand2 URDF. Flange is kinematic_bringup_identity. "
-        "Not valid for policy eval. -->\n"
+        "<!-- GENERATED T800 + DexHand2 URDF. Flange is "
+        f"{flange.kind}. Not valid for policy eval while "
+        "flange_policy_eval_forbidden or contact is uncalibrated. -->\n"
     )
     return header + text
 
@@ -315,12 +337,10 @@ def main() -> None:
     parser.add_argument("--urdf", action="store_true", default=True)
     parser.add_argument("--check-compile", action="store_true")
     args = parser.parse_args()
-    if not kinematic_bringup().get("enabled") and not mount_ready():
-        raise SystemExit(
-            "assets/combined: t800_wrist_to_hand_mount is REQUIRED_INPUT and "
-            "kinematic_bringup_identity is disabled."
-        )
+    flange = active_flange()
     info = write_generated(mjcf=args.mjcf, urdf=args.urdf)
+    info["flange"] = flange.kind
+    info["flange_policy_eval_forbidden"] = flange.policy_eval_forbidden
     if args.check_compile:
         model = compile_mjcf(Path(info["mjcf"]).read_text(encoding="utf-8"))
         info["nq"] = int(model.nq)

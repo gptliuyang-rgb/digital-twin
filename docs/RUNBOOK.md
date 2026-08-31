@@ -121,6 +121,7 @@ make sim-quick  # same without the L2 μ×solref scan; shorter episode
 make eval-l0    # synthetic demo flags a swapped channel; pass --dataset for a recorded npz
 make eval-l1    # limits + coupling; MuJoCo DLS IK + ncon when assets compile
 make assemble   # T800 + both DexHand2, identity flange, MIT motors, compile check
+make frame-report  # DexHand poses in LINK_BASE (YAML chain; live FK if trees cloned)
 make eval-l2    # uncalibrated μ/stiffness scan + scripted industrial pipeline (needs MuJoCo)
 make calibrate-synthetic  # E1/E2 CSV→fit→overlay→MuJoCo replay (does not patch live spec)
 make eval-l2-overlay      # L2 against the synthetic overlay spec (still no grasp_success_rate)
