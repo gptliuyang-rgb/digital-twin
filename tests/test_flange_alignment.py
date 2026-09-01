@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from assets.combined.flange import (
     R_to_quat_wxyz,
@@ -93,5 +94,17 @@ def test_cad_flange_wins_when_filled() -> None:
 def test_rgb_axis_sites_are_visual_only() -> None:
     xml = "\n".join(rgb_axis_site_xml("l_wrist"))
     assert "frame_l_wrist_x" in xml
-    assert 'contype="0"' in xml
+    assert "contype" not in xml
+    assert "conaffinity" not in xml
     assert 'group="4"' in xml
+
+
+def test_rgb_axis_sites_compile_in_mujoco() -> None:
+    mujoco = pytest.importorskip("mujoco")
+    sites = "\n".join(rgb_axis_site_xml("l_wrist"))
+    model = mujoco.MjModel.from_xml_string(
+        f"<mujoco><worldbody><body name='b'>{sites}</body></worldbody></mujoco>"
+    )
+    names = {model.site(i).name for i in range(model.nsite)}
+    assert "frame_l_wrist_x" in names
+    assert "frame_l_wrist_z" in names

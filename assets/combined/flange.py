@@ -249,7 +249,11 @@ def chain_yaml(raw: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def rgb_axis_site_xml(prefix: str, *, length_m: float = 0.04, radius_m: float = 0.0025) -> list[str]:
-    """Non-colliding RGB triad sites in a body frame (X red, Y green, Z blue)."""
+    """RGB triad sites in a body frame (X red, Y green, Z blue).
+
+    Sites never collide in MuJoCo — do not put ``contype`` / ``conaffinity`` here
+    (those attributes are geom-only and fail XML schema validation).
+    """
     axes = (
         ("x", f"{length_m} 0 0", "0.85 0.12 0.12 1"),
         ("y", f"0 {length_m} 0", "0.12 0.75 0.18 1"),
@@ -259,7 +263,6 @@ def rgb_axis_site_xml(prefix: str, *, length_m: float = 0.04, radius_m: float = 
     for name, tip, rgba in axes:
         out.append(
             f'<site name="frame_{prefix}_{name}" type="capsule" size="{radius_m}" '
-            f'fromto="0 0 0 {tip}" rgba="{rgba}" group="4" '
-            'contype="0" conaffinity="0"/>'
+            f'fromto="0 0 0 {tip}" rgba="{rgba}" group="4"/>'
         )
     return out

@@ -158,8 +158,9 @@ make eval-l2-overlay
   A second back-to-back run can segfault on EGL teardown — quit fully before re-launching.
 - Headless VMs: `sudo apt install xvfb` then
   `xvfb-run -a python3 scripts/view_industrial_twin.py --steps-per-phase 80` (no window).
-- If pytest picks up ROS plugins: `unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH ROS_DISTRO`
-  and/or `python -m pytest tests -p no:launch_testing`.
+- ROS workspaces inject `launch_testing` into pytest (needs `lark`). `make test`
+  already passes `-p no:launch_testing`. You can still
+  `unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH ROS_DISTRO` if other ROS plugins leak.
 
 `make eval-l2` still sets `status: blocked_uncalibrated` and never writes a computed `grasp_success_rate`.
 
