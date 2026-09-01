@@ -2,20 +2,67 @@
 # Values with a `source:` key were copied from official docs or official MJCF/URDF.
 # Values equal to REQUIRED_INPUT must NOT be guessed. Loaders raise SpecIncompleteError.
 #
-# Official product docs: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
-# Official models:       third_party/wuji-description/hand2/hand2_beta1/
+# Official product docs (current = Beta 2): https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
+# Official models:       third_party/wuji-description/hand2/hand2_beta2/
 # Usage constraints:     https://docs.wuji.tech/docs/en/wuji-hand/latest/usage-constraints/
-# SDK:                   https://docs.wuji.tech/docs/zh/wuji-hand/latest/sdk-reference/
+# SDK:                   https://docs.wuji.tech/docs/en/wuji-hand/latest/sdk-reference/
+# Description changelog: https://docs.wuji.tech/docs/en/wuji-hand/latest/release-notes/  (2026.08.17)
 #
-# Beta 1 prototype. Parameters do not represent the final product.
+# Parameters do not represent the final product.
 
 schema_version: "1.0"
 product_name: "Wuji Hand 2"
 internal_name: DexHand2
-hardware_revision: beta1
-model_revision: hand2_beta1
+# Simulation default is the official current model (Beta 2).
+# YOUR physical unit may still be Beta 1 — fill hardware_revision, do not assume.
+sim_model_revision: hand2_beta2
+hardware_revision: REQUIRED_INPUT   # beta1 | beta2 — look at the unit / ask FAE
 upstream_repo: https://github.com/wuji-technology/wuji-description
-upstream_path: hand2/hand2_beta1/body
+upstream_path: hand2/hand2_beta2/body
+upstream_commit_measured: 4c1073d0a3ad1daaf6546d219db751d8448d3888
+
+# Per-revision facts measured from official assets at the commit above.
+# Joint names, limits, actuator order, and gen-1 kp/kv are identical across revisions.
+revisions:
+  hand2_beta1:
+    body_path: hand2/hand2_beta1/body
+    mjcf_model_right: wujihand2-right
+    n_bodies_no_mount: 21
+    n_geoms_right: 42
+    n_contact_excludes: 10
+    n_pad_bodies: 0
+    pad_collision_in_official_model: false
+    sim_no_mount_mass_kg: 0.6207
+    sim_with_mount_mass_kg: 0.6897
+    ros_package: wuji_hand2_description
+  hand2_beta2:
+    body_path: hand2/hand2_beta2/body
+    mjcf_model_right: wujihand2-beta2-right
+    n_bodies_no_mount: 26
+    n_geoms_right: 52
+    n_contact_excludes: 10
+    n_pad_bodies: 5
+    pad_collision_in_official_model: true
+    pad_body_template: "{side}_{finger}_tip_sensor_frame"
+    pad_mass_kg:
+      thumb: 0.0063
+      index_finger: 0.0030
+      middle_finger: 0.0030
+      ring_finger: 0.0030
+      pinky: 0.0030
+    distal_mass_kg:
+      thumb: 0.0109
+      index_finger: 0.0050
+      middle_finger: 0.0050
+      ring_finger: 0.0050
+      pinky: 0.0050
+    sim_no_mount_mass_kg: 0.6228
+    sim_with_mount_mass_kg: 0.6918
+    ros_package: wuji_hand2_beta2_description
+    note: >
+      Changelog 2026.08.17 said total mass matches Beta 1 to FP noise after
+      splitting pad bodies. Measured MJCF/URDF inertial sum is 0.6228 kg
+      (Beta 1 0.6207 kg, +2.1 g). Record the measured number, not the prose.
 
 # ---------------------------------------------------------------------------
 # Topology (official)
@@ -92,26 +139,50 @@ joint_sign_convention: >
 # ---------------------------------------------------------------------------
 # Dynamics
 # ---------------------------------------------------------------------------
-# Official URDF (skeleton only, no-mount) sums to 0.6207 kg.
+# Official URDF/MJCF inertial sums. Beta 1 kept for drift comparison.
 skeleton_mass_kg:
   value: 0.6207
+  revision: hand2_beta1
   source: urdf_inertial_sum
   path: hand2/hand2_beta1/body/urdf/right.urdf
+sim_mass_kg:
+  value: 0.6228
+  revision: hand2_beta2
+  includes_tactile_pad_links: true
+  includes_whole_hand_soft_body: false
+  source: urdf_inertial_sum
+  path: hand2/hand2_beta2/body/urdf/right.urdf
 mount_mass_kg:
   value: 0.069
   source: urdf_inertial
-  path: hand2/hand2_beta1/body/urdf/right_with_mount.urdf
-# Product page: 745 ± 10 g with soft body, excluding cables.
+  path: hand2/hand2_beta2/body/urdf/right_with_mount.urdf
+  note: with-mount minus no-mount = 0.069 kg on both revisions.
+# Product overview (current Beta 2 page, fetched 2026-09-01):
+# "800 g (650 g bare hand, 70 g base counted separately)", curb weight
+# includes soft body and output cables, excludes base.
 total_mass_kg:
+  value: 0.800
+  includes_soft_body: true
+  includes_output_cables: true
+  includes_base: false
+  source: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
+bare_hand_mass_kg:
+  value: 0.650
+  source: same overview table, "650 g bare hand"
+base_mass_kg:
+  value: 0.070
+  source: same overview table, "70 g base counted separately"
+  vs_urdf_mount_kg: 0.069
+beta1_product_mass_kg:
   value: 0.745
   tolerance_kg: 0.010
   includes_soft_body: true
   includes_cables: false
-  source: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
-soft_body_mass_delta_kg:
-  value: 0.1243   # 0.745 - 0.6207; NOT independently measured
+  note: Historical Beta 1 overview number. Do not mix with Beta 2 curb 0.800 kg.
+soft_plus_cable_mass_delta_kg:
+  value: 0.1772   # 0.800 - 0.6228; NOT independently measured
   source: derived_product_minus_urdf
-  note: Soft body is NOT in the simulation model. Do not treat this as a measured CoM.
+  note: Whole-hand soft body is NOT in the simulation model. Do not treat as a measured CoM.
 
 dimensions_m: [0.180, 0.080, 0.040]   # L x W x T, fingers fully extended
 finger_length_m:
@@ -136,7 +207,8 @@ motor_control: FOC
 control_mode: MIT_force_position_hybrid
 # tau = kp*(qd - q) + kd*(dqd - dq) + tau_ff   (official MIT form)
 control_rate_hz: 1000          # × 20 axes
-voltage_v: 12
+voltage_v: 12                  # nominal
+voltage_range_v: [11, 13]      # official Beta 2 usage constraints
 psu: "12V 20A"
 interface_type: ethernet_rj45_100BASE_TX
 factory_ip:
@@ -225,32 +297,50 @@ default_armature_kgm2: 0.0002
 mcp_flex_armature_kgm2: 0.0005
 
 # ---------------------------------------------------------------------------
-# Contact — Beta 1 soft body / skin not locked. MUST be measured.
+# Contact — Beta 2 fingertip hardness / skin still unlocked. MUST be measured.
 # ---------------------------------------------------------------------------
 fingertip_material: REQUIRED_INPUT     # silicone | TPU | rigid | other
-fingertip_geometry_radius_m: REQUIRED_INPUT
+fingertip_geometry_radius_m: REQUIRED_INPUT  # live pad; official STL is mesh geometry only
 friction_vs_cardboard_static: REQUIRED_INPUT
 friction_vs_cardboard_dynamic: REQUIRED_INPUT
 normal_stiffness_n_per_m: REQUIRED_INPUT
 soft_body_batch_id: REQUIRED_INPUT
 skin_batch_id: REQUIRED_INPUT
-skin_present: REQUIRED_INPUT           # bool, skin is user-removable
+skin_present: REQUIRED_INPUT           # bool, record the unit under test
+skin_required_when_running: true       # official: never run without skin
 firmware_version: REQUIRED_INPUT
 
-# Official MJCF contact: condim default (3) unless we patch derived assets to 4.
-derived_contact_condim: 4              # recommended for box grasp; not yet in upstream
+# Official MJCF has no condim attribute (MuJoCo default 3). Box grasp wants 4.
+derived_contact_condim: 4
+official_pad_collision: convex_hull_of_tip_sensor_mesh   # not a sphere fit
 
 # ---------------------------------------------------------------------------
 # Sensing
 # ---------------------------------------------------------------------------
-# Beta 1: fingertip tactile NOT provided. Beta 2 hardware + fw v2.1.0 + SDK 2026.7.21+.
-has_tactile: false                     # this repo's default target is Beta 1
-tactile_layout: none_on_beta1
+# Official Beta 2 model and hardware include fingertip tactile pads.
+# Firmware v2.1.0 + SDK 2026.7.21+ required together. Confirm YOUR unit.
+has_tactile: true                      # sim-model default (hand2_beta2)
+hardware_has_tactile: REQUIRED_INPUT   # bool, ask FAE / inspect the physical unit
+tactile_layout:
+  source: https://docs.wuji.tech/docs/en/wuji-hand/latest/sdk-reference/
+  native_rate_hz: 100
+  thumb_points: 40
+  other_finger_points: 34
+  finger_order: [thumb, index, middle, ring, pinky]
+  body_name_template: "{side}_{finger}_tip_sensor_frame"
+  per_point_axes: [normal, tangent_u, tangent_v]
+  per_point_force_fw_ge_2_4_0: normalized_full_scale   # normal 0..1, tangents -1..1
+  per_point_force_fw_lt_2_4_0: newtons
+  resultant_force_unit: N
+  temperature_unit: C
+  decode_from: FingertipSensorInfo.format   # never hard-code scale/unit
+  sdk_min: "2026.7.21"
+  firmware_min: v2.1.0
+  firmware_normalized_from: v2.4.0
 has_joint_encoder: true
 has_current_sense: true                # effort field is in amperes, not N·m
 has_imu: true                          # 100 Hz accel/gyro, no onboard orientation
-# Confirm whether YOUR unit is actually Beta 2 (tactile pads):
-hardware_has_tactile: REQUIRED_INPUT   # bool, ask FAE / inspect unit
+# Official usage constraints: do not use joint current as contact force/torque.
 
 # ---------------------------------------------------------------------------
 # Communication / delay
@@ -265,9 +355,12 @@ controller_safety:
 human_to_hand_scale: REQUIRED_INPUT
 
 official_known_gaps:
-  - fingertip_soft_pad_not_in_collision
+  # CLOSED on hand2_beta2: pad links collide (convex hull of *_tip_sensor_frame.STL).
+  # STILL OPEN on hand2_beta1: *_tip.STL ships but is not collision geometry.
+  - fingertip_pad_collision_is_convex_hull_not_sphere
+  - whole_hand_soft_body_not_in_sim
   - sim_gains_not_hand2_identified
   - soft_body_and_skin_unlocked
-  - sim_model_skeleton_only
-  - collision_is_convex_hull
-  - interface_form_will_change
+  - interface_form_will_change          # later Beta 2: no longer XT30 + RJ45 two-cable
+  - motor_load_not_a_committed_spec
+  - do_not_use_joint_current_as_contact_force

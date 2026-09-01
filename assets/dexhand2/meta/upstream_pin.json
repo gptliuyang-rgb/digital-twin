@@ -1,9 +1,14 @@
 {
-  "commit": "06e5f14cdd1d5fad0a666ca463a668bf609f9534",
+  "commit": "4c1073d0a3ad1daaf6546d219db751d8448d3888",
+  "note": "Beta 1 file hashes unchanged from the previous pin; Beta 2 added 2026-09-01.",
   "files": {
     "hand2/hand2_beta1/body/mjcf/right.xml": "ee860215e6ae0b2f6ded7fa69d3b7ced36ab6d8a72aace99d20259aa78dc1742",
     "hand2/hand2_beta1/body/mjcf/left.xml": "ebaa3b07854c8df1847ffbf54d9d6527e82d838d02329e4c35c6ca667b8fef89",
     "hand2/hand2_beta1/body/urdf/right.urdf": "5093e4de1e36e2840720f7c2154339c870a060825ef2aac29b023f5b814e86b8",
-    "hand2/hand2_beta1/body/mjcf/right_with_mount.xml": "301abd2f0bf31d6fa4fc78ba5cb3d6422dbc96545ddf1a9f536da4c0b8bd22a0"
+    "hand2/hand2_beta1/body/mjcf/right_with_mount.xml": "301abd2f0bf31d6fa4fc78ba5cb3d6422dbc96545ddf1a9f536da4c0b8bd22a0",
+    "hand2/hand2_beta2/body/mjcf/right.xml": "d5057d3eb8b040a93f122e4244c67ee2189ee7539e6fb5fe149d089195e9874c",
+    "hand2/hand2_beta2/body/mjcf/left.xml": "61ccf3025e1c302baaee9b72bfb987b4cc756b632498c3d61b64bd0a62334ed7",
+    "hand2/hand2_beta2/body/urdf/right.urdf": "8c514f579944b49635027f5308990a68d0cddc5190800e4b5dfd86fc21c27332",
+    "hand2/hand2_beta2/body/mjcf/right_with_mount.xml": "9bce131e7cf7147b2fdf822cf762ac6ed7a313c449e65c7ff0db3120a617254a"
   }
 }
