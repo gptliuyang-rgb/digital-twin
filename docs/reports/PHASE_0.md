@@ -4,7 +4,7 @@
 
 - Frozen `interface/command_schema_v1.yaml` (75-D command, 6D Zhou, heading frame)
 - Frozen `interface/frames.yaml` (T800 `LINK_WRIST_END_*` as SONIC wrist)
-- `assets/dexhand2/meta/dexhand2_spec.yaml` filled from official docs + MJCF/URDF; remaining fields are `REQUIRED_INPUT`
+- `assets/dexhand2/meta/dexhand2_spec.yaml` filled from official **Beta 2** docs + MJCF/URDF; remaining fields are `REQUIRED_INPUT`. See `PHASE_BETA2.md`.
 - `joint_name_map.yaml` (doc / MJCF joint / MJCF actuator / SDK label / index)
 - `interface/schema.py` with `SpecIncompleteError`, flatten/unflatten, import-time topology checks
 - `docs/SPEC_INTAKE.md`
