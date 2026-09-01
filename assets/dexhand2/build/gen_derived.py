@@ -1,7 +1,10 @@
 """Derive a Hand 2 MJCF with fingertip-pad spheres. Official files are never overwritten.
 
-Sphere radii are fitted from official `*_tip.STL` when present. That is mesh geometry,
-not the live soft pad (still REQUIRED_INPUT).
+Sphere radii are fitted from official `*_tip.STL` when present. Clusters are then
+translated onto the distal `*_tip` site (see `pad_inject.py`). That is mesh
+geometry, not the live soft pad. When the spec overlay has E1/E2 numbers, pad
+geoms also get friction/solref; the live spec stays REQUIRED_INPUT until hardware
+CSVs are accepted.
 """
 
 from __future__ import annotations
@@ -10,100 +13,47 @@ import argparse
 import re
 from pathlib import Path
 
-import numpy as np
-
-from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM, official_mjcf, parse_sites
+from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM, official_mjcf
+from assets.dexhand2.build.pad_inject import (
+    fit_pad_spheres,
+    inject_pads_for_side,
+    inject_spheres,
+    official_mesh_dir,
+    read_stl_vertices,
+)
 from interface.schema import REPO_ROOT
 
 DERIVED = REPO_ROOT / "assets" / "dexhand2" / "derived"
 TIP_FINGERS = ["thumb", "index_finger", "middle_finger", "ring_finger", "pinky"]
 
-
-def read_stl_vertices(path: Path) -> np.ndarray:
-    data = path.read_bytes()
-    # Binary STL: 80-byte header + uint32 count + 50-byte triangles.
-    if len(data) >= 84 and data[:5] != b"solid":
-        n = int.from_bytes(data[80:84], "little")
-        verts = []
-        off = 84
-        for _ in range(n):
-            # skip normal (12) then 3 vertices (36) then attribute (2)
-            for k in range(3):
-                base = off + 12 + k * 12
-                verts.append(np.frombuffer(data[base : base + 12], dtype=np.float32))
-            off += 50
-        return np.vstack(verts)
-    # ASCII
-    text = data.decode("utf-8", errors="ignore")
-    nums = []
-    for line in text.splitlines():
-        if "vertex" in line:
-            nums.append([float(x) for x in line.split()[1:4]])
-    return np.asarray(nums, dtype=np.float64)
+# Re-exports for callers that imported these from gen_derived.
+__all__ = [
+    "DERIVED",
+    "TIP_FINGERS",
+    "fit_pad_spheres",
+    "generate",
+    "inject_spheres",
+    "read_stl_vertices",
+]
 
 
-def fit_pad_spheres(vertices: np.ndarray, n_spheres: int = 3) -> list[tuple[list[float], float]]:
-    """Place n spheres along the first PCA axis of the tip mesh, radius = rms radial size."""
-    pts = np.asarray(vertices, dtype=np.float64)
-    center = pts.mean(axis=0)
-    _, _, vt = np.linalg.svd(pts - center, full_matrices=False)
-    axis = vt[0]
-    proj = (pts - center) @ axis
-    lo, hi = proj.min(), proj.max()
-    radii = []
-    spheres = []
-    for i in range(n_spheres):
-        t = lo + (hi - lo) * (i + 0.5) / n_spheres
-        c = center + t * axis
-        radial = np.linalg.norm((pts - c) - np.outer((pts - c) @ axis, axis), axis=1)
-        r = float(np.quantile(radial, 0.7))
-        radii.append(r)
-        spheres.append((c.tolist(), r))
-    return spheres
+def generate(side: str = "right", root: Path | None = None, spec_path: Path | None = None) -> Path:
+    from interface.schema import load_hand_spec
 
-
-def inject_spheres(mjcf_text: str, site_name: str, spheres: list[tuple[list[float], float]]) -> str:
-    geoms = []
-    for i, (pos, radius) in enumerate(spheres):
-        geoms.append(
-            f'<geom name="{site_name}_pad_{i}" type="sphere" size="{radius:.6f}" '
-            f'pos="{pos[0]:.6f} {pos[1]:.6f} {pos[2]:.6f}" group="2" condim="4" '
-            f'rgba="0.2 0.8 0.4 0.4"/>'
-        )
-    block = "\n              ".join(geoms)
-    pattern = rf'(<site name="{re.escape(site_name)}"[^/]*/>)'
-    repl = rf"\1\n              {block}"
-    new, n = re.subn(pattern, repl, mjcf_text, count=1)
-    if n != 1:
-        raise ValueError(f"failed to inject spheres at {site_name}")
-    return new
-
-
-def generate(side: str = "right", root: Path | None = None) -> Path:
     root = root or DEFAULT_UPSTREAM
     src = official_mjcf(side, root=root)
     text = src.read_text(encoding="utf-8")
+    spec = load_hand_spec(spec_path) if spec_path is not None else load_hand_spec()
     header = (
-        f"<!-- GENERATED FROM {src.as_posix()} — fingertip pad spheres. "
+        f"<!-- GENERATED FROM {src.as_posix()} — fingertip pad spheres, site-aligned. "
         "Do not edit. Official file is untouched. -->\n"
     )
-    mesh_dir = root / "hand2/hand2_beta1/body/meshes" / side
-    prefix = "r" if side == "right" else "l"
-    sites = parse_sites(src)
-    for site in sites:
-        finger = site["name"].replace(f"{prefix}_", "").replace("_tip", "")
-        stl = mesh_dir / f"{prefix}_{finger}_tip.STL"
-        if not stl.is_file():
-            # pinky file is r_pinky_tip.STL; site is r_pinky_tip. Already handled.
-            continue
-        spheres = fit_pad_spheres(read_stl_vertices(stl))
-        # Sites live in the distal frame. Tip STL is typically in the same distal frame
-        # (Wuji ships tip meshes next to distal). If the STL origin differs, the
-        # spheres will be wrong — PHASE 1 report must include site-to-sphere distance.
-        text = inject_spheres(text, site["name"], spheres)
+    mesh_dir = official_mesh_dir(side, root=root)
+    text, n_pads = inject_pads_for_side(text, side, mesh_dir=mesh_dir, spec_raw=spec.raw)
+    if n_pads != 5:
+        raise ValueError(f"{side} pad inject expected 5 fingertip sites, got {n_pads}")
     DERIVED.mkdir(parents=True, exist_ok=True)
     out = DERIVED / f"{side}_with_pad_spheres.xml"
-    # meshdir in official MJCF is relative; rewrite to absolute official meshes.
     text = re.sub(r'meshdir="[^"]+"', f'meshdir="{(mesh_dir).as_posix()}"', text)
     out.write_text(header + text, encoding="utf-8")
     return out
@@ -112,8 +62,9 @@ def generate(side: str = "right", root: Path | None = None) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--side", default="right", choices=["left", "right"])
+    parser.add_argument("--spec", default="", help="Optional overlay spec with E1/E2 numbers")
     args = parser.parse_args()
-    path = generate(args.side)
+    path = generate(args.side, spec_path=Path(args.spec) if args.spec else None)
     print(path)
 
 

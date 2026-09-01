@@ -49,7 +49,7 @@ eval = ["configs/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --tb=short"
+addopts = "-q --tb=short -p no:launch_testing"
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]

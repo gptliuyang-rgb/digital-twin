@@ -59,17 +59,51 @@ def _synthetic_demo(spec) -> dict:
     return evaluate_episode(pred, gt, spec)
 
 
+def _load_array(path: str | Path, key: str = "commands") -> np.ndarray:
+    blob = np.load(path, allow_pickle=True)
+    if hasattr(blob, "files"):
+        if key in blob.files:
+            arr = blob[key]
+        elif "arr_0" in blob.files:
+            arr = blob["arr_0"]
+        else:
+            arr = blob[blob.files[0]]
+        return np.asarray(arr, dtype=np.float64)
+    return np.asarray(blob, dtype=np.float64)
+
+
+def evaluate_recorded_commands(commands: np.ndarray, spec=None, *, horizon: int = 16) -> dict:
+    """Identity L0 on a recorded (T, D) command stream. Stack integrity, not a ckpt score."""
+    from sim.command_from_state import commands_to_chunks
+
+    spec = spec or load_hand_spec()
+    chunks = commands_to_chunks(commands, horizon=horizon)
+    report = evaluate_episode(chunks, chunks, spec)
+    report["mode"] = "recorded_sim_identity"
+    report["n_chunks"] = int(chunks.shape[0])
+    report["horizon"] = int(horizon)
+    report["note"] = (
+        "Identity replay of a recorded sim episode (pred=gt). "
+        "Proves packing/chunking; not a VLA checkpoint evaluation."
+    )
+    return report
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="eval/configs/l0_offline.yaml")
     parser.add_argument("--pred", default="")
     parser.add_argument("--gt", default="")
+    parser.add_argument("--dataset", default="", help="Recorded npz with a 'commands' array")
     parser.add_argument("--out", default="eval/report/generated/l0.json")
     args = parser.parse_args()
     spec = load_hand_spec()
-    if args.pred and args.gt:
-        pred = np.load(args.pred)
-        gt = np.load(args.gt)
+    if args.dataset:
+        commands = _load_array(args.dataset, "commands")
+        report = evaluate_recorded_commands(commands, spec)
+    elif args.pred and args.gt:
+        pred = _load_array(args.pred)
+        gt = _load_array(args.gt)
         report = evaluate_episode(pred, gt, spec)
         report["mode"] = "dataset"
     else:

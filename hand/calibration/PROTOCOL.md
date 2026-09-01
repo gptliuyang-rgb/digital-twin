@@ -51,9 +51,22 @@ calibration mass, video at 60 fps.
 
 **CSV:** `trial,finger,skin,disp_m,force_n,k_n_per_m,batch,fw`
 
-**MuJoCo mapping (initial, to be confirmed in `validate_sim.py`):**
-`solref[0] ≈ 2π / sqrt(k / m_eff)` is **not** filled automatically. The fitter
-writes `k` into a spec fragment; a human accepts the solref conversion.
+Either fill `k_n_per_m` per trial, or log the `disp_m`/`force_n` series (multiple
+rows per trial). `fit_params.py` fits `F = k x` on the 0.2–1.0 mm window when
+`k_n_per_m` is empty.
+
+**MuJoCo mapping (proposal, must be accepted by a human):**
+`solref[0] ≈ 2π / sqrt(k / m_eff)` with default `m_eff = 0.03 kg` (pad + fixture,
+not a measured CoM). The fitter writes `k` and a **proposed** `solref_timeconst_s`
+into a spec *fragment*. `validate_sim.py` replays a Coulomb pull (E1) and a pad
+indent (E2). Do **not** copy the fragment into live `dexhand2_spec.yaml` until a
+human accepts the conversion. Synthetic dry-run:
+
+```bash
+make calibrate-synthetic
+# → overlay spec under hand/calibration/results/synthetic_batch_v1.0/generated/
+# live assets/dexhand2/meta/dexhand2_spec.yaml is unchanged
+```
 
 ---
 

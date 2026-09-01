@@ -26,8 +26,8 @@
 
 - **Status:** accepted
 - **Context:** N3 in the agent prompt. Official contact is convex-hull distal, pad not colliding, soft body unlocked.
-- **Decision:** `eval/l2_mujoco_closedloop.py` reports `blocked_uncalibrated` while friction/stiffness are `REQUIRED_INPUT`.
-- **Consequences:** No dashboard number that looks like a pick-success rate.
+- **Decision:** `eval/l2_mujoco_closedloop.py` reports `blocked_uncalibrated` while friction/stiffness are `REQUIRED_INPUT` on the **live** spec. A synthetic overlay may run a single E1/E2 micro episode (`status: ready` for that overlay only) but still omits `grasp_success_rate`. Fit fragments never silently patch `dexhand2_spec.yaml`.
+- **Consequences:** No dashboard number that looks like a pick-success rate. `make calibrate-synthetic` is a pipeline dry-run, not a hardware claim.
 
 ## ADR-005 — SDK index order
 
@@ -35,3 +35,35 @@
 - **Context:** SDK `JointHandle.index` is 0..19, labels `{finger}_S{1..4}`, fingertip API 0=thumb…4=pinky.
 - **Decision:** Map S1=J0 … S4=J3 in TH/FF/MF/RF/LF actuator order. `nid` assumed equal to index until a live dump.
 - **Consequences:** One `joint_states` frame on hardware must be checked against `joint_name_map.yaml`.
+
+## ADR-006 — Kinematic-bringup flange vs CAD flange
+
+- **Status:** accepted for simulation-only digital twin
+- **Context:** T800 wrist flange CAD is still `REQUIRED_INPUT`. A combined T800 + DexHand2 model is required to exercise dual-arm box / QR-scan strategies in MuJoCo.
+- **Decision:** `kinematic_bringup_identity` welds `{l,r}_mount` onto `LINK_WRIST_END_*` with identity SE(3). Combined MJCF/URDF are generated under `assets/combined/generated/` (gitignored). Official Hand 2 and T800 files are never overwritten. Hand `<position>` actuators are converted to MIT `<motor>` plants in the derived combined model only.
+- **Forbidden:** publishing SONIC/VLA/sim2real numbers, or a `grasp_success_rate`, from this weld or from the uncalibrated μ/solref scan. Replace the weld with CAD SE(3) before any policy-eval claim.
+- **Consequences:** Box-handling palm orientation is the T800 elbow-yaw dummy frame (ADR-001). The scripted industrial FSM is a digital-twin playback, not a trained policy.
+
+## ADR-007 — Industrial demo: kinematic geometry vs physics playback
+
+- **Status:** accepted for simulation-only digital twin
+- **Context:** Uncalibrated hand–object contact (ADR-004) cannot support a Coulomb grasp; floating prop slabs also read as unfinished set dressing.
+- **Decision:** Two playback paths share the same cell:
+  1. **L2.3 geometry** (`sim/tasks/industrial_pipeline.py`): `mj_forward` + IK + explicit carton/gun assists. Used for QR envelope / `scan_geometry_ok`.
+  2. **Physics cell** (`sim/tasks/physics_industrial.py`, default viewer/GIF): `mj_step` + gravity-compensated arm PD (`qfrc_bias` + optional `Jᵀmg` payload). DexHand pads hang ~15 cm below the identity wrist (ADR-001), so playback **raises** the wrists before overlaying the carton/scanner — a hang→box straight IK drives fingers through the bench and looks like a no-touch lift. Equality welds snapshot the relative pose **only after DexHand pad/hull contact** with the carton or scanner. No-contact → no weld (the carton stays on the bench). Welds remain **constraint grasps**, not E1/E2 friction. `--no-welds` is the honesty path. Scene benches are grounded. The scan gun is a **lofted industrial barcode-scanner STL** with a freejoint + collision hull that matches the visual −Z extent, placed in the right-arm workspace.
+- **Forbidden:** treating lift/carry/scan visuals (kinematic or welded) as contact-validated sim2real evidence or publishing `grasp_success_rate`. Welds are not live E1/E2.
+- **Consequences:** Viewer answers “does the cell move under rigid-body dynamics?” Geometry metrics still come from the kinematic FSM. Replace welds with calibrated pad friction when E1/E2 exist.
+
+## ADR-008 — DexHand frames in the T800 robot base
+
+- **Status:** accepted for simulation-only digital twin
+- **Context:** The last physics trajectory could lift a carton without pad contact because the identity flange (ADR-006) plus a dummy wrist (ADR-001) put DexHand pads in a different place in `LINK_BASE` than a hang-frame “fingers point −Z” mental model. Aligning the hand to the robot base is the first mechanical question, before more contact tuning.
+- **Decision:** The palm pose in the robot base is the product
+
+      T_base_palm = T_base_wrist_end · T_flange · T_mount_wrist
+
+  where `T_base_wrist_end` is T800 FK of `LINK_WRIST_END_*` in `LINK_BASE` (pinned-base sim: base ≡ world; SONIC uses yaw-normalized `robot_heading_frame`), `T_mount_wrist` is the official with-mount offset, and `T_flange` is `t800_wrist_to_hand_mount` from CAD when filled, else the identity kinematic-bringup weld. `assets/combined/flange.py` is the resolver; `make frame-report` prints the chain; RGB axis sites (group 4) sit on base / wrist-end / mount / palm. Filling CAD is a mechanical measurement — **do not invent** the rotation that would make the palm face the carton.
+- **Forbidden:** treating the identity weld, or any guessed 90° “palm-forward” rotation, as CAD; publishing SONIC/VLA numbers until `t800_wrist_to_hand_mount` is filled from flange CAD × Hand 2 mount STEP.
+- **Consequences:** Contact-gated industrial playback still runs on the identity flange. Palm axes at hang follow the dummy elbow-yaw frame. Replace `T_flange` with CAD, then re-tune overlay waypoints.
+
+

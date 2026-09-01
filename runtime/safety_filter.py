@@ -45,3 +45,30 @@ class SafetyFilter:
 
     def reset(self) -> None:
         self._last = None
+
+
+@dataclass
+class CartesianJumpFilter:
+    """Reject SE(3) translation commands that jump more than ``max_delta_m`` per step.
+
+    Used on VLA/WBC wrist position slices before they reach the PD plant.
+    Rotation is not filtered here — callers run SO(3) ensemble separately.
+    """
+
+    max_delta_m: float = 0.05
+
+    def __post_init__(self) -> None:
+        self._last: np.ndarray | None = None
+
+    def filter(self, pos_m: np.ndarray) -> SafetyFilterResult:
+        p = np.asarray(pos_m, dtype=np.float64).reshape(3)
+        if not np.isfinite(p).all():
+            held = self._last if self._last is not None else np.zeros(3)
+            return SafetyFilterResult(False, held.copy(), "nan")
+        if self._last is not None and float(np.linalg.norm(p - self._last)) > self.max_delta_m:
+            return SafetyFilterResult(False, self._last.copy(), "wrist_jump")
+        self._last = p.copy()
+        return SafetyFilterResult(True, p, "ok")
+
+    def reset(self) -> None:
+        self._last = None

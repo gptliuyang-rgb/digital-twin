@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from runtime.latency_comp import delayed_index, pick_delayed_action
-from runtime.safety_filter import SafetyFilter
+from runtime.safety_filter import CartesianJumpFilter, SafetyFilter
 from runtime.temporal_ensemble import TemporalEnsemble
 from vla.adapters.rotation import matrix_to_rot6d, rpy_to_matrix
 
@@ -17,6 +17,12 @@ def test_safety_nan_and_jump() -> None:
     assert not bad.accepted
     jump = filt.filter(np.full(n, 0.9), 0.01)
     assert not jump.accepted
+
+
+def test_cartesian_wrist_jump() -> None:
+    filt = CartesianJumpFilter(max_delta_m=0.05)
+    assert filt.filter(np.zeros(3)).accepted
+    assert not filt.filter(np.array([0.08, 0.0, 0.0])).accepted
 
 
 def test_latency_index() -> None:

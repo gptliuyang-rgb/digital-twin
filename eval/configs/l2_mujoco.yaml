@@ -1,28 +1,31 @@
 n_envs: 256
 episodes_per_config: 50
 uncalibrated: true
+industrial_steps_per_phase: 40
+physics_industrial: false
+physics_steps_per_phase: 12
+physics_substeps: 6
+# corners = 4 kp/kv cells at mid μ/solref. full = 9. none = skip.
+gain_scan_mode: corners
 note: >
-  Contact parameters are REQUIRED_INPUT. Do not treat grasp_success_rate as a
-  sim2real prediction until Phase 5 calibration is filled.
+  Contact parameters are REQUIRED_INPUT. Do not treat any relative slip/drop
+  number as a sim2real pick rate until live E1/E2 is accepted. L2 reports
+  relative metrics only (ADR-004).
 randomize:
   box_mass: [2.0, 20.0]
   box_friction: [0.3, 0.9]
   box_pose_xy: [-0.15, 0.15]
   hand_friction: [0.6, 1.2]
-metrics:
-  - grasp_success_rate
-  - grasp_slip_distance
-  - finger_contact_count
-  - max_finger_torque
-  - stack_alignment_error
-  - release_velocity
-  - fall_rate
-  - wrist_tracking_error
-gates:
-  grasp_success_rate: ">= 0.85"
-  grasp_slip_distance: "<= 0.01"
-  fall_rate: "<= 0.02"
-  wrist_tracking_error: "<= 0.03"
-gain_scan:
-  kp_scale: [0.5, 1.0, 2.0]
-  kv_scale: [0.5, 1.0, 2.0]
+relative_metrics:
+  - uncalibrated_slip_m
+  - uncalibrated_cube_drop_m
+  - uncalibrated_n_contacts
+  - max_abs_tau_nm
+  - stack_alignment_m
+  - release_speed_m_s
+  - scan_geometry_ok
+# After live E1/E2 these become evaluated. They are documented here, not copied
+# into L2 JSON (the key grasp_success_rate is forbidden in reports).
+#   slip_m <= 0.01
+#   fall_rate <= 0.02
+#   wrist_tracking_error_m <= 0.03

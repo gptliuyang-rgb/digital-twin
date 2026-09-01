@@ -3,7 +3,10 @@
 ## Done
 
 - `assets/dexhand2/build/ingest_official.py` checks MJCF joint order, limits, mass vs spec
-- `assets/dexhand2/build/gen_derived.py` injects pad spheres fitted to official `*_tip.STL`
+- `assets/dexhand2/build/gen_derived.py` injects pad spheres fitted to official `*_tip.STL` (`--side left|right`)
+  - **bugfix:** do not `str.replace("r_", …)` on joint names — it ate the `r` in `finger_tip` and skipped index/middle/ring pads
+  - **site align:** STL vertex origin ≠ distal `*_tip` site; clusters are translated onto the site (sim-only geometric proxy, see `pad_inject.py`)
+- `assets/dexhand2/build/to_mit_plant.py` converts official `<position>` actuators to MIT `<motor>` plants in derived models only
 - Identity `hand/coupling.py`
 - `scripts/check_upstream_drift.py`
 
