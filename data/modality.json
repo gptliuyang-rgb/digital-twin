@@ -1,6 +1,7 @@
 {
   "schema_version": "1.0",
   "embodiment": "engineai_t800_wuji_hand2",
+  "sim_model_revision": "hand2_beta2",
   "n_active_dof": 20,
   "joint_order": [
     "thumb_cmc_flex",
@@ -97,6 +98,14 @@
         20
       ],
       "unit": "rad"
+    },
+    "tactile": {
+      "dtype": "float32",
+      "thumb_points": 40,
+      "other_finger_points": 34,
+      "native_rate_hz": 100.0,
+      "decode_from": "FingertipSensorInfo.format",
+      "note": "scale/unit come from FingertipSensorInfo.format; do not hard-code"
     }
   },
   "video": [

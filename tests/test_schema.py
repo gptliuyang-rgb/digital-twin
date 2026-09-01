@@ -33,6 +33,7 @@ def test_import_validate_lists_required_inputs() -> None:
     assert "motor_max_torque_nm" in message
     assert "hardware_kp" in message
     assert "command_latency_ms" in message
+    assert "hardware_revision" in message
     assert len(excinfo.value.missing) >= 5
 
 
@@ -51,6 +52,8 @@ def test_p0_required_input_count_is_bounded() -> None:
         "fingertip_material",
         "max_delta_q_rad",
         "velocity_limit_rad_s",
+        "hardware_revision",
+        "hardware_has_tactile",
     }
     missing = set(find_required_inputs(spec))
     p0_missing = {item for item in missing if item.split(".")[0] in p0_keys or item in p0_keys}
@@ -63,9 +66,17 @@ def test_topology_from_official_docs() -> None:
     assert spec.n_active_dof == 20
     assert spec.n_total_dof == 20
     assert spec.coupling_type == "none"
-    assert spec.product_mass_kg == pytest.approx(0.745)
+    assert spec.sim_model_revision == "hand2_beta2"
+    assert spec.product_mass_kg == pytest.approx(0.800)
+    assert spec.sim_mass_kg == pytest.approx(0.6228)
     assert spec.skeleton_mass_kg == pytest.approx(0.6207)
-    assert abs(spec.skeleton_mass_kg - spec.product_mass_kg) / spec.product_mass_kg > 0.1
+    facts = spec.revision_facts()
+    assert facts["n_pad_bodies"] == 5
+    assert facts["pad_collision_in_official_model"] is True
+    assert spec.raw["has_tactile"] is True
+    assert spec.raw["tactile_layout"]["thumb_points"] == 40
+    assert spec.raw["tactile_layout"]["other_finger_points"] == 34
+    assert spec.raw["voltage_range_v"] == [11, 13]
 
 
 def test_joint_order_unique_and_matches_map() -> None:

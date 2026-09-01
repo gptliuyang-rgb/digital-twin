@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM, ingest
+from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM, ingest, ingest_all
 from assets.objects.boxes import sample_box
 from data.build_modality import build_modality
 from interface.schema import load_hand_spec
@@ -12,12 +12,25 @@ from sim.qr_scanner import decode_image, make_qr_png, simulate_scan
 
 
 def test_ingest_official_when_cloned() -> None:
-    if not (DEFAULT_UPSTREAM / "hand2/hand2_beta1/body/mjcf/right.xml").is_file():
+    if not (DEFAULT_UPSTREAM / "hand2/hand2_beta2/body/mjcf/right.xml").is_file():
         pytest.skip("wuji-description not cloned")
-    report = ingest()
-    assert report["ok"], report["mismatches"]
-    assert report["n_actuators"] == 20
-    assert report["skeleton_mass_kg"] == pytest.approx(0.6207)
+    reports = ingest_all()
+    assert reports["hand2_beta1"]["ok"], reports["hand2_beta1"]["mismatches"]
+    assert reports["hand2_beta2"]["ok"], reports["hand2_beta2"]["mismatches"]
+    b1 = reports["hand2_beta1"]
+    b2 = reports["hand2_beta2"]
+    assert b1["n_actuators"] == 20
+    assert b1["n_pad_bodies"] == 0
+    assert b1["sim_mass_kg"] == pytest.approx(0.6207)
+    assert b1["pad_collision_in_official_model"] is False
+    assert b2["n_actuators"] == 20
+    assert b2["n_pad_bodies"] == 5
+    assert b2["n_bodies"] == 26
+    assert b2["sim_mass_kg"] == pytest.approx(0.6228)
+    assert b2["pad_collision_in_official_model"] is True
+    default = ingest()
+    assert default["revision"] == "hand2_beta2"
+    assert default["ok"]
 
 
 def test_modality_tracks_joint_order() -> None:
@@ -27,6 +40,9 @@ def test_modality_tracks_joint_order() -> None:
     assert mod["n_active_dof"] == 20
     assert mod["action"]["left_hand_q"]["end"] - mod["action"]["left_hand_q"]["start"] == 20
     assert mod["action_dim"] == 75
+    assert mod["sim_model_revision"] == "hand2_beta2"
+    assert mod["state"]["tactile"]["thumb_points"] == 40
+    assert mod["state"]["tactile"]["other_finger_points"] == 34
 
 
 def test_payload_bounds() -> None:

@@ -12,8 +12,13 @@ from pathlib import Path
 
 import numpy as np
 
-from assets.dexhand2.build.ingest_official import DEFAULT_UPSTREAM, official_mjcf, parse_sites
-from interface.schema import REPO_ROOT
+from assets.dexhand2.build.ingest_official import (
+    DEFAULT_UPSTREAM,
+    official_mjcf,
+    parse_sites,
+    revision_body_path,
+)
+from interface.schema import REPO_ROOT, load_hand_spec
 
 DERIVED = REPO_ROOT / "assets" / "dexhand2" / "derived"
 TIP_FINGERS = ["thumb", "index_finger", "middle_finger", "ring_finger", "pinky"]
@@ -79,15 +84,19 @@ def inject_spheres(mjcf_text: str, site_name: str, spheres: list[tuple[list[floa
     return new
 
 
-def generate(side: str = "right", root: Path | None = None) -> Path:
+def generate(side: str = "right", root: Path | None = None, revision: str | None = None) -> Path:
     root = root or DEFAULT_UPSTREAM
-    src = official_mjcf(side, root=root)
+    spec = load_hand_spec()
+    rev = revision or spec.sim_model_revision
+    src = official_mjcf(side, root=root, revision=rev)
     text = src.read_text(encoding="utf-8")
     header = (
-        f"<!-- GENERATED FROM {src.as_posix()} — fingertip pad spheres. "
-        "Do not edit. Official file is untouched. -->\n"
+        f"<!-- GENERATED FROM {src.as_posix()} ({rev}) — fingertip pad spheres. "
+        "Do not edit. Official file is untouched. "
+        "Beta 2 already collides official pad meshes (convex hull); "
+        "these spheres are a simplified overlay, not a replacement for E1/E2. -->\n"
     )
-    mesh_dir = root / "hand2/hand2_beta1/body/meshes" / side
+    mesh_dir = root / revision_body_path(rev, spec.raw) / "meshes" / side
     prefix = "r" if side == "right" else "l"
     sites = parse_sites(src)
     for site in sites:

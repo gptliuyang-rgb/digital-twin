@@ -17,6 +17,8 @@ Optional: `pip install -e ".[sim]"` for MuJoCo, `".[vision]"` for OpenCV QR deco
 2. `make test && make check-spec`
 3. If contact params changed: regenerate derived MJCF `make build-assets` and re-run Phase 1 ingest.
 
+Ingest now checks **both** `hand2_beta1` and `hand2_beta2`. Default sim revision is Beta 2.
+
 ## After Wuji upstream model change
 
 ```bash
