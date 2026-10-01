@@ -2,6 +2,12 @@
 
 Needs: pip install wuji-sdk, device on 192.168.1.0/24 (factory IPs in dexhand2_spec.yaml).
 This module does not import wuji_sdk at top level so CI without hardware still collects.
+
+Firmware v2.10.0 (2026-09-22) + SDK 2026.9.22:
+- TCP port is configurable (`hand.port()`). Default is 50001 (was 7447).
+- Joint feedforward compensation exists only on units shipping from 2026-10.
+  Do not enable/disable it unless `joint_feedforward_compensation.enabled_on_this_unit`
+  is filled. This backend never invents τ_ff from that flag.
 """
 
 from __future__ import annotations
@@ -11,15 +17,32 @@ from typing import Any
 import numpy as np
 
 from hand.backends.base import HandBackend, HandState
-from interface.schema import load_joint_map
+from interface.schema import HandSpec, load_hand_spec, load_joint_map
+
+
+def factory_tcp_endpoint(side: str, spec: HandSpec | None = None) -> str:
+    """Return ``ip:port`` from the frozen spec. Port is 50001 on fw v2.10.0+."""
+    if side not in {"left", "right"}:
+        raise ValueError(f"side must be left|right, got {side!r}")
+    spec = spec or load_hand_spec()
+    factory = spec.raw["factory_ip"]
+    return f"{factory[side]}:{int(factory['port'])}"
 
 
 class RealBackend(HandBackend):
-    def __init__(self, hand: Any | None = None, *, handedness: str | None = None) -> None:
+    def __init__(
+        self,
+        hand: Any | None = None,
+        *,
+        handedness: str | None = None,
+        address: str | None = None,
+    ) -> None:
         self._hand = hand
         self._handedness = handedness
+        self._address = address
         self._pub: Any = None
         self._map = load_joint_map()
+        self._spec = load_hand_spec()
 
     def connect(self) -> None:
         try:
@@ -32,7 +55,11 @@ class RealBackend(HandBackend):
             return
         manager = SdkManager.instance()
         kwargs: dict[str, Any] = {"device_name": "wuji_hand_2"}
-        if self._handedness:
+        if self._address and self._handedness:
+            raise ValueError("pass address or handedness, not both (SDK 2026.7+ mutual exclusion)")
+        if self._address:
+            kwargs["address"] = self._address
+        elif self._handedness:
             kwargs["handedness"] = Handedness.Right if self._handedness == "right" else Handedness.Left
         self._hand = manager.connect(**kwargs)
         self._pub = self._hand.joint_command().publish()

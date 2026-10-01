@@ -16,6 +16,10 @@ WATCH = [
     "hand2/hand2_beta1/body/mjcf/left.xml",
     "hand2/hand2_beta1/body/urdf/right.urdf",
     "hand2/hand2_beta1/body/mjcf/right_with_mount.xml",
+    "hand2/hand2_beta2/body/mjcf/right.xml",
+    "hand2/hand2_beta2/body/mjcf/left.xml",
+    "hand2/hand2_beta2/body/urdf/right.urdf",
+    "hand2/hand2_beta2/body/mjcf/right_with_mount.xml",
 ]
 
 
@@ -43,11 +47,15 @@ def snapshot() -> dict:
 def main() -> None:
     current = snapshot()
     if not PIN.is_file():
-        PIN.write_text(json.dumps(current, indent=2), encoding="utf-8")
+        PIN.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
         print(f"wrote {PIN}")
         return
     pinned = json.loads(PIN.read_text(encoding="utf-8"))
-    drift = {k: (pinned["files"].get(k), current["files"].get(k)) for k in WATCH if pinned["files"].get(k) != current["files"].get(k)}
+    drift = {
+        k: (pinned.get("files", {}).get(k), current["files"].get(k))
+        for k in WATCH
+        if pinned.get("files", {}).get(k) != current["files"].get(k)
+    }
     if drift:
         raise SystemExit(f"upstream drift: {json.dumps(drift, indent=2)}")
     print("no upstream drift")

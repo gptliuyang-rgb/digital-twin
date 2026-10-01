@@ -4,9 +4,10 @@
 schema_version: "1.0"
 
 # Official with-mount MJCF: {side}_wrist is a child of {side}_mount
-# right.xml: pos="0.003 0.00025016 -0.0285" quat="1 0 0 8.1995e-06"
+# Identical on Beta 1 and Beta 2 (measured 2026-09-01): pos="0.003 0.00025016 -0.0285"
 hand_mount_to_wrist:
-  source: third_party/wuji-description/hand2/hand2_beta1/body/mjcf/right_with_mount.xml
+  source: third_party/wuji-description/hand2/hand2_beta2/body/mjcf/right_with_mount.xml
+  also_verified: hand2/hand2_beta1/body/mjcf/right_with_mount.xml
   pos_m: [0.003, 0.00025016, -0.0285]
   quat_wxyz: [1.0, 0.0, 0.0, 8.1995e-06]
   mount_link: "{side}_mount"
@@ -22,14 +23,17 @@ humanoid:
   t800pro_right_wrist_link: LINK_WRIST_ROLL_R
 
 # Transform from T800 wrist link to Wuji {l,r}_mount.
-# Official Hand 2 mount STEP now exists:
-#   hand2/hand2_beta1/attachment/wuji-hand2-description-{left,right}-mount_beta1_step.STEP
-# T800 wrist flange CAD is still required to fill this SE(3).
+# Official Hand 2 palm-mount STEP + A3 drawing exist for both revisions
+# (byte-identical between Beta 1 and Beta 2 per 2026.08.17 changelog):
+#   hand2/hand2_beta2/attachment/wuji-hand2-description-{left,right}-mount_beta2_step.STEP
+# Hole pattern (from official A3 drawing): one M3×0.5 and two M4×0.5.
+# T800 wrist flange CAD is still required to fill this SE(3). Do not invent it.
 t800_wrist_to_hand_mount:
   pos_m: REQUIRED_INPUT
   quat_wxyz: REQUIRED_INPUT
-  cad_source_hand: hand2/hand2_beta1/attachment/wuji-hand2-description-right-mount_beta1_step.STEP
+  cad_source_hand: hand2/hand2_beta2/attachment/wuji-hand2-description-right-mount_beta2_step.STEP
   cad_source_robot: REQUIRED_INPUT
+  official_flange: factory_standard_on_beta2   # drawings included; T800-side still missing
 
 frames:
   wrist_frame:

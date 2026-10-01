@@ -3,7 +3,8 @@
 #
 # Sources:
 #   doc_name:     https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/  (thumb named; other fingers share mcp_flex/mcp_abd/pip/dip)
-#   mjcf_joint:   hand2/hand2_beta1/body/mjcf/{left,right}.xml  anatomical <joint name>
+#   mjcf_joint:   hand2/hand2_beta{1,2}/body/mjcf/{left,right}.xml  anatomical <joint name>
+#                 (names and limits identical across revisions)
 #   mjcf_actuator: same file <actuator><position name>
 #   sdk_label:    SDK JointHandle.label  "{finger}_S{1..4}"
 #   sdk_index:    SDK JointHandle.index  0..19
