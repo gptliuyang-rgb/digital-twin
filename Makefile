@@ -1,4 +1,4 @@
-.PHONY: setup test lint check-spec build-assets eval-l0 eval-l1 eval-l2 ingest-official
+.PHONY: setup test lint check-spec check-upstream build-assets eval-l0 eval-l1 eval-l2 ingest-official
 
 PYTHON ?= python3
 
@@ -16,6 +16,9 @@ check-spec:
 
 ingest-official:
 	$(PYTHON) -m assets.dexhand2.build.ingest_official
+
+check-upstream:
+	$(PYTHON) scripts/check_upstream_drift.py
 
 build-assets:
 	$(PYTHON) -m assets.dexhand2.build.gen_derived

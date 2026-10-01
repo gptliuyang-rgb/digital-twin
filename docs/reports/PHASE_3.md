@@ -6,6 +6,7 @@
 - Backends: mock, mujoco, isaac, real (SDK, optional import)
 - Primitives: open, power_grasp, pinch, gun_grip, flat_support
 - Official retarget wrapper (no invented IK scale)
+- `hand/tactile.py` Beta 2 layout (40/34 points); decode from sensor `format`, no invented scale
 
 ## Tests
 

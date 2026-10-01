@@ -106,8 +106,17 @@ class HandSpec:
     joint_order: list[str]
     joint_limits_rad: dict[str, tuple[float, float]]
     skeleton_mass_kg: float
+    sim_mass_kg: float
     product_mass_kg: float
+    sim_model_revision: str
     missing_fields: list[str] = field(default_factory=list)
+
+    def revision_facts(self) -> dict[str, Any]:
+        revisions = self.raw.get("revisions") or {}
+        facts = revisions.get(self.sim_model_revision)
+        if not isinstance(facts, dict):
+            raise ValueError(f"spec.revisions missing {self.sim_model_revision}")
+        return facts
 
     @property
     def is_complete(self) -> bool:
@@ -163,7 +172,9 @@ def load_hand_spec(path: Path | None = None, *, require_complete: bool = False) 
         joint_order=joint_order,
         joint_limits_rad=_as_limit_map(raw["joint_limits_rad"]),
         skeleton_mass_kg=float(raw["skeleton_mass_kg"]["value"]),
+        sim_mass_kg=float(raw["sim_mass_kg"]["value"]) if isinstance(raw.get("sim_mass_kg"), Mapping) else float(raw["skeleton_mass_kg"]["value"]),
         product_mass_kg=float(raw["total_mass_kg"]["value"]),
+        sim_model_revision=str(raw.get("sim_model_revision", "hand2_beta1")),
         missing_fields=missing,
     )
     spec.require_p0_topology()

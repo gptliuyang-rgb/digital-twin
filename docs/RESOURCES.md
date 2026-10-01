@@ -2,15 +2,32 @@
 
 Read official pages before editing `dexhand2_spec.yaml`. Local clones: `scripts/bootstrap_resources.sh`.
 
-## Wuji Hand 2
+## Wuji Hand 2 (current docs = Beta 2)
 
 - Overview: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
 - Usage constraints: https://docs.wuji.tech/docs/en/wuji-hand/latest/usage-constraints/
-- SDK: https://docs.wuji.tech/docs/zh/wuji-hand/latest/sdk-reference/
+- SDK: https://docs.wuji.tech/docs/en/wuji-hand/latest/sdk-reference/
+- Hand changelog (firmware/SDK/description): https://docs.wuji.tech/docs/en/wuji-hand/latest/release-notes/
 - Description integration: https://docs.wuji.tech/docs/zh/wuji-description/latest/integration/
 - Models: https://github.com/wuji-technology/wuji-description
+  - Beta 2 body: `hand2/hand2_beta2/body/`
+  - Beta 1 body: `hand2/hand2_beta1/body/` (kept for drift comparison)
 - Retargeting: https://github.com/wuji-technology/wuji-retargeting
-- Release notes: https://docs.wuji.tech/docs/zh/release-notes/
+- Description release notes: https://docs.wuji.tech/docs/zh/release-notes/
+
+Facts taken from those pages on **2026-10-01** (do not re-ask):
+
+- 20 independent revolute DoF, serial direct-drive, no coupling
+- Product curb mass 800 g (bare 650 g, base 70 g separately), soft + cables, excl. base
+- MIT hybrid @ 1 kHz, 11–13 V DC (nominal 12 V), RJ45 100BASE-TX, **port 50001** (fw v2.10.0+; was 7447)
+- `hand.port()` configurable 10000–65535 except discovery 50000; reboot required
+- Joint FF compensation only on units shipping from 2026-10 (fw v2.10.0 / SDK 2026.9.22)
+- Live overview page is a **2.2 non-tactile prototype**; sim model is still `hand2_beta2` with pad links
+- Factory-standard wrist flange + palm-mount STEP/PDF in `hand2/hand2_beta2/attachment/`
+- Beta 2 sim includes fingertip pad links (measured mass, collide as convex hulls, F/T-sensor frames). Whole-hand soft body is not in sim.
+- Tactile (when present): 40 pts thumb / 34 others, 100 Hz; fw ≥ v2.4.0 per-point force is normalized — decode `FingertipSensorInfo.format`
+- Gains still gen-1 carry-over. Load curves are not a committed spec.
+- Description v2026.9.11 did not change Hand 2 MJCF/URDF hashes.
 
 ## EngineAI T800
 
