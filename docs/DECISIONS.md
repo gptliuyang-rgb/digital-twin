@@ -17,7 +17,7 @@
 
 ## ADR-003 — Coupling is identity
 
-- **Status:** accepted for Hand 2 Beta 1/2
+- **Status:** accepted for Hand 2.1 / 2.2
 - **Context:** Official kinematics are serial direct-drive, no nonlinear coupling.
 - **Decision:** `hand/coupling.py` is `C = I`, interface kept.
 - **Consequences:** Gen-1 tendon/mimic hands need a different Coupling subclass.
@@ -35,3 +35,19 @@
 - **Context:** SDK `JointHandle.index` is 0..19, labels `{finger}_S{1..4}`, fingertip API 0=thumb…4=pinky.
 - **Decision:** Map S1=J0 … S4=J3 in TH/FF/MF/RF/LF actuator order. `nid` assumed equal to index until a live dump.
 - **Consequences:** One `joint_states` frame on hardware must be checked against `joint_name_map.yaml`.
+
+## ADR-010 — Simulation default is Hand 2.2
+
+- **Status:** accepted (2026-11-01)
+- **Context:** wuji-description v2026.10.12 deleted `hand2_beta1` / `hand2_beta2`. Official docs default to Wuji Hand 2.2 (Beta) 非触觉版样机. SN digits 5–7 `A01` = 2.2, `A00` = 2.1.
+- **Options:** (A) stay on deleted Beta paths and vendor a snapshot; (B) retarget contracts to `hand2/hand2_2` and keep `hand2/hand2_1` as a joint-identity drift check; (C) support both as first-class embodiments.
+- **Decision:** (B). `model_revision: hand2_2`. 2.1 is ingested only to assert identical 20-DoF names/limits and the same 0.6878 kg no-cover mass.
+- **Consequences:** `hardware_has_tactile` stays REQUIRED_INPUT — the overview title is not a unit inspection. Cover mass 0.7088 kg is provisional. Do not hang the 0.1122 kg curb-minus-URDF delta until CoM is measured.
+
+## ADR-011 — Firmware factory MIT is not hardware_kp
+
+- **Status:** accepted
+- **Context:** 2026-10-12 release notes set default MIT `kp=5.0`, `kd=0.1` for **new or reset** joint configs. Upgrades keep saved parameters. Official MJCF still ships gen-1 kp/kv (~0.2–0.7 / ~0.01–0.03).
+- **Decision:** Record factory defaults under `firmware_factory_mit`. `hardware_kp` / `hardware_kd` remain REQUIRED_INPUT until sys-id on the bench unit. Do not write factory 5.0/0.1 into the MJCF `<position>` actuators.
+- **Consequences:** Sim and real compliance will differ until the identified gains are filled. Gain-scan remains the uncalibrated fallback.
+

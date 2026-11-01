@@ -1,6 +1,7 @@
 # Contact calibration protocol (E1–E3)
 
-Beta 1 soft body and skin are **not locked**. Record `soft_body_batch_id`,
+Hand 2.2 soft body and skin are **not locked**. Operation requires skin
+(`operation_requires_skin: true`). Record `soft_body_batch_id`,
 `skin_batch_id`, `skin_present`, and `firmware_version` on every sheet.
 Re-run E1/E2 after any pad or skin change (`docs/RUNBOOK.md`).
 

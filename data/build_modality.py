@@ -14,7 +14,7 @@ def build_modality(spec=None) -> dict:
     action = {name: {"start": a, "end": b} for name, (a, b) in layout.items() if name != "_total"}
     return {
         "schema_version": "1.0",
-        "embodiment": "engineai_t800_wuji_hand2",
+        "embodiment": "engineai_t800_wuji_hand2_2",
         "n_active_dof": spec.n_active_dof,
         "joint_order": spec.joint_order,
         "action_dim": command_dim(spec),

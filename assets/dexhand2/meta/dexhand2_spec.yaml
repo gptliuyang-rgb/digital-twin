@@ -2,36 +2,49 @@
 # Values with a `source:` key were copied from official docs or official MJCF/URDF.
 # Values equal to REQUIRED_INPUT must NOT be guessed. Loaders raise SpecIncompleteError.
 #
-# Official product docs: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
-# Official models:       third_party/wuji-description/hand2/hand2_beta1/
-# Usage constraints:     https://docs.wuji.tech/docs/en/wuji-hand/latest/usage-constraints/
-# SDK:                   https://docs.wuji.tech/docs/zh/wuji-hand/latest/sdk-reference/
+# Official product docs (2.2 non-tactile prototype):
+#   https://docs.wuji.tech/docs/zh/wuji-hand/latest/overview.md
+# Official models (v2026.10.26): third_party/wuji-description/hand2/hand2_2/
+# Mechanical:  https://docs.wuji.tech/docs/zh/wuji-hand/latest/hardware-integration.md
+# Electrical:  https://docs.wuji.tech/docs/zh/wuji-hand/latest/electrical-network-integration.md
+# Models:      https://docs.wuji.tech/docs/zh/wuji-hand/latest/model-integration.md
+# Release:     https://docs.wuji.tech/docs/zh/release-notes.md  (2026-10-12, 2026-10-26)
 #
-# Beta 1 prototype. Parameters do not represent the final product.
+# Beta 1 / Beta 2 description packages were removed upstream on 2026-10-12.
 
-schema_version: "1.0"
+schema_version: "1.1"
 product_name: "Wuji Hand 2"
 internal_name: DexHand2
-hardware_revision: beta1
-model_revision: hand2_beta1
+hardware_revision: "2.2"
+model_revision: hand2_2
+ros2_package: wuji_hand2_2_description
+ros2_model_revision: 2          # wuji_bringup model_revision: 1=2.1, 2=2.2
 upstream_repo: https://github.com/wuji-technology/wuji-description
-upstream_path: hand2/hand2_beta1/body
+upstream_tag: v2026.10.26
+upstream_commit: 5c4dfa16917355d073e2e1d7e3d03897b6cf9508
+upstream_path: hand2/hand2_2/body
+compat_path: hand2/hand2_1/body
+serial_number_revision:
+  A00: "2.1"                    # SN digits 5–7; official version-compatibility
+  A01: "2.2"
+doc_note: >
+  Latest overview is Wuji Hand 2.2 (Beta) 非触觉版样机. Parameters do not
+  represent the final product. Do not set hardware_has_tactile from the page title.
 
 # ---------------------------------------------------------------------------
-# Topology (official)
+# Topology (official, unchanged 2.1 → 2.2)
 # ---------------------------------------------------------------------------
 n_fingers: 5                 # count
 n_active_dof: 20             # motor count; 4 per finger
 n_total_dof: 20              # serial direct-drive, no passive joints
 kinematics: serial_direct_drive_revolute
-coupling_type: none          # official: "no nonlinear kinematic coupling"
+coupling_type: none          # official: "旋转关节串联直驱，无非线性运动学关系"
 coupling_matrix: identity    # C = I_20 ; q_passive is empty
 min_grasp_diameter_m: 0.0
 
 # Canonical joint_order for left_hand_q / right_hand_q (NO side prefix).
-# Side prefix {l|r}_ is applied by the controller / asset ingest.
 # Order matches official MJCF actuator order THJ0..3, FFJ0..3, MFJ0..3, RFJ0..3, LFJ0..3
-# and SDK hand.joints() index 0..19 (thumb_S1 .. pinky_S4).
+# and SDK hand.joints() index 0..19 (thumb_S1 .. pinky_S4). Verified on hand2_2 MJCF.
 joint_order:
   - thumb_cmc_flex
   - thumb_cmc_abd
@@ -54,8 +67,9 @@ joint_order:
   - pinky_pip
   - pinky_dip
 
-# Official MJCF joint ranges, radian. Source: hand2_beta1/body/mjcf/right.xml
-# Product-page degree ranges for thumb/little match these after deg2rad (within rounding).
+# Official MJCF joint ranges, radian. Source: hand2/hand2_2/body/mjcf/right.xml
+# Product-page degree ranges match these after deg2rad (within rounding).
+# 2.1 MJCF joint names and ranges are identical.
 joint_limits_rad:
   thumb_cmc_flex:           [-1.187, 1.291]   # product: -68° .. 74°
   thumb_cmc_abd:            [-1.484, 0.698]   # product: -85° .. 40°
@@ -73,16 +87,14 @@ joint_limits_rad:
   ring_finger_mcp_abd:      [-0.698, 0.698]
   ring_finger_pip:          [-1.047, 2.094]
   ring_finger_dip:          [-1.047, 1.570]
-  pinky_mcp_flex:           [-1.047, 1.570]   # product little-finger J1: -60° .. 90°
-  pinky_mcp_abd:            [-0.698, 0.698]   # product: -40° .. 40°
-  pinky_pip:                [-1.047, 2.094]   # product: -60° .. 120°
-  pinky_dip:                [-1.047, 1.570]   # product: -60° .. 90°
+  pinky_mcp_flex:           [-1.047, 1.570]
+  pinky_mcp_abd:            [-0.698, 0.698]
+  pinky_pip:                [-1.047, 2.094]
+  pinky_dip:                [-1.047, 1.570]
 
 joint_zero_definition: >
-  Official MJCF/URDF q = 0. CHANGELOG states zero-position fingertip sites are
-  the frozen coordinate contract. Product docs do not state whether q=0 is
-  "fully open" or a rest pose. Zero-calibration accuracy is still being
-  optimized (usage-constraints). Do not assume q=0 == fully open until FAE confirms.
+  Official MJCF/URDF q = 0. Product docs do not state whether q=0 is
+  "fully open" or a rest pose. Do not assume q=0 == fully open until FAE confirms.
 joint_sign_convention: >
   Positive rotation follows the official MJCF joint axis (right-hand rule).
   Right-hand flex joints use axis +X; abduction joints use axis +Y.
@@ -90,28 +102,51 @@ joint_sign_convention: >
   flex is toward the palm.
 
 # ---------------------------------------------------------------------------
-# Dynamics
+# Dynamics / mass
 # ---------------------------------------------------------------------------
-# Official URDF (skeleton only, no-mount) sums to 0.6207 kg.
+# Official 2.2 / 2.1 URDF (root = {l,r}_mount, 69 g). Release notes 2026-10-26:
+#   no-cover 687.8 g, with-cover 708.8 g (cover mass is provisional).
+# Product overview 2.2: curb 800 g (soft body + output cables, no base);
+#   bare hand 650 g; base 70 g counted separately.
+sim_mass_kg:
+  no_cover:
+    value: 0.6878
+    includes_mount: true
+    n_links_2_2: 27             # 2.1 no-cover has 22 links; same total mass
+    n_links_2_1: 22
+    source: urdf_inertial_sum
+    path: hand2/hand2_2/body/urdf/right.urdf
+  with_cover:
+    value: 0.7088
+    includes_mount: true
+    n_links_2_2: 48
+    cover_mass_provisional: true
+    source: release_notes_2026-10-26 + urdf_inertial_sum
+    path: hand2/hand2_2/body/urdf/right_with_cover.urdf
 skeleton_mass_kg:
-  value: 0.6207
+  value: 0.6878                 # alias of sim_mass_kg.no_cover (includes mount)
   source: urdf_inertial_sum
-  path: hand2/hand2_beta1/body/urdf/right.urdf
+  path: hand2/hand2_2/body/urdf/right.urdf
 mount_mass_kg:
   value: 0.069
   source: urdf_inertial
-  path: hand2/hand2_beta1/body/urdf/right_with_mount.urdf
-# Product page: 745 ± 10 g with soft body, excluding cables.
+  path: hand2/hand2_2/body/urdf/right.urdf#r_mount
+product_bare_mass_kg:
+  value: 0.650
+  source: https://docs.wuji.tech/docs/zh/wuji-hand/latest/overview.md
 total_mass_kg:
-  value: 0.745
-  tolerance_kg: 0.010
+  value: 0.800                  # curb; soft body + output cables; excludes base
   includes_soft_body: true
-  includes_cables: false
-  source: https://docs.wuji.tech/docs/en/wuji-hand/latest/overview/
+  includes_cables: true
+  includes_base: false
+  source: https://docs.wuji.tech/docs/zh/wuji-hand/latest/overview.md
+product_base_mass_kg:
+  value: 0.070
+  source: https://docs.wuji.tech/docs/zh/wuji-hand/latest/overview.md
 soft_body_mass_delta_kg:
-  value: 0.1243   # 0.745 - 0.6207; NOT independently measured
-  source: derived_product_minus_urdf
-  note: Soft body is NOT in the simulation model. Do not treat this as a measured CoM.
+  value: 0.1122                 # 0.800 - 0.6878; NOT independently measured
+  source: derived_product_curb_minus_urdf
+  note: Soft-body deformation is NOT in the simulation model. Cover mass is provisional.
 
 dimensions_m: [0.180, 0.080, 0.040]   # L x W x T, fingers fully extended
 finger_length_m:
@@ -121,12 +156,12 @@ finger_length_m:
   little: 0.134
   thumb: 0.140
 
-# Wrist-frame CoM of the physical hand (with soft body) is NOT in the URDF.
+# Wrist-frame CoM of the physical hand (curb, with cables) is NOT in the URDF.
 com_in_wrist_frame_m: REQUIRED_INPUT   # m, must be measured; drives WBC dynamics
 
 link_masses:
   source: cad_urdf
-  note: Per-link masses are in the official URDF inertial tags. Soft-body mass is not distributed.
+  note: Per-link masses are in the official URDF inertial tags. Soft-body / cable mass is not distributed.
 
 # ---------------------------------------------------------------------------
 # Actuators
@@ -137,15 +172,37 @@ control_mode: MIT_force_position_hybrid
 # tau = kp*(qd - q) + kd*(dqd - dq) + tau_ff   (official MIT form)
 control_rate_hz: 1000          # × 20 axes
 voltage_v: 12
+voltage_range_v: [11, 13]      # 2.2 official; 2.1 is 12 V only
 psu: "12V 20A"
 interface_type: ethernet_rj45_100BASE_TX
 factory_ip:
   left: "192.168.1.110"
   right: "192.168.1.111"
   port: 50001
+  gateway: "192.168.1.1"
+  netmask: "255.255.255.0"
+data_port:
+  factory: 50001
+  allowed_min: 7400
+  allowed_max: 65535
+  compatible_legacy: 7447
+  forbidden: [50000]            # discovery port; official 2026-10-26
+  source: release_notes_2026-10-26 + electrical-network-integration
 
-# Simulation forcerange from official MJCF (N·m). NOT committed hardware ratings.
-# Usage constraints: "The prototype's measured load values aren't committed external values."
+# Firmware factory MIT after a new or reset joint config (release notes 2026-10-12).
+# Upgrades keep previously saved joint parameters. This is NOT hardware_kp/kd.
+firmware_factory_mit:
+  kp: 5.0
+  kd: 0.1
+  applies_to: new_or_reset_joint_config
+  source: https://docs.wuji.tech/docs/zh/release-notes.md  # 2026-10-12
+firmware_current_documented: v2.13.1   # release notes 2026-10-26; version-compat page still says v2.5.1
+firmware_version: REQUIRED_INPUT       # the unit on the bench
+joint_feedforward_compensation:
+  default_on_units_shipping_from: "2026-10"
+  enabled_on_this_unit: REQUIRED_INPUT
+
+# Simulation forcerange from official 2.2 MJCF (N·m). NOT committed hardware ratings.
 sim_actuator_forcerange_nm:
   thumb_cmc_flex: 0.6
   thumb_cmc_abd: 0.6
@@ -168,7 +225,7 @@ sim_actuator_forcerange_nm:
   pinky_pip: 0.3
   pinky_dip: 0.3
 
-# Official MJCF kp/kv. Docs: carried over from Wuji Hand (gen-1) pending Hand 2 sys-id.
+# Official MJCF kp/kv on hand2_2 (still the gen-1 carry-over numbers).
 sim_kp:
   thumb_cmc_flex: 0.40844710645048043
   thumb_cmc_abd: 0.6858601063643346
@@ -225,7 +282,7 @@ default_armature_kgm2: 0.0002
 mcp_flex_armature_kgm2: 0.0005
 
 # ---------------------------------------------------------------------------
-# Contact — Beta 1 soft body / skin not locked. MUST be measured.
+# Contact — 2.2 soft body / skin still not locked. MUST be measured.
 # ---------------------------------------------------------------------------
 fingertip_material: REQUIRED_INPUT     # silicone | TPU | rigid | other
 fingertip_geometry_radius_m: REQUIRED_INPUT
@@ -235,22 +292,20 @@ normal_stiffness_n_per_m: REQUIRED_INPUT
 soft_body_batch_id: REQUIRED_INPUT
 skin_batch_id: REQUIRED_INPUT
 skin_present: REQUIRED_INPUT           # bool, skin is user-removable
-firmware_version: REQUIRED_INPUT
-
-# Official MJCF contact: condim default (3) unless we patch derived assets to 4.
-derived_contact_condim: 4              # recommended for box grasp; not yet in upstream
+operation_requires_skin: true          # official: 运行时须始终佩戴皮肤
+derived_contact_condim: 4              # recommended for box grasp; not in upstream
 
 # ---------------------------------------------------------------------------
 # Sensing
 # ---------------------------------------------------------------------------
-# Beta 1: fingertip tactile NOT provided. Beta 2 hardware + fw v2.1.0 + SDK 2026.7.21+.
-has_tactile: false                     # this repo's default target is Beta 1
-tactile_layout: none_on_beta1
+# Overview is a 2.2 non-tactile prototype. Sim 2.2 still has tip_sensor_frame links.
+# Do not fill hardware_has_tactile from the overview title.
+has_tactile: false
+tactile_layout: none_on_2_2_nontactile_docs
 has_joint_encoder: true
 has_current_sense: true                # effort field is in amperes, not N·m
 has_imu: true                          # 100 Hz accel/gyro, no onboard orientation
-# Confirm whether YOUR unit is actually Beta 2 (tactile pads):
-hardware_has_tactile: REQUIRED_INPUT   # bool, ask FAE / inspect unit
+hardware_has_tactile: REQUIRED_INPUT   # bool, ask FAE / inspect the unit
 
 # ---------------------------------------------------------------------------
 # Communication / delay
@@ -261,13 +316,14 @@ controller_safety:
   max_delta_q_rad: REQUIRED_INPUT      # per-step jump reject threshold
   velocity_limit_rad_s: REQUIRED_INPUT
 
-# Human-to-hand scale for retargeting (official wuji-retargeting wraps this).
 human_to_hand_scale: REQUIRED_INPUT
 
 official_known_gaps:
-  - fingertip_soft_pad_not_in_collision
+  - beta1_beta2_packages_removed_2026-10-12
+  - fingertip_soft_pad_collides_as_convex_hull
   - sim_gains_not_hand2_identified
   - soft_body_and_skin_unlocked
-  - sim_model_skeleton_only
-  - collision_is_convex_hull
+  - cover_mass_provisional
+  - sim_model_no_soft_deformation
   - interface_form_will_change
+  - wrist_load_limits_not_published
