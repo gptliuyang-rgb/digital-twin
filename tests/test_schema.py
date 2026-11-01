@@ -14,12 +14,14 @@ from interface.schema import (
     SpecIncompleteError,
     collect_repo_required_inputs,
     command_dim,
+    factory_tcp_endpoint,
     find_required_inputs,
     load_command_schema,
     load_frames,
     load_hand_spec,
     load_joint_map,
     load_yaml,
+    validate_data_port,
     validate_repo_spec,
 )
 
@@ -63,8 +65,14 @@ def test_topology_from_official_docs() -> None:
     assert spec.n_active_dof == 20
     assert spec.n_total_dof == 20
     assert spec.coupling_type == "none"
-    assert spec.product_mass_kg == pytest.approx(0.745)
-    assert spec.skeleton_mass_kg == pytest.approx(0.6207)
+    assert spec.product_mass_kg == pytest.approx(0.800)
+    assert spec.skeleton_mass_kg == pytest.approx(0.6878)
+    assert spec.raw["hardware_revision"] == "2.2"
+    assert spec.raw["model_revision"] == "hand2_2"
+    assert spec.raw["firmware_factory_mit"]["kp"] == 5.0
+    assert spec.raw["firmware_factory_mit"]["kd"] == 0.1
+    assert spec.raw["operation_requires_skin"] is True
+    assert spec.get("hardware_kp") == "REQUIRED_INPUT"
     assert abs(spec.skeleton_mass_kg - spec.product_mass_kg) / spec.product_mass_kg > 0.1
 
 
@@ -118,6 +126,17 @@ def test_duplicate_joint_order_rejected(tmp_path) -> None:
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
     with pytest.raises(ValueError, match="duplicates"):
         load_hand_spec(path)
+
+
+def test_factory_tcp_endpoint_and_data_port() -> None:
+    assert factory_tcp_endpoint("left") == "192.168.1.110:50001"
+    assert factory_tcp_endpoint("right") == "192.168.1.111:50001"
+    validate_data_port(50001)
+    validate_data_port(7447)
+    with pytest.raises(ValueError, match="discovery"):
+        validate_data_port(50000)
+    with pytest.raises(ValueError, match="outside"):
+        validate_data_port(7399)
 
 
 def test_collect_repo_required_inputs_nonempty() -> None:

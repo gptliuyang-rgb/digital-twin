@@ -384,6 +384,29 @@ class CommandVector:
         )
 
 
+def factory_tcp_endpoint(side: str, spec: HandSpec | None = None) -> str:
+    """Return the official factory `ip:port` for a hand. Port is not invented."""
+    if side not in ("left", "right"):
+        raise ValueError(f"side must be left|right, got {side!r}")
+    spec = spec or load_hand_spec()
+    ips = spec.raw["factory_ip"]
+    return f"{ips[side]}:{int(ips['port'])}"
+
+
+def validate_data_port(port: int, spec: HandSpec | None = None) -> None:
+    """Official 2026-10-26: data port in 7400–65535, 7447 compatible, 50000 forbidden."""
+    spec = spec or load_hand_spec()
+    cfg = spec.raw["data_port"]
+    if port in set(cfg["forbidden"]):
+        raise ValueError(f"data port {port} is the discovery port and is forbidden")
+    if port == int(cfg["compatible_legacy"]):
+        return
+    if not (int(cfg["allowed_min"]) <= port <= int(cfg["allowed_max"])):
+        raise ValueError(
+            f"data port {port} outside {cfg['allowed_min']}–{cfg['allowed_max']}"
+        )
+
+
 def collect_repo_required_inputs() -> list[str]:
     """All REQUIRED_INPUT paths across frozen contract files."""
     missing: list[str] = []

@@ -1,14 +1,19 @@
-# Hand-to-robot mount. Hand-side numbers come from official with-mount MJCF.
+# Hand-to-robot mount. Hand-side numbers come from official Hand 2.2 MJCF.
 # Robot-side (T800 flange) rotation MUST come from CAD assembly — do not guess.
+#
+# Official 2.2 models are rooted at {l,r}_mount (69 g). There is no separate
+# `_with_mount` variant (removed with Beta 1/2 on 2026-10-12).
 
-schema_version: "1.0"
+schema_version: "1.1"
 
-# Official with-mount MJCF: {side}_wrist is a child of {side}_mount
-# right.xml: pos="0.003 0.00025016 -0.0285" quat="1 0 0 8.1995e-06"
+# Official hand2_2 MJCF: {side}_wrist is a child of {side}_mount
+# right.xml: pos="0.00300045189842 0 -0.0284982808512" quat="1 0 0 8.16917923e-06"
+# URDF r_wrist_fixed: xyz="0.00300045189842331 0 -0.0284982808511822"
+#                     rpy="0 0 1.63383584583942E-05"
 hand_mount_to_wrist:
-  source: third_party/wuji-description/hand2/hand2_beta1/body/mjcf/right_with_mount.xml
-  pos_m: [0.003, 0.00025016, -0.0285]
-  quat_wxyz: [1.0, 0.0, 0.0, 8.1995e-06]
+  source: third_party/wuji-description/hand2/hand2_2/body/mjcf/right.xml
+  pos_m: [0.00300045189842, 0.0, -0.0284982808512]
+  quat_wxyz: [1.0, 0.0, 0.0, 8.16917923e-06]
   mount_link: "{side}_mount"
   wrist_link: "{side}_wrist"
   mount_mass_kg: 0.069
@@ -22,13 +27,15 @@ humanoid:
   t800pro_right_wrist_link: LINK_WRIST_ROLL_R
 
 # Transform from T800 wrist link to Wuji {l,r}_mount.
-# Official Hand 2 mount STEP now exists:
-#   hand2/hand2_beta1/attachment/wuji-hand2-description-{left,right}-mount_beta1_step.STEP
+# Official 2.2 now ships:
+#   wrist adapter flange STEP: hand2/hand2_2/attachment/wuji-hand2-description-adapter-flange_hand2_2_step.STEP
+#   palm mount STEP/PDF:       hand2/hand2_2/attachment/wuji-hand2-description-{left,right}-mount_hand2_2_*
 # T800 wrist flange CAD is still required to fill this SE(3).
 t800_wrist_to_hand_mount:
   pos_m: REQUIRED_INPUT
   quat_wxyz: REQUIRED_INPUT
-  cad_source_hand: hand2/hand2_beta1/attachment/wuji-hand2-description-right-mount_beta1_step.STEP
+  cad_source_hand: hand2/hand2_2/attachment/wuji-hand2-description-adapter-flange_hand2_2_step.STEP
+  cad_source_hand_palm: hand2/hand2_2/attachment/wuji-hand2-description-right-mount_hand2_2_step.STEP
   cad_source_robot: REQUIRED_INPUT
 
 frames:

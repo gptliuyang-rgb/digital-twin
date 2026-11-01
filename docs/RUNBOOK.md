@@ -4,8 +4,10 @@
 
 ```bash
 python3 -m pip install -e ".[dev]"
-./scripts/bootstrap_resources.sh   # official Hand 2 + T800 URDF
+./scripts/bootstrap_resources.sh   # official Hand 2.2 + T800 URDF
 make test
+make ingest-official
+make check-drift
 make check-spec                    # expected to FAIL until REQUIRED_INPUT is filled
 ```
 
@@ -21,7 +23,8 @@ Optional: `pip install -e ".[sim]"` for MuJoCo, `".[vision]"` for OpenCV QR deco
 
 ```bash
 python3 scripts/check_upstream_drift.py
-# if it fails: inspect CHANGELOG, re-run ingest, update upstream_pin.json, re-fit E1/E2
+# if it fails: inspect release notes, re-run ingest, update upstream_pin.json, re-fit E1/E2
+# Beta 1/2 paths must stay gone (removed 2026-10-12).
 ```
 
 ## After pad / skin swap

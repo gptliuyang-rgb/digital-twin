@@ -15,6 +15,7 @@ clone() {
   fi
 }
 
+# Hand 2.2 / 2.1 live here. Beta 1/2 packages were removed in v2026.10.12.
 clone https://github.com/wuji-technology/wuji-description.git wuji-description
 clone https://github.com/engineai-robotics/engineai_robotics_native_sdk.git engineai-native-sdk
 

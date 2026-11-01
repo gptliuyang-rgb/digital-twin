@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "embodiment": "engineai_t800_wuji_hand2",
+  "embodiment": "engineai_t800_wuji_hand2_2",
   "n_active_dof": 20,
   "joint_order": [
     "thumb_cmc_flex",

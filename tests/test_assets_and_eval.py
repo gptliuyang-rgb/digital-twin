@@ -12,12 +12,17 @@ from sim.qr_scanner import decode_image, make_qr_png, simulate_scan
 
 
 def test_ingest_official_when_cloned() -> None:
-    if not (DEFAULT_UPSTREAM / "hand2/hand2_beta1/body/mjcf/right.xml").is_file():
+    if not (DEFAULT_UPSTREAM / "hand2/hand2_2/body/mjcf/right.xml").is_file():
         pytest.skip("wuji-description not cloned")
     report = ingest()
     assert report["ok"], report["mismatches"]
     assert report["n_actuators"] == 20
-    assert report["skeleton_mass_kg"] == pytest.approx(0.6207)
+    assert report["n_inertial_links"] == 27
+    assert report["n_contact_excludes"] == 15
+    assert report["n_group2_geoms"] == 27
+    assert report["skeleton_mass_kg"] == pytest.approx(0.6878)
+    assert report["cover_mass_kg"] == pytest.approx(0.7088)
+    np.testing.assert_allclose(report["mount_to_wrist"]["pos_m"], [0.00300045189842, 0.0, -0.0284982808512])
 
 
 def test_modality_tracks_joint_order() -> None:

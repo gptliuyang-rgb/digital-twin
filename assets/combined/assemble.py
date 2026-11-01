@@ -20,7 +20,14 @@ def combined_paths() -> dict:
     return {
         "t800_urdf": str(T800_URDF),
         "hand_right_mjcf": str(
-            REPO_ROOT / "third_party" / "wuji-description" / "hand2" / "hand2_beta1" / "body" / "mjcf" / "right_with_mount.xml"
+            REPO_ROOT
+            / "third_party"
+            / "wuji-description"
+            / "hand2"
+            / "hand2_2"
+            / "body"
+            / "mjcf"
+            / "right.xml"
         ),
         "wrist_links": ["LINK_WRIST_END_L", "LINK_WRIST_END_R"],
         "mount_ready": mount_ready(),

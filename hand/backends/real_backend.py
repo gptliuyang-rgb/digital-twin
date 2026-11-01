@@ -2,6 +2,9 @@
 
 Needs: pip install wuji-sdk, device on 192.168.1.0/24 (factory IPs in dexhand2_spec.yaml).
 This module does not import wuji_sdk at top level so CI without hardware still collects.
+
+Factory TCP endpoint is `factory_tcp_endpoint(side)` (192.168.1.110/111:50001).
+Data-port rules (2026-10-26): 7400–65535, 7447 compatible, 50000 forbidden.
 """
 
 from __future__ import annotations
@@ -11,7 +14,7 @@ from typing import Any
 import numpy as np
 
 from hand.backends.base import HandBackend, HandState
-from interface.schema import load_joint_map
+from interface.schema import factory_tcp_endpoint, load_hand_spec, load_joint_map, validate_data_port
 
 
 class RealBackend(HandBackend):
@@ -20,6 +23,11 @@ class RealBackend(HandBackend):
         self._handedness = handedness
         self._pub: Any = None
         self._map = load_joint_map()
+        spec = load_hand_spec()
+        validate_data_port(int(spec.raw["factory_ip"]["port"]), spec)
+
+    def factory_endpoint(self) -> str:
+        return factory_tcp_endpoint(self._handedness or "right")
 
     def connect(self) -> None:
         try:
